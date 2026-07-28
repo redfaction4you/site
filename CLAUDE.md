@@ -22,9 +22,12 @@ Phase 1 is built and running locally. Outstanding to finish it:
 
 1. **Discord OAuth app** — not created. `AUTH_DISCORD_ID` / `AUTH_DISCORD_SECRET`
    are empty in `.env.local`, so sign-in is untested end to end.
-2. **Verify migrations landed** — `npm run db:check` (written for this, not yet
-   run to a confirmed pass).
-3. **GitHub org + repo**, then push.
+2. ~~Verify migrations landed~~ — **done, 28 July 2026.** `npm run db:check`
+   passes: accounts, sessions, users, verificationToken all present, one
+   migration recorded.
+3. **GitHub org + repo.** Git is initialised locally and Phase 1 is committed on
+   `main`; there is no remote. The org `redfaction4you` does not exist yet, and
+   GitHub has no API for creating one, so that step is a browser job.
 4. **Vercel** — import, env vars, **generate a separate `AUTH_SECRET` for
    production**, add the production callback URL to Discord.
 5. **Domain repoint** — last. `redfaction4you.com` is currently a Google Site and
@@ -40,6 +43,8 @@ Stubs (Phase 2/4): `/maps`, `/mods`, `/models`, `/weapons`, `/tools`, `/guides`,
 npm run dev          # localhost:3000
 npm run typecheck    # tsc --noEmit — run before every push
 npm run lint
+npm test             # node --test, currently the RFL/VPP/ZIP readers
+npm run rfl -- <file>  # print what the site would record about a download
 npm run db:generate  # drizzle-kit generate → ./drizzle/*.sql
 npm run db:migrate   # apply to Neon
 npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
@@ -72,6 +77,34 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   from `src/lib/auth.ts`; keep that guard.
 - **Neon connection strings**: pooled (`-pooler` in host) for the app, direct for
   migrations. Neon's pooler rejects the statements drizzle-kit issues.
+
+## Compatibility detection (`src/lib/rfl/`)
+
+Phase 2 groundwork, built ahead of the upload path. `inspectUpload(bytes)` takes
+a bare `.rfl`, a `.vpp` packfile, a `.zip`, or a `.zip` containing a `.vpp`, and
+returns the format version of every level inside plus the clients that can load
+them. Detection is by content, never by extension.
+
+- **The version table lives in `clients.ts` with a `RFL_TABLE_VERIFIED_ON`
+  date and its sources named.** Re-check it when Alpine ships a format bump.
+  Versions 201–299 are a documented gap: they report `confidence: "unknown"`
+  rather than a guess, because a confidently wrong badge is worse than an
+  honest one.
+- **Everything has been tested against synthetic fixtures only.** We do not
+  have a single real Red Faction file on disk. The spec could differ from what
+  RED actually wrote in 2001. `npm run rfl -- <file>` on a genuine map is the
+  outstanding test, and the per-file 2048-byte alignment assumption in `vpp.ts`
+  is the thing most likely to be wrong.
+- **`required_features` is deliberately not implemented.** Unlike `rfl_version`
+  and `plays_on` it cannot be read from the header — it needs the section list
+  parsed and Alpine event types recognised. The version alone answers "will
+  this load", which is the question that costs people a broken download.
+- **`zip.ts` imports `node:zlib`**, so anything importing this module must run
+  on the Node runtime, not the edge runtime.
+- `tsconfig.json` sets `allowImportingTsExtensions` so this module's relative
+  imports carry `.ts`. That is what lets plain `node` run the real parser in
+  tests and in the CLI with no build step. It is the only module written that
+  way; the rest of `src/` uses `@/`.
 
 ## Conventions
 

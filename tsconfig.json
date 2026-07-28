@@ -11,6 +11,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // src/lib/rfl uses explicit .ts extensions in its relative imports so that
+    // plain `node` can run it directly (Node 22 strips types). That is what
+    // lets scripts/rfl.test.mjs exercise the real parser with no build step.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],

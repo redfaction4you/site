@@ -12,6 +12,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"scripts/*.test.mjs\"",
+    "rfl": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/inspect-level.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "node scripts/check-db.mjs",
