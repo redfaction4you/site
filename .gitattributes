@@ -1,0 +1,12 @@
+# Normalise to LF in the repository. Development is on Windows, the Vercel
+# build is Linux; without this the first checkout on either side shows every
+# file as modified.
+* text=auto eol=lf
+
+# Binary, never touch.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.vpp binary
+*.rfl binary

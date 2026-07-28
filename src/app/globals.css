@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   RF4U palette.
+
+   Lifted from the RF4U CTF Tournament Hub (Index/index.html) so the archive and
+   the tournament site read as one product. Token NAMES are unchanged from the
+   first draft on purpose: every existing className keeps working, only the
+   values moved.
+
+   Source colours: #e0301e red, #e6b64f gold, #0c0c10 ground, #cfcdc6 text.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-basalt-950: #0a0a0c;
+  --color-basalt-900: #0c0c10;
+  --color-basalt-850: #17171c;
+  --color-basalt-800: #1e1e25;
+  --color-basalt-700: #26262e;
+  --color-basalt-600: #33333c;
+  --color-basalt-500: #3a3a44;
+
+  --color-rust-200: #f7b3a8;
+  --color-rust-300: #ef7a68;
+  --color-rust-400: #ff5a44;
+  --color-rust-500: #e0301e;
+  --color-rust-600: #b32517;
+  --color-rust-700: #7d1a10;
+
+  --color-oxide-300: #f0cf85;
+  --color-oxide-400: #e6b64f;
+  --color-oxide-500: #c2953a;
+
+  --color-steel-100: #e8e6e1;
+  --color-steel-200: #cfcdc6;
+  --color-steel-300: #b9b6ad;
+  --color-steel-400: #8b887f;
+  --color-steel-500: #6f6d66;
+
+  --color-signal-green: #57b36a;
+
+  --radius-panel: 3px;
+}
+
+/* Bind the next/font variables into Tailwind's font scale.
+
+   `font-brand` is Black Ops One, used sparingly: the wordmark and the hero
+   headline only. It ships a single 400 weight, so applying font-bold to it
+   would trigger ugly synthetic bolding. Everything else is Chakra Petch, which
+   has real 600 and 700 cuts. This mirrors how the tournament hub uses them. */
+@theme inline {
+  --font-sans: var(--font-chakra), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-chakra), ui-sans-serif, system-ui, sans-serif;
+  --font-brand: var(--font-blackops), var(--font-chakra), sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    color: var(--color-steel-200);
+    background-color: var(--color-basalt-950);
+    background-image:
+      radial-gradient(
+        900px 420px at 50% -80px,
+        rgba(224, 48, 30, 0.1),
+        transparent 65%
+      ),
+      linear-gradient(var(--color-basalt-900), var(--color-basalt-950));
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background-color: var(--color-rust-500);
+    color: var(--color-steel-100);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-oxide-400);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Small uppercase label above section headings. */
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--color-rust-500);
+  }
+
+  /* The standard bordered slab most content sits in. */
+  .panel {
+    background-color: var(--color-basalt-850);
+    border: 1px solid var(--color-basalt-600);
+    border-radius: var(--radius-panel);
+  }
+
+  /* Diagonal warning stripe, straight from the tournament hub.
+     Used as a single 8px rule under the header. */
+  .hazard {
+    height: 8px;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--color-rust-500) 0 14px,
+      #141414 14px 28px
+    );
+  }
+}
+
+/* Black Ops One only ships one weight. Never synthesise a heavier one.
+   Sits outside @layer so it beats Tailwind's font-bold utility. */
+.font-brand {
+  font-weight: 400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

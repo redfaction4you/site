@@ -1,0 +1,113 @@
+# RedFaction4You — site
+
+A community archive for Red Faction (2001): maps, mods, player models, custom
+weapons, tools, guides, videos and events. Free, no account needed to download,
+self-hosted so it does not vanish when someone else's server does.
+
+Intended repo home: `github.com/redfaction4you/site` (org not created yet).
+
+## The scope rule
+
+**If it is not something you can download, read or watch, it does not ship.**
+
+This rule is load-bearing. It is the result of three rounds of cutting and it
+killed, in order: a C++ client fork (Red Faction Classic), a UDP game-server
+tracker, a live server browser, the game servers section, the weekly match
+schedule, and a standalone client-comparison page. Apply it before adding
+anything. The full reasoning is in `../BUILD-PLAN.md`.
+
+## Current state
+
+Phase 1 is built and running locally. Outstanding to finish it:
+
+1. **Discord OAuth app** — not created. `AUTH_DISCORD_ID` / `AUTH_DISCORD_SECRET`
+   are empty in `.env.local`, so sign-in is untested end to end.
+2. **Verify migrations landed** — `npm run db:check` (written for this, not yet
+   run to a confirmed pass).
+3. **GitHub org + repo**, then push.
+4. **Vercel** — import, env vars, **generate a separate `AUTH_SECRET` for
+   production**, add the production callback URL to Discord.
+5. **Domain repoint** — last. `redfaction4you.com` is currently a Google Site and
+   keeps serving until DNS changes, so there is no downtime window.
+
+Live pages: `/`, `/videos`, `/discord`, `/members/[handle]`, `/signin`.
+Stubs (Phase 2/4): `/maps`, `/mods`, `/models`, `/weapons`, `/tools`, `/guides`,
+`/events`.
+
+## Commands
+
+```bash
+npm run dev          # localhost:3000
+npm run typecheck    # tsc --noEmit — run before every push
+npm run lint
+npm run db:generate  # drizzle-kit generate → ./drizzle/*.sql
+npm run db:migrate   # apply to Neon
+npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
+npm run db:studio
+```
+
+## Stack
+
+Next.js 15.5 App Router · TypeScript · Tailwind v4 · Auth.js v5 (beta) with
+Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R2
+(Phase 2).
+
+## Gotchas, all of which have already bitten once
+
+- **`drizzle.config.ts` must load `.env.local` explicitly.** `dotenv/config`
+  reads `.env` only; `.env.local` is a Next convention dotenv knows nothing
+  about. Already fixed — do not "simplify" it back.
+- **Tailwind v4 has no config file.** The theme lives in `@theme { }` inside
+  `src/app/globals.css`. There is deliberately no `tailwind.config.ts`.
+- **Colour token names are historical.** `basalt`, `rust`, `oxide`, `steel` no
+  longer describe the colours; only their values changed when the site was
+  rethemed. Renaming them would touch every component for no benefit.
+- **`font-brand` (Black Ops One) ships one weight.** Never combine it with
+  `font-bold` or similar — synthetic bolding looks awful. A bare
+  `.font-brand { font-weight: 400 }` rule sits outside `@layer` to win against
+  Tailwind utilities. Use it only for the wordmark and hero headline; everything
+  else is Chakra Petch, which has real 600/700 cuts.
+- **`auth()` runs in `SiteHeader`, so it renders on every page.** Anything that
+  throws there takes the whole site down. It is guarded by `discordConfigured`
+  from `src/lib/auth.ts`; keep that guard.
+- **Neon connection strings**: pooled (`-pooler` in host) for the app, direct for
+  migrations. Neon's pooler rejects the statements drizzle-kit issues.
+
+## Conventions
+
+- Data that is small and rarely changes lives in a typed file under `src/lib/`
+  rather than the database: `videos.ts`, `nav.ts`. It renders without a query and
+  is one pull request to change. Move to Postgres only when hand-editing hurts.
+- Unbuilt routes use `<StubPage>` and state plainly what is coming and in which
+  phase. They never 404 and never say "under construction".
+- Prose on the site is plain and non-promotional. Where a tradeoff exists, name
+  it — see the video archive admitting that deleted uploads leave dead links.
+
+## Theme
+
+Taken from the RF4U CTF Tournament Hub (`../Index/index.html`) so both
+properties read as one product: `#e0301e` red, `#e6b64f` gold, `#0c0c10` ground,
+Black Ops One wordmark, Chakra Petch body, hazard stripe under the header,
+fist-and-pickaxe favicon at `public/icon.png`.
+
+## Sibling files (parent directory, not part of this repo)
+
+- `../BUILD-PLAN.md` — living plan, phases, risks, open questions
+- `../Index/index.html` — the existing RF4U CTF Tournament Hub. A single 336KB
+  file on Firebase 10.14.1 with email/password accounts. Phase 4 absorbs it,
+  which means **rebuilding**, not porting, and picking one identity system.
+  Discord should win. Do not invest further in Firebase accounts.
+- `../SETUP.md` — Firebase setup guide for that hub
+- `../Tourney Images/` — existing branding assets (raster only)
+
+## Open questions blocking later work
+
+1. **Levels4You archive** — do we have it? Seeding the catalogue from it is the
+   single biggest factor in whether Phase 2 launches with content or with an
+   empty shell. This matters more than any code.
+2. **First videos** — `src/lib/videos.ts` is an empty array by design.
+3. **Discord role IDs** for Mapper and Admin.
+4. **What the dedicated server records** — decides what Phase 3 player statistics
+   can show. Constraints: the VPS must not be hogged (batch export, not live
+   queries), and reconciling Discord identity against RF player names is the hard
+   part, not the charts.
