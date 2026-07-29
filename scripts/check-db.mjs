@@ -21,7 +21,18 @@ if (!url) {
 
 const sql = neon(url);
 
-const EXPECTED = ["accounts", "sessions", "users", "verificationToken"];
+const EXPECTED = [
+  // Phase 1: identity
+  "accounts",
+  "sessions",
+  "users",
+  "verificationToken",
+  // Phase 2: the catalogue
+  "items",
+  "files",
+  "map_meta",
+  "screenshots",
+];
 
 try {
   const host = new URL(url).host;

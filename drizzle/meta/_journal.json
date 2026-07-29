@@ -8,6 +8,13 @@
       "when": 1785231871148,
       "tag": "0000_bumpy_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785302366020,
+      "tag": "0001_fair_inhumans",
+      "breakpoints": true
     }
   ]
 }
