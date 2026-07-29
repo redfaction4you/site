@@ -36,10 +36,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "RedFaction4You",
-    title: "RedFaction4You",
-    description:
-      "A community archive for Red Faction (2001): maps, mods, tools, guides and videos.",
+    // No title or description here on purpose.
+    //
+    // Metadata is inherited, so anything set at the root wins on every page
+    // that does not override it — which is why a Discord link to /players used
+    // to unfurl as "a community archive for Red Faction: maps, mods, tools...".
+    // Leaving these out lets each page's own title and description populate the
+    // preview instead.
   },
+  twitter: { card: "summary" },
 };
 
 export const viewport: Viewport = {

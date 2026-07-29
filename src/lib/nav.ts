@@ -26,16 +26,21 @@ export const NAV: NavItem[] = [
   // The catalogue sections are built now, so they carry no phase tag. They are
   // empty, but an empty shelf and an unbuilt shelf are different things and the
   // pages say which they are.
+  // The catalogue is built but empty. Hidden until there is something on the
+  // shelves; every page still answers, so shared links keep working.
   { href: "/maps", label: "Maps", hidden: true },
-  { href: "/mods", label: "Mods" },
-  { href: "/models", label: "Models" },
+  { href: "/mods", label: "Mods", hidden: true },
+  { href: "/models", label: "Models", hidden: true },
   { href: "/weapons", label: "Weapons", hidden: true },
-  { href: "/tools", label: "Tools" },
+  { href: "/tools", label: "Tools", hidden: true },
   { href: "/videos", label: "Videos", hidden: true },
   { href: "/guides", label: "Guides", hidden: true },
+
+  // What actually has something behind it today.
   { href: "/matches", label: "Matches" },
   { href: "/players", label: "Players" },
-  { href: "/events", label: "Events", phase: 4 },
+  { href: "/server", label: "Server" },
+  { href: "/events", label: "Events" },
 ];
 
 /**

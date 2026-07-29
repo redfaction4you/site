@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { DISCORD_INVITE } from "@/lib/nav";
+import { DISCORD_INVITE, VISIBLE_NAV } from "@/lib/nav";
 
 const COMMITMENTS = [
   {
@@ -17,48 +17,39 @@ const COMMITMENTS = [
   },
 ];
 
-const SECTIONS = [
-  {
-    href: "/maps",
-    label: "Maps",
-    body: "Custom levels going back two decades, each tagged with the clients that can load it.",
-  },
-  {
-    href: "/mods",
-    label: "Mods",
-    body: "Total conversions and gameplay overhauls, with install instructions per store release.",
-  },
-  {
-    href: "/models",
-    label: "Models",
-    body: "Player models and character skins, with preview renders rather than just a filename.",
-  },
-  {
-    href: "/weapons",
-    label: "Weapons",
-    body: "Custom weapons and reskins, marked clearly for whether they change behaviour or just looks.",
-  },
-  {
-    href: "/tools",
-    label: "Tools",
-    body: "RED, the official RF toolkit and the community utilities. Every one with a written guide.",
-  },
-  {
-    href: "/videos",
-    label: "Videos",
-    body: "Tutorials, matches, speedruns and machinima, curated rather than scraped.",
-  },
-  {
-    href: "/guides",
-    label: "Guides",
-    body: "How to install a map, use the editor, pack a level, and pick a client.",
-  },
-  {
-    href: "/events",
-    label: "Events",
-    body: "Tournaments, community nights and map jams, plus the Hall of Champions.",
-  },
-];
+/**
+ * One line per section, keyed by route.
+ *
+ * Which of these appear is decided by VISIBLE_NAV, not by this list. The home
+ * page used to keep its own copy of the sections and drifted out of step with
+ * the navigation the moment anything was hidden — the header dropped Maps and
+ * Weapons while the page below it still offered both.
+ */
+const SECTION_BLURBS: Record<string, string> = {
+  "/maps":
+    "Custom levels going back two decades, each tagged with the clients that can load it.",
+  "/mods":
+    "Total conversions and gameplay overhauls, with install instructions per store release.",
+  "/models":
+    "Player models and character skins, with preview renders rather than just a filename.",
+  "/weapons":
+    "Custom weapons and reskins, marked clearly for whether they change behaviour or just looks.",
+  "/tools":
+    "RED, the official RF toolkit and the community utilities. Every one with a written guide.",
+  "/videos": "Tutorials, matches, speedruns and machinima, curated rather than scraped.",
+  "/guides": "How to install a map, use the editor, pack a level, and pick a client.",
+  "/matches":
+    "Every match played on the server, with full scoreboards, capture timelines and event logs.",
+  "/players": "Who plays, how they do, and their record across every archived match.",
+  "/server": "Where to play, how to connect, and what the server is running.",
+  "/events": "Tournaments, community nights and the Hall of Champions.",
+};
+
+const SECTIONS = VISIBLE_NAV.map((item) => ({
+  href: item.href,
+  label: item.label,
+  body: SECTION_BLURBS[item.href] ?? "",
+}));
 
 export default function HomePage() {
   return (
@@ -79,24 +70,26 @@ export default function HomePage() {
             <span className="text-rust-500">in one place that stays up.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-steel-300">
-            Maps, mods, tools, guides and videos for a game from 2001, collected
-            properly instead of scattered across dead forums. Free, no account
-            needed, and hosted by us so it does not vanish when someone else&rsquo;s
-            server does.
+            Match results, player records and the files for a game from 2001,
+            collected properly instead of scattered across dead forums. Free, no
+            account needed, and hosted by us so it does not vanish when someone
+            else&rsquo;s server does.
           </p>
 
+          {/* These point at what exists today. The catalogue takes over as the
+              primary call to action once it has something on the shelves. */}
           <div className="mt-9 flex flex-wrap gap-3">
             <Link
-              href="/maps"
+              href="/matches"
               className="rounded-sm bg-rust-500 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
             >
-              Browse the archive
+              Latest matches
             </Link>
             <Link
-              href="/videos"
+              href="/players"
               className="rounded-sm border border-basalt-600 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-200 transition-colors hover:border-steel-500 hover:text-steel-100"
             >
-              Watch something
+              Player records
             </Link>
           </div>
         </div>
