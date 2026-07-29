@@ -55,5 +55,11 @@ export async function POST(request: Request) {
     reports,
     columns: night.columns,
     announced: night.posted,
+    // Nothing written is a legitimate outcome, but it is indistinguishable
+    // from a silent failure without saying so.
+    note:
+      night.columns === 0
+        ? "No column written. Either every finished night already has one, or generation returned nothing. Check the function logs."
+        : undefined,
   });
 }

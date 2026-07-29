@@ -95,7 +95,7 @@ type Result = { text?: string | null; tryNext?: boolean };
  * writing a word, and that counts against the limit. Thinking cannot be turned
  * off either: thinkingBudget 0 is rejected and 128 was ignored in favour of 480.
  */
-const GEMINI_MAX_OUTPUT = 3000;
+const GEMINI_MAX_OUTPUT = 8000;
 
 async function callGemini(system: string, prompt: string, a: Attempt): Promise<Result> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${a.model}:generateContent`;

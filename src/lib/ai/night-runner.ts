@@ -80,10 +80,21 @@ export async function backfillColumns(): Promise<number> {
   for (const night of pending) {
     try {
       const facts = await buildNightFacts(night.archiveDay);
-      if (!facts) continue;
+      if (!facts) {
+        console.warn(`[ai] no facts for ${night.archiveDay}, skipping`);
+        continue;
+      }
 
       const column = await writeNightColumn(facts);
-      if (!column) continue;
+      if (!column) {
+        // Worth a line rather than a silent skip. This failed quietly for
+        // hours: every condition was met, nothing was written, and nothing
+        // said why.
+        console.warn(
+          `[ai] no column written for ${night.archiveDay} from a ${facts.prompt.length} char prompt`,
+        );
+        continue;
+      }
 
       await db
         .insert(nightColumns)
