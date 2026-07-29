@@ -81,20 +81,44 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
       blueScore: matches.blueScore,
       overtime: matches.overtime,
       winner: matches.winner,
-      playerCount: sql<number>`(
-        select count(*)::int from ${matchPlayers}
-        where ${matchPlayers.matchId} = ${matches.id}
-          and ${matchPlayers.spectator} = false
-      )`,
     })
     .from(matches)
     .where(eq(matches.archiveDay, archiveDay))
     .orderBy(asc(matches.startedAt), asc(matches.sourceMatchId));
 
+  if (rows.length === 0) return [];
+
+  // A second query rather than a correlated subquery in the select. The
+  // subquery version rendered to something that returned zero for every match
+  // while the same SQL by hand returned the right counts, and a grouped join is
+  // both clearer and not worth debugging a template for.
+  const counts = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      playerCount: sql<number>`count(*)::int`,
+    })
+    .from(matchPlayers)
+    .where(
+      and(
+        inArray(
+          matchPlayers.matchId,
+          rows.map((row) => row.id),
+        ),
+        eq(matchPlayers.spectator, false),
+      ),
+    )
+    .groupBy(matchPlayers.matchId);
+
+  const byMatch = new Map(counts.map((row) => [row.matchId, row.playerCount]));
+
   // Numbered by when they were played, not by the server's match id. The ids
   // keep counting across restarts, so the third game of the evening is rarely
   // match 3 as far as the server is concerned.
-  return rows.map((row, index) => ({ ...row, number: index + 1 }));
+  return rows.map((row, index) => ({
+    ...row,
+    number: index + 1,
+    playerCount: byMatch.get(row.id) ?? 0,
+  }));
 });
 
 /** A player row as the public sees it. No identity key, by construction. */
