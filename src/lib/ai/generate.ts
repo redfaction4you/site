@@ -15,6 +15,17 @@ export type AiProvider = "gemini" | "openai";
 /** Long enough for a few paragraphs, short enough not to hang an ingest. */
 const TIMEOUT_MS = 25_000;
 
+/**
+ * An alias rather than a pinned version, deliberately.
+ *
+ * Google retires specific model names to new keys: gemini-2.5-flash is still
+ * listed by the models endpoint but answers 404 with "no longer available to
+ * new users". A pinned name is a thing that breaks quietly one day. The alias
+ * tracks whatever the current flash model is, and the report is decoration, so
+ * the tradeoff runs the right way here.
+ */
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+
 export function configuredProvider(): AiProvider | null {
   const forced = process.env.AI_PROVIDER?.toLowerCase();
   if (forced === "gemini") return process.env.GEMINI_API_KEY ? "gemini" : null;
@@ -28,13 +39,13 @@ export function configuredProvider(): AiProvider | null {
 /** Recorded alongside generated text so we know what wrote it. */
 export function activeModel(): string | null {
   const provider = configuredProvider();
-  if (provider === "gemini") return process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  if (provider === "gemini") return process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
   if (provider === "openai") return process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   return null;
 }
 
 async function callGemini(system: string, prompt: string): Promise<string | null> {
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const response = await fetch(url, {
@@ -46,7 +57,16 @@ async function callGemini(system: string, prompt: string): Promise<string | null
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 700 },
+      /**
+       * The budget covers internal reasoning as well as the reply.
+       *
+       * Current flash models spend several hundred tokens thinking before
+       * writing a word, and that counts against maxOutputTokens. A budget
+       * sized for three paragraphs produces a sentence and a half. Thinking
+       * cannot be switched off here either: thinkingBudget 0 is rejected
+       * outright and 128 was ignored in favour of 480.
+       */
+      generationConfig: { temperature: 0.8, maxOutputTokens: 2500 },
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
     cache: "no-store",
@@ -58,10 +78,22 @@ async function callGemini(system: string, prompt: string): Promise<string | null
   }
 
   const body = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: {
+      finishReason?: string;
+      content?: { parts?: { text?: string }[] };
+    }[];
   };
 
-  const text = body.candidates?.[0]?.content?.parts
+  const candidate = body.candidates?.[0];
+
+  // Half a sentence is worse than nothing. Better to leave the report null and
+  // retry on the next sync than publish prose that stops mid-word.
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+    console.warn(`[ai] gemini stopped early: ${candidate.finishReason}`);
+    return null;
+  }
+
+  const text = candidate?.content?.parts
     ?.map((part) => part.text ?? "")
     .join("")
     .trim();
