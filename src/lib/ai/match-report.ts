@@ -36,11 +36,37 @@ Hard rules:
 - Do not use em dashes.
 - Refer to players exactly by the names given, including odd capitalisation.
 - Never guess a player's gender. Use they/them if you need a pronoun.
-- Maximum three paragraphs.`;
+- Maximum three paragraphs.
+
+On timing: each capture is labelled with where it sits in the match. Use that
+label, not the clock reading, to decide whether something was early or late. A
+goal at 3:51 of a ten minute match is not an early lead.`;
 
 /** Turns seconds into the clock format the site shows elsewhere. */
 function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Where a moment sits in the match, as a phrase rather than a number.
+ *
+ * The model has no sense of proportion on its own: given a capture at 3:51 it
+ * called it an early lead, which in a ten minute match it plainly is not. Doing
+ * the arithmetic here and handing over the answer is more reliable than asking
+ * it to reason about fractions, and it stops the report reaching for "early"
+ * because the clock looks small.
+ */
+function phase(elapsed: number, total: number | null): string {
+  if (!total || total <= 0) return "at an unrecorded point in the match";
+
+  const fraction = elapsed / total;
+  if (fraction <= 0.1) return "in the opening exchanges";
+  if (fraction <= 0.3) return "in the first third";
+  if (fraction <= 0.45) return "approaching the midpoint";
+  if (fraction <= 0.6) return "around the midpoint";
+  if (fraction <= 0.8) return "in the second half";
+  if (fraction <= 0.95) return "late on";
+  return "in the closing moments";
 }
 
 /**
@@ -55,10 +81,21 @@ function buildPrompt(match: MatchDetail): string {
   const active = match.players.filter((p) => !p.spectator);
   const lines: string[] = [];
 
+  const totalSeconds =
+    match.startedAt && match.endedAt
+      ? Math.round((match.endedAt.getTime() - match.startedAt.getTime()) / 1000)
+      : null;
+
   lines.push(`Map: ${match.mapName}`);
   lines.push(`Mode: ${match.mode}`);
   lines.push(`Final score: red ${match.redScore}, blue ${match.blueScore}`);
   lines.push(`Winner: ${match.winner ?? "no winner recorded"}`);
+  if (totalSeconds) {
+    lines.push(
+      `The match lasted ${clock(totalSeconds)}. Judge whether something happened ` +
+        `early or late against that length, not against the clock reading alone.`,
+    );
+  }
   if (match.overtime) lines.push("The match went to overtime.");
   lines.push("");
 
@@ -83,7 +120,8 @@ function buildPrompt(match: MatchDetail): string {
     lines.push("Captures, in order:");
     for (const c of match.captures) {
       lines.push(
-        `  ${clock(c.elapsedSeconds)} ${c.team} scored through ${c.playerName ?? "an unknown player"}` +
+        `  ${clock(c.elapsedSeconds)} (${phase(c.elapsedSeconds, totalSeconds)}) ` +
+          `${c.team} scored through ${c.playerName ?? "an unknown player"}` +
           `, making it red ${c.redScore} blue ${c.blueScore}` +
           (c.assists.length ? `, assisted by ${c.assists.join(" and ")}` : ""),
       );

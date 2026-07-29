@@ -385,7 +385,7 @@ export function MatchDetailView({
           <p className="mt-3 text-[11px] text-steel-600">
             Written automatically from the scoreboard and event log
             {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
-            figures recorded above.
+            figures recorded on this page.
           </p>
         </div>
       ) : null}

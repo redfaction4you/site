@@ -39,6 +39,8 @@ Hard rules:
 - Do not use em dashes.
 - No headings, no bullet points, no markdown. Plain paragraphs.
 - Four to six paragraphs. Stop when you have said what there is to say.
+- Matches run about ten minutes. Judge early and late against that, not against
+  the clock reading. A goal at 3:51 is not an early lead.
 
 First line of your reply must be a headline on its own, under 70 characters,
 with no quotes and no trailing full stop. Then a blank line. Then the column.`;
