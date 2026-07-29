@@ -7,6 +7,21 @@ export const metadata: Metadata = {
   title: "Players",
   description:
     "Everyone who has played on the RedFaction4You server, with their record across every archived match.",
+  /**
+   * Not indexed by search engines, on purpose.
+   *
+   * The scoreboard data here is not private: everyone in the match saw those
+   * numbers, and the community server browser already lists who is playing.
+   * What changes with a profile is aggregation and permanence, and the part
+   * that actually feels invasive is searchability. Nobody signed up to have
+   * their handle turn up in a web search because they played a game.
+   *
+   * `follow` stays on so the links still lead crawlers to the match pages,
+   * which are the archive proper. This is done with a meta tag rather than a
+   * robots.txt rule on purpose: a disallow rule stops crawlers reading the
+   * page, which means they never see the instruction not to index it.
+   */
+  robots: { index: false, follow: true },
 };
 
 export const dynamic = "force-dynamic";

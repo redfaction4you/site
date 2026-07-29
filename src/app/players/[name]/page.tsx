@@ -28,6 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: player.name,
     description: `${player.name} on the RedFaction4You server: ${player.matchesPlayed} matches, ${player.kills} frags, ${player.caps} captures.`,
+    // See the note on /players. A player's handle should not become a search
+    // result because they turned up to a game.
+    robots: { index: false, follow: true },
   };
 }
 
