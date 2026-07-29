@@ -75,8 +75,26 @@ export type PublicPlayer = {
   successfulFlagDrives: number;
   successfulCarryMs: number;
   fastestCaptureMs: number | null;
+  /** Empty for matches archived before the 2.1 broadcaster. */
+  weaponStats: PublicWeaponStat[];
   /** Private. Stored, never served. */
   identityKey: string | null;
+};
+
+/**
+ * Per weapon shooting, added by the 2.1 broadcaster.
+ *
+ * Earlier versions recorded the weapon on a frag but not on every shot, so
+ * per weapon accuracy was impossible and the package said so. 2.1 records
+ * shots and hits per weapon, which makes it real. Matches archived before the
+ * upgrade have no weapon data and never will: it was never recorded.
+ */
+export type PublicWeaponStat = {
+  weapon: string;
+  shotsHit: number;
+  shotsFired: number;
+  accuracy: number;
+  kills: number;
 };
 
 export type PublicCapture = {
@@ -176,6 +194,39 @@ const MAX_FIELDS = [
   "successfulCarryMs",
 ] as const;
 
+/**
+ * Named field by field like everything else, and capped.
+ *
+ * `weapon_id` is deliberately dropped: it is an engine internal that means
+ * nothing to a reader and would only invite someone to key data off a number
+ * that could change between client versions. The name is the thing.
+ */
+function sanitizeWeaponStats(source: unknown): PublicWeaponStat[] {
+  if (!Array.isArray(source)) return [];
+
+  return source
+    .map((entry) => {
+      const raw = entry as Record<string, unknown>;
+      const weapon = text(raw.weapon, 80);
+      if (!weapon) return null;
+
+      const shotsHit = Math.max(0, finite(raw.shots_hit));
+      const shotsFired = Math.max(0, finite(raw.shots_fired));
+
+      return {
+        weapon,
+        shotsHit,
+        shotsFired,
+        // Recomputed rather than trusted, same as overall accuracy.
+        accuracy: shotsFired > 0 ? shotsHit / shotsFired : Math.max(0, finite(raw.accuracy)),
+        kills: whole(raw.kills),
+      };
+    })
+    .filter((stat): stat is PublicWeaponStat => stat !== null)
+    .sort((a, b) => b.kills - a.kills || b.shotsFired - a.shotsFired)
+    .slice(0, 40);
+}
+
 function sanitizePlayer(source: Record<string, unknown> = {}): PublicPlayer {
   const player: PublicPlayer = {
     name: text(source.name, 80) || "Unknown player",
@@ -204,6 +255,7 @@ function sanitizePlayer(source: Record<string, unknown> = {}): PublicPlayer {
     fastestCaptureMs: finite(source.fastest_capture_ms) > 0
       ? whole(source.fastest_capture_ms)
       : null,
+    weaponStats: sanitizeWeaponStats(source.weapon_stats),
     identityKey: nullableText(source.identity_id, 128),
   };
 
@@ -244,6 +296,13 @@ export function mergePlayers(left: PublicPlayer, right: PublicPlayer): PublicPla
 
   // Keep whichever row actually carried an identity.
   merged.identityKey = left.identityKey ?? right.identityKey;
+
+  // Snapshots again: the richer list is the later one, so take whichever has
+  // more rather than concatenating two views of the same totals.
+  merged.weaponStats =
+    right.weaponStats.length >= left.weaponStats.length
+      ? right.weaponStats
+      : left.weaponStats;
 
   return merged;
 }

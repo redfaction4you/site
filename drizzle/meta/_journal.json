@@ -43,6 +43,13 @@
       "when": 1785322894239,
       "tag": "0005_quiet_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785326335420,
+      "tag": "0006_rich_morgan_stark",
+      "breakpoints": true
     }
   ]
 }

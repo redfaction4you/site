@@ -23,6 +23,7 @@ import type {
   PublicFlagEvent,
   PublicKill,
   PublicRosterEvent,
+  PublicWeaponStat,
 } from "../matches/sanitize.ts";
 
 /**
@@ -492,6 +493,18 @@ export const matchPlayers = pgTable(
      * ever populates its own capture_assists and drive_participants fields,
      * prefer those and retire this.
      */
+    /**
+     * Per weapon shooting, from the 2.1 broadcaster onward.
+     *
+     * Empty for every match archived before the upgrade, and permanently so:
+     * earlier telemetry recorded the weapon on a frag but not on every shot,
+     * so the data was never captured and cannot be reconstructed.
+     */
+    weaponStats: jsonb("weapon_stats")
+      .$type<PublicWeaponStat[]>()
+      .default([])
+      .notNull(),
+
     soloCaps: integer("solo_caps").default(0).notNull(),
     relayCaps: integer("relay_caps").default(0).notNull(),
     leadCarries: integer("lead_carries").default(0).notNull(),

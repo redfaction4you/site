@@ -107,6 +107,7 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
           successfulFlagDrives: player.successfulFlagDrives,
           successfulCarryMs: player.successfulCarryMs,
           fastestCaptureMs: player.fastestCaptureMs,
+          weaponStats: player.weaponStats,
           identityKey: player.identityKey,
           ...(credit.get(player.name.toLocaleLowerCase("en-US")) ?? {
             soloCaps: 0,

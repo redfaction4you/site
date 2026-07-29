@@ -113,6 +113,39 @@ test("v2's alias history never survives sanitizing", () => {
   assert.equal(json.includes("AnotherName"), false);
 });
 
+test("2.1 per weapon stats come through, without the engine id", () => {
+  const payload = samplePayload();
+  payload.matches[0].players[0].weapon_stats = [
+    { weapon_id: 8, weapon: "Rail Driver", shots_hit: 19, shots_fired: 40, accuracy: 0.475, kills: 2 },
+    { weapon_id: 9, weapon: "Rocket Launcher", shots_hit: 7, shots_fired: 18, accuracy: 0.3889, kills: 1 },
+  ];
+
+  const player = sanitizeDay(payload).matches[0].players[0];
+  assert.equal(player.weaponStats.length, 2);
+
+  const rail = player.weaponStats.find((w) => w.weapon === "Rail Driver");
+  assert.equal(rail.kills, 2);
+  assert.equal(rail.shotsHit, 19);
+  assert.equal(rail.shotsFired, 40);
+  assert.ok(Math.abs(rail.accuracy - 19 / 40) < 1e-9, "accuracy recomputed from counts");
+
+  // weapon_id is an engine internal that could change between client versions.
+  assert.equal(JSON.stringify(player.weaponStats).includes("weapon_id"), false);
+
+  // Sorted by frags, so the table reads usefully without the page sorting it.
+  assert.deepEqual(player.weaponStats.map((w) => w.weapon), [
+    "Rail Driver",
+    "Rocket Launcher",
+  ]);
+});
+
+test("a match with no weapon stats gets an empty list, not a crash", () => {
+  // Every match archived before the 2.1 broadcaster is in this state, and
+  // always will be: the data was never recorded.
+  const player = sanitizeDay(samplePayload()).matches[0].players[0];
+  assert.deepEqual(player.weaponStats, []);
+});
+
 test("an unknown field invented upstream cannot pass through", () => {
   const payload = samplePayload();
   payload.matches[0].players[0].secret_ip_address = "203.0.113.9";
@@ -187,7 +220,7 @@ test("mergePlayers keeps the fastest capture, not the largest", () => {
     damageGiven: 0, damageTaken: 0, flagHoldMs: 0, flagPickups: 0, flagDrops: 0,
     flagReturns: 0, flagCarrierKills: 0, flagCarrierDeaths: 0, captureAssists: 0,
     flagRecoveries: 0, successfulFlagDrives: 0, successfulCarryMs: 0,
-    fastestCaptureMs: null, identityKey: null,
+    fastestCaptureMs: null, weaponStats: [], identityKey: null,
   };
 
   const merged = mergePlayers(

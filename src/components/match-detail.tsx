@@ -529,25 +529,81 @@ export function MatchDetailView({
             />
           ))}
 
-          {/* What each player actually killed with, counted from the frag log.
-              Derived rather than reported: the server records the weapon on
-              each frag but keeps no per weapon totals, and it cannot give
-              per weapon accuracy because it logs weapons for frags, not for
-              every shot. */}
-          {weaponsByPlayer.size > 0 ? (
+          {/*
+            Two sources, deliberately. The 2.1 broadcaster records shots and
+            hits per weapon, which is the real thing and gives accuracy. Matches
+            archived before that upgrade have none and never will, since it was
+            never recorded, so those fall back to counting frags out of the kill
+            log. The heading says which you are looking at rather than quietly
+            showing less.
+          */}
+          {active.some((p) => p.weaponStats.length > 0) ? (
+            <div>
+              <h3 className="mb-2 font-display text-[10px] uppercase tracking-widest text-steel-500">
+                Weapons
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {active
+                  .filter((p) => p.weaponStats.length > 0)
+                  .map((player) => (
+                    <div key={player.name} className="panel p-3">
+                      <p className="text-xs text-steel-300">{player.name}</p>
+                      <table className="mt-1.5 w-full text-xs">
+                        <thead>
+                          <tr>
+                            {["Weapon", "Frags", "Hits", "Shots", "Acc"].map((h, i) => (
+                              <th
+                                key={h}
+                                className={
+                                  "py-0.5 font-display text-[9px] uppercase tracking-widest text-steel-600 " +
+                                  (i === 0 ? "text-left" : "text-right")
+                                }
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {player.weaponStats.map((w) => (
+                            <tr key={w.weapon}>
+                              <td className="py-0.5 text-steel-400">{w.weapon}</td>
+                              <td className="py-0.5 text-right font-mono tabular-nums text-steel-300">
+                                {w.kills}
+                              </td>
+                              <td className="py-0.5 text-right font-mono tabular-nums text-steel-500">
+                                {Math.round(w.shotsHit)}
+                              </td>
+                              <td className="py-0.5 text-right font-mono tabular-nums text-steel-500">
+                                {Math.round(w.shotsFired)}
+                              </td>
+                              <td className="py-0.5 text-right font-mono tabular-nums text-steel-400">
+                                {w.shotsFired > 0 ? percent(w.accuracy) : "-"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : weaponsByPlayer.size > 0 ? (
             <div>
               <h3 className="mb-2 font-display text-[10px] uppercase tracking-widest text-steel-500">
                 Frags by weapon
               </h3>
+              <p className="mb-2 text-[11px] text-steel-600">
+                Counted from the frag log. This match predates per weapon shot
+                tracking, so accuracy per weapon is not available for it.
+              </p>
               <ul className="grid gap-2 sm:grid-cols-2">
                 {[...weaponsByPlayer.entries()].map(([name, weapons]) => (
                   <li key={name} className="text-xs">
                     <span className="text-steel-300">{name}</span>
                     <span className="text-steel-500">
                       {" "}
-                      {weapons
-                        .map((w) => `${w.weapon} ${w.kills}`)
-                        .join(", ")}
+                      {weapons.map((w) => `${w.weapon} ${w.kills}`).join(", ")}
                     </span>
                   </li>
                 ))}

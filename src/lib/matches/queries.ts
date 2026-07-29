@@ -12,7 +12,7 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches, nightColumns } from "@/lib/db/schema";
-import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
+import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
 
 export type DaySummary = {
   archiveDay: string;
@@ -145,6 +145,8 @@ export type PublicScoreRow = {
   soloCaps: number;
   relayCaps: number;
   leadCarries: number;
+  /** Empty for matches archived before the 2.1 broadcaster. */
+  weaponStats: PublicWeaponStat[];
 };
 
 export const getMatch = cache(async function getMatch(
@@ -204,6 +206,7 @@ export const getMatch = cache(async function getMatch(
       soloCaps: matchPlayers.soloCaps,
       relayCaps: matchPlayers.relayCaps,
       leadCarries: matchPlayers.leadCarries,
+      weaponStats: matchPlayers.weaponStats,
     })
     .from(matchPlayers)
     .where(eq(matchPlayers.matchId, match.id))
