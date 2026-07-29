@@ -128,8 +128,8 @@ export const verificationTokens = pgTable(
 // Phase 2: the catalogue
 //
 // One `items` table rather than five. Maps, mods, models, weapons and tools
-// differ in almost nothing a database cares about — title, author, files,
-// screenshots — and the one genuine difference, level compatibility, lives in
+// differ in almost nothing a database cares about, title, author, files,
+// screenshots, and the one genuine difference, level compatibility, lives in
 // its own table. Five near-identical tables would mean five of every query,
 // five upload paths and five ways to drift apart.
 // ---------------------------------------------------------------------------
@@ -139,9 +139,9 @@ export const ITEM_KINDS = ["map", "mod", "model", "weapon", "tool"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 /**
- * `draft`     — uploaded, not visible to the public.
- * `published` — live.
- * `hidden`    — pulled by an admin. Deliberately not deleted: commitment 2 says
+ * `draft`    , uploaded, not visible to the public.
+ * `published`, live.
+ * `hidden`   , pulled by an admin. Deliberately not deleted: commitment 2 says
  *               things do not disappear, and a broken or mislabelled upload
  *               should stop being served without the record evaporating.
  */
@@ -290,8 +290,8 @@ export const mapMeta = pgTable(
     playsOn: jsonb("plays_on").$type<RfClient[]>().default([]).notNull(),
 
     /**
-     * "known"   — the version sits in a documented range.
-     * "unknown" — real version, undocumented range. Show the caveat, do not
+     * "known"  , the version sits in a documented range.
+     * "unknown", real version, undocumented range. Show the caveat, do not
      *             invent a badge.
      */
     detectionConfidence: text("detection_confidence")
@@ -300,7 +300,7 @@ export const mapMeta = pgTable(
       .notNull(),
 
     /**
-     * Reserved. Cannot be read from the RFL header — it needs the section list
+     * Reserved. Cannot be read from the RFL header, it needs the section list
      * parsed and Alpine event types recognised. Empty until that is built,
      * rather than absent, so adding it later is not a migration.
      */
@@ -355,7 +355,7 @@ export const screenshots = pgTable(
 // Populated by the dedicated server, which posts a day's results to
 // /api/rf4u/archive/ingest. Stored as tables rather than day-sized documents
 // because the point of keeping this data is eventually to answer questions
-// across matches — a player's accuracy over a month, captures in a season —
+// across matches, a player's accuracy over a month, captures in a season,
 // and a per-day document cannot answer those without reading all of them.
 //
 // PRIVACY: everything the public sees is sanitised at ingest. The one field
@@ -377,7 +377,7 @@ export const matches = pgTable(
     server: text("server").notNull(),
 
     /**
-     * The RF4U calendar day, in America/Los_Angeles — a match night that runs
+     * The RF4U calendar day, in America/Los_Angeles, a match night that runs
      * past midnight UTC still belongs to the evening it started. Timestamps
      * stay UTC; only the grouping is local.
      */
@@ -401,7 +401,7 @@ export const matches = pgTable(
      * A single match can carry thousands of kill events. They are shown as
      * optional detail on one match's page and never queried across matches,
      * so rows would cost a great deal and buy nothing. Captures are different
-     * — they drive the timeline and are worth querying — so they get a table.
+     *, they drive the timeline and are worth querying, so they get a table.
      */
     kills: jsonb("kills").$type<PublicKill[]>().default([]).notNull(),
     flagEvents: jsonb("flag_events").$type<PublicFlagEvent[]>().default([]).notNull(),
@@ -467,7 +467,7 @@ export const matchPlayers = pgTable(
      *
      * The dedicated server's own stable handle for a player. An RF player name
      * is neither unique nor stable, so this is the only thing that could ever
-     * reliably link a Discord account to an in-game identity — which the build
+     * reliably link a Discord account to an in-game identity, which the build
      * plan calls the hard part of player statistics, not the charts.
      *
      * It is kept because it cannot be reconstructed later: discard it now and

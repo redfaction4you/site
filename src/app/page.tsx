@@ -22,7 +22,7 @@ const COMMITMENTS = [
  *
  * Which of these appear is decided by VISIBLE_NAV, not by this list. The home
  * page used to keep its own copy of the sections and drifted out of step with
- * the navigation the moment anything was hidden — the header dropped Maps and
+ * the navigation the moment anything was hidden, the header dropped Maps and
  * Weapons while the page below it still offered both.
  */
 const SECTION_BLURBS: Record<string, string> = {

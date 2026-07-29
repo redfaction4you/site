@@ -2,8 +2,8 @@
  * Works out what a downloadable actually is, and which clients can load it.
  *
  * This is the entry point Phase 2's upload path calls. Give it the bytes of
- * whatever somebody uploaded and it will find the levels inside — bare .rfl,
- * .vpp packfile, .zip, or a .zip containing a .vpp — read each one's format
+ * whatever somebody uploaded and it will find the levels inside, bare .rfl,
+ * .vpp packfile, .zip, or a .zip containing a .vpp, read each one's format
  * version, and return the compatibility for the upload as a whole.
  *
  * Detection is by content, never by file extension. Extensions are a claim made
@@ -11,7 +11,7 @@
  *
  * NOT DONE HERE: `required_features`. The build plan lists it alongside
  * `rfl_version` and `plays_on`, but unlike those two it cannot be read from the
- * header — it needs the section list parsed and each Alpine event type
+ * header, it needs the section list parsed and each Alpine event type
  * recognised. The version alone answers "will this load", which is the question
  * that costs people a broken download. Feature detail is a later increment.
  */
@@ -54,7 +54,7 @@ export type ArchiveInspection = {
   /**
    * Things a human should look at: an unreadable level inside an otherwise fine
    * pack, an unrecognised version, an archive with no levels in it. Never
-   * silently dropped — an archive that quietly ignores what it cannot read is
+   * silently dropped, an archive that quietly ignores what it cannot read is
    * how a catalogue fills up with lies.
    */
   warnings: string[];

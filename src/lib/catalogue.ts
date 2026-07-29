@@ -1,7 +1,7 @@
 /**
  * Reading the catalogue.
  *
- * All five sections — maps, mods, models, weapons, tools — are the same query
+ * All five sections, maps, mods, models, weapons, tools, are the same query
  * with a different `kind`, which is why they are one table. The per-kind
  * differences that matter are editorial (what the page says) rather than
  * structural, so they live in KIND_META here rather than in five page files.
@@ -193,8 +193,8 @@ export async function listItems(
 /**
  * Everything a detail page needs, or null if there is no such published item.
  *
- * Wrapped in React's `cache` because every detail route calls it twice — once
- * in generateMetadata and once in the page body — and that should be one query,
+ * Wrapped in React's `cache` because every detail route calls it twice, once
+ * in generateMetadata and once in the page body, and that should be one query,
  * not two.
  */
 export const getItem = cache(async function getItem(kind: ItemKind, slug: string) {

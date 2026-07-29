@@ -8,7 +8,7 @@
  * goes away the page says it does not know, and everything else still works.
  *
  * Cached for a short window so a busy page does not hammer somebody else's
- * service — 30 seconds is fresh enough for "is anyone playing" and polite.
+ * service, 30 seconds is fresh enough for "is anyone playing" and polite.
  */
 
 const RFSB_API = "https://rfsb.factionfiles.com/api/v2/server";

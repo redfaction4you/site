@@ -9,7 +9,7 @@
  * a single point of failure for this history: anyone can mirror it.
  *
  * Everything here was sanitised at ingest. The queries behind it name their
- * columns and none of them name `match_players.identity_key` — this is the
+ * columns and none of them name `match_players.identity_key`, this is the
  * endpoint where getting that wrong would be public and permanent.
  */
 import { getDayDocument, listDays, latestDay } from "@/lib/matches/queries";

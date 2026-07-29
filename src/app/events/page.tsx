@@ -13,9 +13,9 @@ export const metadata: Metadata = {
  * The tournament hub is a separate site that already exists and works.
  *
  * Rather than reproduce it badly or leave this page empty, /events sends people
- * to the real thing. Phase 4 of the build plan absorbs it — which means
+ * to the real thing. Phase 4 of the build plan absorbs it, which means
  * rebuilding it against this database and this identity system, not copying it
- * across — and until then the honest answer is a link.
+ * across, and until then the honest answer is a link.
  */
 const TOURNAMENT_HUB = "https://rftournaments.netlify.app";
 
@@ -53,7 +53,7 @@ export default function EventsPage() {
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-steel-400">
           The hub will be rebuilt into this site so brackets, match results and player
-          records sit together — a tournament match should link straight to its
+          records sit together. A tournament match should link straight to its
           scoreboard, and a player&rsquo;s page should show what they won. That is a
           rebuild rather than a copy, because the two currently use different accounts
           and this site&rsquo;s Discord sign-in should win.

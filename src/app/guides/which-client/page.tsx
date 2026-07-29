@@ -150,7 +150,7 @@ export default function WhichClientGuide() {
         </h2>
         <p>
           Alpine Faction, because it is the one still being worked on. That is not a
-          judgement about which feels most faithful to 2001 — people disagree about
+          judgement about which feels most faithful to 2001. People disagree about
           that, sometimes strongly, and it is a fair thing to disagree about. It is a
           judgement about which client will still work in five years and where a bug
           you report has somewhere to go.
@@ -187,9 +187,9 @@ export default function WhichClientGuide() {
               rel="noreferrer noopener"
               className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
             >
-              Red Faction Wiki — RF Client Versions
+              Red Faction Wiki: RF Client Versions
             </a>{" "}
-            — version numbers and maintenance status
+            for version numbers and maintenance status
           </li>
         </ul>
         <p className="mt-4 text-xs text-steel-500">

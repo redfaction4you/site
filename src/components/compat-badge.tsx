@@ -22,7 +22,7 @@ type Props = {
  * Which clients can load this.
  *
  * Shows every client we label for, with the ones that work lit up and the ones
- * that do not greyed out — rather than listing only the working ones. A player
+ * that do not greyed out, rather than listing only the working ones. A player
  * who runs Dash needs to see that Dash is *not* on the list, and a row of four
  * with one lit says that faster than a row of one.
  *

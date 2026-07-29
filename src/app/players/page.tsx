@@ -85,7 +85,7 @@ export default async function PlayersPage() {
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
                         {player.shotsFired > 0
                           ? percent(player.shotsHit / player.shotsFired)
-                          : "—"}
+                          : "-"}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
                         {player.bestStreak}

@@ -12,7 +12,7 @@ function percent(value: number): string {
 }
 
 function seconds(ms: number): string {
-  if (!ms) return "—";
+  if (!ms) return "-";
   const total = Math.round(ms / 1000);
   if (total < 60) return `${total}s`;
   const minutes = Math.floor(total / 60);
@@ -88,7 +88,7 @@ export default async function PlayerPage({ params }: Props) {
         <Stat label="Captures" value={String(player.caps)} />
         <Stat
           label="Accuracy"
-          value={accuracy === null ? "—" : percent(accuracy)}
+          value={accuracy === null ? "-" : percent(accuracy)}
           hint={
             accuracy === null
               ? undefined
@@ -99,7 +99,7 @@ export default async function PlayerPage({ params }: Props) {
         <Stat label="Flag time" value={seconds(player.flagHoldMs)} />
         <Stat
           label="Fastest cap"
-          value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "—"}
+          value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "-"}
         />
       </dl>
 
@@ -173,7 +173,7 @@ export default async function PlayerPage({ params }: Props) {
                   </td>
                   <td className="px-3 py-2 text-right">
                     {row.won === null ? (
-                      <span className="text-steel-500">—</span>
+                      <span className="text-steel-500">-</span>
                     ) : row.won ? (
                       <span className="text-signal-green">won</span>
                     ) : (
@@ -193,7 +193,7 @@ export default async function PlayerPage({ params }: Props) {
                     {row.caps}
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
-                    {row.accuracy > 0 ? percent(row.accuracy) : "—"}
+                    {row.accuracy > 0 ? percent(row.accuracy) : "-"}
                   </td>
                 </tr>
               ))}

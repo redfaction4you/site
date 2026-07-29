@@ -8,7 +8,7 @@
  *
  * This is a security boundary, so it is an allowlist. Every field on the way
  * out is named here. A new field appearing in the VPS export cannot leak
- * through by accident — it simply is not copied. That property is the whole
+ * through by accident, it simply is not copied. That property is the whole
  * design, so do not replace this with a spread of the source object.
  *
  * Never carried through:
@@ -389,7 +389,7 @@ export function isValidDay(value: unknown): boolean {
 /**
  * Match states we do not keep.
  *
- * A cancelled match is one that was abandoned before it counted — a bad map
+ * A cancelled match is one that was abandoned before it counted, a bad map
  * load, a restart, someone dropping in the first minute. Its scoreboard is
  * noise: it drags player averages down and pads the match count with games
  * nobody played. The archive is a record of matches that happened.

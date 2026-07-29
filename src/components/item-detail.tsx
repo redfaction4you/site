@@ -20,8 +20,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * A detail page for any catalogue item.
  *
  * The download is the point of the page, so it is the first thing under the
- * title and it states size and checksum up front. Everything else — gallery,
- * compatibility, provenance — supports the decision to click it.
+ * title and it states size and checksum up front. Everything else, gallery,
+ * compatibility, provenance, supports the decision to click it.
  */
 export function ItemDetail({ item, meta }: { item: CatalogueItem; meta: KindMeta }) {
   const primary = item.files[0] ?? null;

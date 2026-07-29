@@ -8,7 +8,7 @@ export type NavItem = {
    *
    * Used for sections that exist and work but have nothing in them yet.
    * Advertising an empty shelf invites people to click it and find nothing,
-   * which is a worse first impression than not offering it — but the route
+   * which is a worse first impression than not offering it, but the route
    * still answers, so any link already shared keeps working. Delete the flag
    * to put it back; nothing else needs changing.
    */
@@ -47,8 +47,8 @@ export const NAV: NavItem[] = [
  * What the header and footer actually render.
  *
  * NAV stays the full list so the hidden sections are recorded rather than
- * forgotten, and so anything that needs the complete site map — a sitemap,
- * a search index — can still have it.
+ * forgotten, and so anything that needs the complete site map, a sitemap,
+ * a search index, can still have it.
  */
 export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
 

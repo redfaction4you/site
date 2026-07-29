@@ -49,7 +49,7 @@ function Cell({ works }: { works: boolean }) {
         className={works ? "text-signal-green" : "text-steel-600"}
         aria-label={works ? "loads" : "does not load"}
       >
-        {works ? "✓" : "—"}
+        {works ? "✓" : "-"}
       </span>
     </td>
   );
@@ -78,7 +78,7 @@ export default function CompatibilityGuide() {
         <p>
           Every level file records the format version it was saved in, as a number in
           its first few bytes. When a client opens a level it reads that number first.
-          If the format is newer than the one it understands, it stops — because a
+          If the format is newer than the one it understands, it stops, because a
           level using features it has never heard of would load wrong, or crash, and
           failing cleanly is better than either.
         </p>
@@ -156,8 +156,8 @@ export default function CompatibilityGuide() {
         </p>
         <p>
           Pure Faction and Dash Faction are listed as loading what the original engine
-          loads. That follows from what they are — patches to the original engine
-          rather than replacements for its level loader — but it is an inference on our
+          loads. That follows from what they are: patches to the original engine
+          rather than replacements for its level loader. It is an inference on our
           part rather than something either project states. Treat those two columns as
           well-founded rather than confirmed.
         </p>
@@ -177,8 +177,7 @@ export default function CompatibilityGuide() {
             >
               rafalh/rf-reversed
             </a>{" "}
-            — format specification, for the version numbers the original engine
-            supports
+            for the version numbers the original engine supports
           </li>
           <li>
             <a
@@ -187,9 +186,9 @@ export default function CompatibilityGuide() {
               rel="noreferrer noopener"
               className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
             >
-              Red Faction Wiki — Alpine Faction Help
+              Red Faction Wiki: Alpine Faction Help
             </a>{" "}
-            — for the Alpine format range
+            for the Alpine format range
           </li>
         </ul>
         <p className="mt-4 text-xs text-steel-500">

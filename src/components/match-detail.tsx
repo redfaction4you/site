@@ -14,7 +14,7 @@ function percent(value: number): string {
 }
 
 function seconds(ms: number): string {
-  if (!ms) return "—";
+  if (!ms) return "-";
   const total = Math.round(ms / 1000);
   return total >= 60 ? `${Math.floor(total / 60)}m ${total % 60}s` : `${total}s`;
 }
@@ -83,7 +83,7 @@ function MatchSummaryPanel({ match }: { match: MatchDetail }) {
         <Stat label="Total frags" value={String(totalKills)} />
         <Stat
           label="Team accuracy"
-          value={shotsFired > 0 ? percent(shotsHit / shotsFired) : "—"}
+          value={shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
           hint={shotsFired > 0 ? `${shotsHit} of ${shotsFired}` : undefined}
         />
         <Stat label="Captures" value={String(match.captures.length)} />
@@ -123,7 +123,7 @@ type ScoreColumn = {
 /** Every counter the server records, in the order they matter to a player. */
 const SCORE_COLUMNS: ScoreColumn[] = [
   { key: "score", label: "Score" },
-  // "Frags", not "kills" — the column keys stay `kills` because that is what
+  // "Frags", not "kills", the column keys stay `kills` because that is what
   // the server and the data contract call them. Only the labels change.
   { key: "kills", label: "Frags" },
   { key: "deaths", label: "Deaths" },
@@ -132,7 +132,7 @@ const SCORE_COLUMNS: ScoreColumn[] = [
   {
     key: "accuracy",
     label: "Acc",
-    format: (r) => (r.shotsFired > 0 ? percent(r.accuracy) : "—"),
+    format: (r) => (r.shotsFired > 0 ? percent(r.accuracy) : "-"),
   },
   { key: "shotsHit", label: "Hits", format: (r) => String(Math.round(r.shotsHit)) },
   { key: "shotsFired", label: "Shots", format: (r) => String(Math.round(r.shotsFired)) },
@@ -154,7 +154,7 @@ const SCORE_COLUMNS: ScoreColumn[] = [
   {
     key: "fastestCaptureMs",
     label: "Best cap",
-    format: (r) => (r.fastestCaptureMs ? seconds(r.fastestCaptureMs) : "—"),
+    format: (r) => (r.fastestCaptureMs ? seconds(r.fastestCaptureMs) : "-"),
   },
 ];
 
@@ -213,7 +213,7 @@ function Scoreboard({ team, players }: { team: string; players: PublicScoreRow[]
                 >
                   {column.format
                     ? column.format(player)
-                    : String(player[column.key] ?? "—")}
+                    : String(player[column.key] ?? "-")}
                 </td>
               ))}
             </tr>

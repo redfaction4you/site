@@ -140,7 +140,7 @@ export default async function ServerPage() {
             )}
           </Detail>
           <Detail label="Client">{online?.client ?? SERVER.client}</Detail>
-          <Detail label="Slots">{online?.maxPlayers ?? SERVER.slots ?? "—"}</Detail>
+          <Detail label="Slots">{online?.maxPlayers ?? SERVER.slots ?? "-"}</Detail>
           <Detail label="Server">{SERVER.name}</Detail>
           {SERVER.location ? (
             <Detail label="Location">{SERVER.location}</Detail>
@@ -156,7 +156,7 @@ export default async function ServerPage() {
           </h2>
           <p className="mt-1.5 text-sm leading-relaxed text-steel-400">
             Full scoreboards, capture timelines and complete frag logs. Nothing
-            personal is published — no addresses, no Discord ids, no positions.
+            personal is published, no addresses, no Discord ids, no positions.
           </p>
           {totals.matchCount > 0 ? (
             <p className="mt-3 text-sm text-steel-300">

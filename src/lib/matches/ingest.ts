@@ -128,7 +128,7 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
     }
   }
 
-  // A match deleted upstream — voided, or a mistake corrected — should vanish
+  // A match deleted upstream, voided, or a mistake corrected, should vanish
   // here too, otherwise the archive slowly fills with matches that no longer
   // exist and nobody can tell which are real.
   if (matchIds.length) {

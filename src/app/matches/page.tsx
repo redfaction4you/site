@@ -15,7 +15,7 @@ export const metadata: Metadata = {
  *
  * This page's whole job is to send you to the newest match night, which means
  * its answer changes every time the server syncs. Next will happily prerender
- * it at build time otherwise — and it did: the first deploy baked in the empty
+ * it at build time otherwise, and it did: the first deploy baked in the empty
  * state from before any matches existed and served it from cache afterwards.
  */
 export const dynamic = "force-dynamic";

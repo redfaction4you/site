@@ -4,7 +4,7 @@
  * The VPS holds the private archive; this endpoint takes a day's export,
  * strips everything that is not public, and stores the rest. The contract is
  * unchanged from the handoff package, so the existing sync script only needs
- * its URL pointing here — the difference is that the sanitised result lands in
+ * its URL pointing here, the difference is that the sanitised result lands in
  * Postgres rather than a per-day document.
  *
  * Authentication is a shared secret, compared in constant time. That is

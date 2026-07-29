@@ -4,7 +4,7 @@
  * This is the table behind every compatibility badge on the site, so it says
  * plainly where it came from and how far it is actually known. Where we are
  * inferring rather than citing, the entry says so and `confidence` is not
- * "known" — a badge that is confidently wrong is worse than one that admits
+ * "known", a badge that is confidently wrong is worse than one that admits
  * uncertainty.
  *
  * Verified 28 July 2026 against:
@@ -48,8 +48,8 @@ export type Compatibility = {
   /** Clients that can load this level. Empty means nothing we label for. */
   playsOn: RfClient[];
   /**
-   * "known"   — the version sits in a documented range.
-   * "unknown" — the version is real but falls in a gap we have no source for.
+   * "known"  , the version sits in a documented range.
+   * "unknown", the version is real but falls in a gap we have no source for.
    *             Show it, do not guess at it, and flag it for a human.
    */
   confidence: "known" | "unknown";

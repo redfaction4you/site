@@ -4,7 +4,7 @@
  * When games usually happen, in the reader's own timezone.
  *
  * This runs in the browser on purpose. "Around 8pm" is only useful if it means
- * 8pm where you are, and the server has no idea where that is — rendering it
+ * 8pm where you are, and the server has no idea where that is, rendering it
  * server-side would silently publish Pacific time to somebody in Europe.
  *
  * It stays hidden until there is enough history to say something true. With one

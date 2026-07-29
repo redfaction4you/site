@@ -5,7 +5,7 @@ import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
 
 /** Renders a UTC instant in the archive's own timezone, so times read as played. */
 export function matchTime(value: Date | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: ARCHIVE_TIME_ZONE,
     hour: "2-digit",
@@ -28,7 +28,7 @@ export function dayLabel(day: string): string {
 }
 
 export function duration(from: Date | null, to: Date | null): string {
-  if (!from || !to) return "—";
+  if (!from || !to) return "-";
   const seconds = Math.max(0, Math.round((to.getTime() - from.getTime()) / 1000));
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;

@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     // No title or description here on purpose.
     //
     // Metadata is inherited, so anything set at the root wins on every page
-    // that does not override it — which is why a Discord link to /players used
+    // that does not override it, which is why a Discord link to /players used
     // to unfurl as "a community archive for Red Faction: maps, mods, tools...".
     // Leaving these out lets each page's own title and description populate the
     // preview instead.
