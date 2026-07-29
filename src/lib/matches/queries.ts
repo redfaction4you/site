@@ -533,6 +533,27 @@ export const getDayDocument = cache(async function getDayDocument(archiveDay: st
   };
 });
 
+/**
+ * When matches actually kicked off, newest first.
+ *
+ * Returned as raw instants so the browser can work out what that means where
+ * the reader is. Doing the conversion here would bake in whichever timezone the
+ * server happens to run in, which is nobody's.
+ */
+export const getMatchStartTimes = cache(async function getMatchStartTimes(
+  limit = 400,
+): Promise<string[]> {
+  const rows = await db
+    .select({ startedAt: matches.startedAt })
+    .from(matches)
+    .orderBy(desc(matches.startedAt))
+    .limit(limit);
+
+  return rows
+    .map((row) => row.startedAt?.toISOString())
+    .filter((value): value is string => Boolean(value));
+});
+
 /** Totals for the front page and the archive header. */
 export const archiveTotals = cache(async function archiveTotals() {
   const [row] = await db

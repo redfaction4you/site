@@ -1,27 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { DISCORD_INVITE } from "@/lib/nav";
-import { archiveTotals, latestDay } from "@/lib/matches/queries";
-import { getServerStatus, type ServerStatus } from "@/lib/server-status";
 import { dayLabel } from "@/components/match-archive";
+import { MatchTimes } from "@/components/match-times";
+import { archiveTotals, getMatchStartTimes, latestDay } from "@/lib/matches/queries";
+import { DISCORD_INVITE } from "@/lib/nav";
+import { getServerStatus, type ServerStatus } from "@/lib/server-status";
 
 export const metadata: Metadata = {
   title: "Server",
   description:
-    "How to join the RedFaction4You server: address, which client to run, and what it is playing.",
+    "The RedFaction4You server: whether it is live right now, who is on, and how to join.",
 };
 
 export const dynamic = "force-dynamic";
 
 /**
- * Connection details live in the environment rather than in the source, so
- * changing a port is a variable rather than a deploy of new code.
- *
- * Everything here is static text about how to connect. Deliberately not a live
- * status page: querying the game server on every page view is a tracker with an
- * operational duty attached, which is the thing the build plan cut twice. What
- * the server did is an archive; what it is doing right now is not.
+ * Connection details come from the environment, so changing a port is a
+ * variable rather than a deploy.
  */
 const SERVER = {
   name: process.env.NEXT_PUBLIC_SERVER_NAME ?? "RF4U Competitive [Match]",
@@ -31,229 +27,179 @@ const SERVER = {
   slots: process.env.NEXT_PUBLIC_SERVER_SLOTS ?? null,
 };
 
-/**
- * Live status is somebody else's job, on purpose.
- *
- * FactionFiles runs the community server browser and our server is already
- * listed on it. Pointing at that is strictly better than us polling game
- * servers ourselves: no UDP tracker to keep alive, no Windows service, no
- * operational duty — the exact things the build plan cut. It also means the
- * list stays right when we are not looking at it.
- */
 const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
 
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="font-display text-[10px] uppercase tracking-widest text-steel-500">
+        {label}
+      </dt>
+      <dd className="mt-0.5 truncate text-sm text-steel-200">{children}</dd>
+    </div>
+  );
+}
+
 /**
- * The answer to "can I get a game right now".
- *
- * Three states, and the third one matters: if the server browser cannot be
- * reached we say we do not know, rather than reporting offline. Claiming a
- * server is down because a third party timed out would be a guess dressed as a
- * fact, and someone would not bother launching the game because of it.
+ * Three states, and the third is the point: being told the server is down means
+ * offline, but failing to reach the browser means we do not know. Reporting
+ * offline on a timeout would be a guess dressed as a fact, and it would stop
+ * someone bothering to launch the game.
  */
-function LiveStatus({ status }: { status: ServerStatus }) {
-  if (status.state === "unknown") {
+function StatusBadge({ status }: { status: ServerStatus }) {
+  if (status.state === "online") {
+    const empty = status.players === 0;
     return (
-      <div className="panel mt-6 flex flex-wrap items-center justify-between gap-4 p-6">
-        <div>
-          <p className="font-display text-sm font-bold text-steel-300">
-            Status unavailable
-          </p>
-          <p className="mt-1 text-sm text-steel-500">{status.reason}</p>
-        </div>
-        <a
-          href={SERVER_BROWSER}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="shrink-0 rounded-sm border border-basalt-600 px-4 py-2 font-display text-xs font-semibold uppercase tracking-wider text-steel-300 hover:border-steel-500 hover:text-steel-100"
-        >
-          Check the browser
-        </a>
+      <div className="flex items-baseline gap-3">
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={
+              "h-2.5 w-2.5 shrink-0 rounded-full " +
+              (empty ? "bg-oxide-400" : "animate-pulse bg-signal-green")
+            }
+          />
+          <span
+            className={
+              "font-display text-sm font-bold uppercase tracking-wider " +
+              (empty ? "text-oxide-400" : "text-signal-green")
+            }
+          >
+            {empty ? "Online" : "Live now"}
+          </span>
+        </span>
+        <span className="font-mono text-3xl tabular-nums text-steel-100">
+          {status.players}
+          <span className="text-steel-500">/{status.maxPlayers}</span>
+        </span>
       </div>
     );
   }
 
   if (status.state === "offline") {
     return (
-      <div className="panel mt-6 p-6">
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden="true"
-            className="h-2.5 w-2.5 rounded-full bg-steel-600"
-          />
-          <p className="font-display text-sm font-bold uppercase tracking-wider text-steel-400">
-            Offline
-          </p>
-        </div>
-        <p className="mt-2 text-sm leading-relaxed text-steel-500">
-          The server is not answering right now. Matches are arranged in Discord, so
-          this is normal between games.
-        </p>
-      </div>
+      <span className="flex items-center gap-2">
+        <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-steel-600" />
+        <span className="font-display text-sm font-bold uppercase tracking-wider text-steel-400">
+          Offline
+        </span>
+      </span>
     );
   }
 
-  const empty = status.players === 0;
-
   return (
-    <div className="panel mt-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden="true"
-            className={
-              "h-2.5 w-2.5 rounded-full " +
-              (empty ? "bg-oxide-400" : "bg-signal-green animate-pulse")
-            }
-          />
-          <p
-            className={
-              "font-display text-sm font-bold uppercase tracking-wider " +
-              (empty ? "text-oxide-400" : "text-signal-green")
-            }
-          >
-            {empty ? "Online, empty" : "Live now"}
-          </p>
-        </div>
-
-        <p className="font-mono text-2xl tabular-nums text-steel-100">
-          {status.players}
-          <span className="text-steel-500">/{status.maxPlayers}</span>
-        </p>
-      </div>
-
-      <dl className="mt-5 grid gap-4 border-t border-basalt-700 pt-4 sm:grid-cols-3">
-        {status.map ? <Field label="Map">{status.map}</Field> : null}
-        {status.gameType ? <Field label="Mode">{status.gameType}</Field> : null}
-        {status.client ? <Field label="Running">{status.client}</Field> : null}
-      </dl>
-
-      {status.bots > 0 ? (
-        <p className="mt-3 text-xs text-steel-500">
-          {status.humans} human{status.humans === 1 ? "" : "s"}, {status.bots} bot
-          {status.bots === 1 ? "" : "s"}
-        </p>
-      ) : null}
-
-      {empty ? (
-        <p className="mt-4 text-sm leading-relaxed text-steel-400">
-          Nobody on at the moment. Games are arranged in Discord rather than by waiting
-          in an empty server — say you want one and people turn up.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="font-display text-[11px] uppercase tracking-widest text-steel-500">
-        {label}
-      </dt>
-      <dd className="mt-1 text-steel-200">{children}</dd>
-    </div>
+    <span className="flex items-center gap-2">
+      <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-steel-700" />
+      <span
+        className="font-display text-sm font-bold uppercase tracking-wider text-steel-500"
+        title={status.reason}
+      >
+        Status unknown
+      </span>
+    </span>
   );
 }
 
 export default async function ServerPage() {
-  const [totals, latest, status] = await Promise.all([
+  const [totals, latest, status, startTimes] = await Promise.all([
     archiveTotals(),
     latestDay(),
     getServerStatus(),
+    getMatchStartTimes(),
   ]);
 
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-16">
-      <p className="eyebrow">Play</p>
-      <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">Server</h1>
-      <p className="mt-4 text-lg leading-relaxed text-steel-300">
-        The RedFaction4You dedicated server. Everything played on it is recorded and
-        kept, so a match you play tonight has a permanent page tomorrow.
-      </p>
+  const online = status.state === "online" ? status : null;
 
-      <div className="panel mt-8 p-6">
-        <dl className="grid gap-5 sm:grid-cols-2">
-          <Field label="Server">{SERVER.name}</Field>
-          <Field label="Client">{SERVER.client}</Field>
-          {SERVER.slots ? <Field label="Slots">{SERVER.slots}</Field> : null}
-          {SERVER.location ? (
-            <Field label="Location">{SERVER.location}</Field>
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-12">
+      <p className="eyebrow">Play</p>
+      <h1 className="mt-2 font-display text-3xl font-bold text-steel-100">Server</h1>
+
+      {/* Status and how to connect, side by side. This is the whole point of
+          the page, so it goes above everything else and fits on one screen. */}
+      <div className="panel mt-6 grid gap-6 p-6 lg:grid-cols-[auto_1fr]">
+        <div className="lg:border-r lg:border-basalt-700 lg:pr-8">
+          <StatusBadge status={status} />
+          {online?.map ? (
+            <p className="mt-2 text-sm text-steel-400">
+              {online.map}
+              {online.gameType ? ` · ${online.gameType}` : ""}
+            </p>
           ) : null}
-          <Field label="Address">
+          {status.state === "offline" ? (
+            <p className="mt-2 text-sm text-steel-500">Normal between games.</p>
+          ) : null}
+        </div>
+
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          <Detail label="Address">
             {SERVER.address ? (
-              <code className="rounded-sm bg-basalt-800 px-2 py-1 font-mono text-sm text-steel-100">
-                {SERVER.address}
-              </code>
+              <code className="font-mono text-steel-100">{SERVER.address}</code>
             ) : (
-              <span className="text-steel-400">
-                Not published here yet — ask in{" "}
-                <a
-                  href={DISCORD_INVITE}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
-                >
-                  Discord
-                </a>
-                .
-              </span>
+              <span className="text-steel-500">ask in Discord</span>
             )}
-          </Field>
+          </Detail>
+          <Detail label="Client">{online?.client ?? SERVER.client}</Detail>
+          <Detail label="Slots">{online?.maxPlayers ?? SERVER.slots ?? "—"}</Detail>
+          <Detail label="Server">{SERVER.name}</Detail>
+          {SERVER.location ? (
+            <Detail label="Location">{SERVER.location}</Detail>
+          ) : null}
         </dl>
       </div>
 
-      <LiveStatus status={status} />
-
-      <section className="mt-10">
-        <h2 className="font-display text-xl font-bold text-steel-100">
-          What gets recorded
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-steel-300">
-          Every match on this server is archived: full scoreboards, capture timelines
-          and the complete frag and flag event logs. Player records build up across
-          every night played.
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-steel-400">
-          Nothing personal is published. IP addresses, Discord identifiers and player
-          positions never leave the server; only match results do.
-        </p>
-
-        {totals.matchCount > 0 ? (
-          <div className="panel mt-5 flex flex-wrap items-center justify-between gap-4 p-5">
-            <p className="text-sm text-steel-300">
-              <span className="font-mono text-xl text-steel-100">
-                {totals.matchCount}
-              </span>{" "}
-              {totals.matchCount === 1 ? "match" : "matches"} archived across{" "}
-              <span className="font-mono text-xl text-steel-100">{totals.dayCount}</span>{" "}
-              {totals.dayCount === 1 ? "night" : "nights"}
-              {latest ? `, most recently ${dayLabel(latest)}` : ""}.
+      {/* Everything else is one row of short cards. */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="panel p-5">
+          <h2 className="font-display text-sm font-bold text-steel-100">
+            Every match is kept
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-steel-400">
+            Full scoreboards, capture timelines and complete frag logs. Nothing
+            personal is published — no addresses, no Discord ids, no positions.
+          </p>
+          {totals.matchCount > 0 ? (
+            <p className="mt-3 text-sm text-steel-300">
+              <Link href="/matches" className="text-rust-400 hover:text-rust-300">
+                {totals.matchCount} {totals.matchCount === 1 ? "match" : "matches"}
+              </Link>{" "}
+              over {totals.dayCount} {totals.dayCount === 1 ? "night" : "nights"}
+              {latest ? `, latest ${dayLabel(latest)}` : ""}.
             </p>
-            <Link
-              href="/matches"
-              className="rounded-sm bg-rust-500 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
-            >
-              Browse matches
-            </Link>
-          </div>
-        ) : null}
-      </section>
+          ) : null}
+        </div>
 
-      <section className="mt-10">
-        <h2 className="font-display text-xl font-bold text-steel-100">Getting a game</h2>
-        <p className="mt-3 text-sm leading-relaxed text-steel-300">
-          Pickup games are organised in Discord rather than by sitting in an empty
-          server waiting. Say you want a game and people turn up.
-        </p>
-        <a
-          href={DISCORD_INVITE}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-5 inline-block rounded-sm border border-basalt-600 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-200 transition-colors hover:border-steel-500 hover:text-steel-100"
-        >
-          Join the Discord
-        </a>
-      </section>
+        {/* Appears on its own once there is enough history to mean something. */}
+        <MatchTimes startedAt={startTimes} />
+
+        <div className="panel p-5">
+          <h2 className="font-display text-sm font-bold text-steel-100">
+            Getting a game
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-steel-400">
+            Games are arranged in Discord rather than by waiting in an empty server.
+            Say you want one and people turn up.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              href={DISCORD_INVITE}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="rounded-sm bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+            >
+              Join the Discord
+            </a>
+            <a
+              href={SERVER_BROWSER}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="rounded-sm border border-basalt-600 px-4 py-2 font-display text-xs font-semibold uppercase tracking-wider text-steel-300 transition-colors hover:border-steel-500 hover:text-steel-100"
+            >
+              Server browser
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
