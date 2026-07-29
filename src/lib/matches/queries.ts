@@ -11,7 +11,7 @@ import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
-import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { matchCaptures, matchPlayers, matches, nightColumns } from "@/lib/db/schema";
 import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
 
 export type DaySummary = {
@@ -554,6 +554,38 @@ export const getMatchStartTimes = cache(async function getMatchStartTimes(
   return rows
     .map((row) => row.startedAt?.toISOString())
     .filter((value): value is string => Boolean(value));
+});
+
+/** Every written column, newest first. */
+export const listColumns = cache(async function listColumns() {
+  return db
+    .select({
+      archiveDay: nightColumns.archiveDay,
+      headline: nightColumns.headline,
+      body: nightColumns.body,
+      matchCount: nightColumns.matchCount,
+      generatedAt: nightColumns.generatedAt,
+    })
+    .from(nightColumns)
+    .orderBy(desc(nightColumns.archiveDay))
+    .limit(60);
+});
+
+export const getColumn = cache(async function getColumn(archiveDay: string) {
+  const [row] = await db
+    .select({
+      archiveDay: nightColumns.archiveDay,
+      headline: nightColumns.headline,
+      body: nightColumns.body,
+      matchCount: nightColumns.matchCount,
+      model: nightColumns.model,
+      generatedAt: nightColumns.generatedAt,
+    })
+    .from(nightColumns)
+    .where(eq(nightColumns.archiveDay, archiveDay))
+    .limit(1);
+
+  return row ?? null;
 });
 
 /** Totals for the front page and the archive header. */

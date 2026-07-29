@@ -535,6 +535,42 @@ export const matchCaptures = pgTable(
   ],
 );
 
+/**
+ * One written column per match night.
+ *
+ * Play happens in a batch: a handful of matches back to back, then everyone
+ * stops until the same time tomorrow. That shape is what makes a daily column
+ * possible, because there is a natural moment when the night is over and there
+ * is something to write about.
+ */
+export const nightColumns = pgTable(
+  "night_columns",
+  {
+    archiveDay: date("archive_day").primaryKey(),
+
+    headline: text("headline").notNull(),
+    body: text("body").notNull(),
+
+    /**
+     * How many matches the night had when this was written.
+     *
+     * If people come back and play more on the same day, the column is stale
+     * and gets rewritten. Without this it would describe half an evening
+     * forever.
+     */
+    matchCount: integer("match_count").notNull(),
+
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    /** Set once it has been announced, so it is never posted twice. */
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+  },
+  (column) => [index("night_columns_generated_idx").on(column.generatedAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Relations. These add no SQL of their own; they are what lets
 // db.query.items.findMany({ with: { files: true } }) work in one round trip

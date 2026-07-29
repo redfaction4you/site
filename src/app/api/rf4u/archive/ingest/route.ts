@@ -14,6 +14,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { backfillReports } from "@/lib/ai/backfill";
+import { runNightJobs } from "@/lib/ai/night-runner";
 import { storeDay } from "@/lib/matches/ingest";
 import { sanitizeDay } from "@/lib/matches/sanitize";
 
@@ -68,6 +69,10 @@ export async function POST(request: Request) {
       console.warn("[archive-ingest] report backfill threw:", error);
     }
 
+    // Writes the nightly column once a night has gone quiet, and announces any
+    // column that has not been posted yet. Both already swallow their failures.
+    const night = await runNightJobs();
+
     return Response.json({
       ok: true,
       day: result.archiveDay,
@@ -75,6 +80,8 @@ export async function POST(request: Request) {
       players: result.playersWritten,
       captures: result.capturesWritten,
       reports,
+      columns: night.columns,
+      announced: night.posted,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Archive ingest failed";

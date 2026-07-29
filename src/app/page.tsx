@@ -19,6 +19,7 @@ const SECTION_BLURBS: Record<string, string> = {
   "/tools": "RED, the official toolkit and community utilities.",
   "/videos": "Tutorials, matches, speedruns and machinima.",
   "/guides": "Which client to run, and which levels load where.",
+  "/news": "Match night write-ups, and who stood out.",
   "/matches": "Scoreboards, capture timelines and full event logs.",
   "/players": "Records across every archived match.",
   "/server": "Where to play and whether anyone is on.",

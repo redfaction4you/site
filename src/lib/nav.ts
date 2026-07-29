@@ -37,6 +37,7 @@ export const NAV: NavItem[] = [
   { href: "/guides", label: "Guides", hidden: true },
 
   // What actually has something behind it today.
+  { href: "/news", label: "News" },
   { href: "/matches", label: "Matches" },
   { href: "/players", label: "Players" },
   { href: "/server", label: "Server" },
