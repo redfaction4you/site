@@ -287,6 +287,26 @@ export function MatchDetailView({
     (s) => s.sourceMatchId === match.sourceMatchId,
   )?.number;
 
+  // Frags by weapon, per player, counted from the frag log we already store.
+  const weaponsByPlayer = new Map<string, { weapon: string; kills: number }[]>();
+  {
+    const tally = new Map<string, Map<string, number>>();
+    for (const kill of match.kills) {
+      if (kill.suicide || !kill.killerName || !kill.weapon) continue;
+      const forPlayer = tally.get(kill.killerName) ?? new Map<string, number>();
+      forPlayer.set(kill.weapon, (forPlayer.get(kill.weapon) ?? 0) + 1);
+      tally.set(kill.killerName, forPlayer);
+    }
+    for (const [name, weapons] of tally) {
+      weaponsByPlayer.set(
+        name,
+        [...weapons.entries()]
+          .map(([weapon, kills]) => ({ weapon, kills }))
+          .sort((a, b) => b.kills - a.kills),
+      );
+    }
+  }
+
   const totalKills = active.reduce((sum, p) => sum + p.kills, 0);
   const shotsFired = active.reduce((sum, p) => sum + p.shotsFired, 0);
   const shotsHit = active.reduce((sum, p) => sum + p.shotsHit, 0);
@@ -437,6 +457,32 @@ export function MatchDetailView({
               columns={[...CORE_COLUMNS, ...EXTRA_COLUMNS]}
             />
           ))}
+
+          {/* What each player actually killed with, counted from the frag log.
+              Derived rather than reported: the server records the weapon on
+              each frag but keeps no per weapon totals, and it cannot give
+              per weapon accuracy because it logs weapons for frags, not for
+              every shot. */}
+          {weaponsByPlayer.size > 0 ? (
+            <div>
+              <h3 className="mb-2 font-display text-[10px] uppercase tracking-widest text-steel-500">
+                Frags by weapon
+              </h3>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {[...weaponsByPlayer.entries()].map(([name, weapons]) => (
+                  <li key={name} className="text-xs">
+                    <span className="text-steel-300">{name}</span>
+                    <span className="text-steel-500">
+                      {" "}
+                      {weapons
+                        .map((w) => `${w.weapon} ${w.kills}`)
+                        .join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </details>
 

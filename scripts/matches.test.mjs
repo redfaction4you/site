@@ -96,6 +96,23 @@ test("private source fields never survive sanitizing", () => {
   assert.equal("position" in capture, false, "player position leaked");
 });
 
+test("v2's alias history never survives sanitizing", () => {
+  // The v2 export added private_alias_history to every player: every name that
+  // account has used. It is exactly the kind of field an allowlist exists for,
+  // and exactly the kind that a spread would have published without anyone
+  // noticing.
+  const payload = samplePayload();
+  payload.matches[0].players[0].private_alias_history = [
+    "OldHandle",
+    "AnotherName",
+  ];
+
+  const json = JSON.stringify(sanitizeDay(payload));
+  assert.equal(json.includes("private_alias_history"), false);
+  assert.equal(json.includes("OldHandle"), false);
+  assert.equal(json.includes("AnotherName"), false);
+});
+
 test("an unknown field invented upstream cannot pass through", () => {
   const payload = samplePayload();
   payload.matches[0].players[0].secret_ip_address = "203.0.113.9";
