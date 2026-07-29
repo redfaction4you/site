@@ -10,6 +10,16 @@ export const metadata: Metadata = {
     "The RedFaction4You match archive: scoreboards, captures and results from the community server, night by night.",
 };
 
+/**
+ * Rendered per request, never prerendered.
+ *
+ * This page's whole job is to send you to the newest match night, which means
+ * its answer changes every time the server syncs. Next will happily prerender
+ * it at build time otherwise — and it did: the first deploy baked in the empty
+ * state from before any matches existed and served it from cache afterwards.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function MatchesPage() {
   const latest = await latestDay();
 
