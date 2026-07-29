@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: player.name,
-    description: `${player.name} on the RedFaction4You server: ${player.matchesPlayed} matches, ${player.kills} kills, ${player.caps} captures.`,
+    description: `${player.name} on the RedFaction4You server: ${player.matchesPlayed} matches, ${player.kills} frags, ${player.caps} captures.`,
   };
 }
 
@@ -80,11 +80,11 @@ export default async function PlayerPage({ params }: Props) {
       <dl className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <Stat label="Record" value={`${wins}–${losses}`} hint="wins and losses" />
         <Stat
-          label="Kills"
+          label="Frags"
           value={String(player.kills)}
           hint={`${player.deaths} deaths`}
         />
-        <Stat label="K/D" value={kd.toFixed(2)} />
+        <Stat label="F/D" value={kd.toFixed(2)} />
         <Stat label="Captures" value={String(player.caps)} />
         <Stat
           label="Accuracy"
@@ -109,7 +109,17 @@ export default async function PlayerPage({ params }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr>
-                {["Date", "Map", "Team", "Result", "Score", "K", "D", "Caps", "Acc"].map(
+                {[
+                  "Date",
+                  "Map",
+                  "Team",
+                  "Result",
+                  "Score",
+                  "Frags",
+                  "Deaths",
+                  "Caps",
+                  "Acc",
+                ].map(
                   (h, i) => (
                     <th
                       key={h}

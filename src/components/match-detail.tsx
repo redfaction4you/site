@@ -80,7 +80,7 @@ function MatchSummaryPanel({ match }: { match: MatchDetail }) {
       <dl className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Duration" value={duration(match.startedAt, match.endedAt)} />
         <Stat label="Players" value={String(active.length)} />
-        <Stat label="Total kills" value={String(totalKills)} />
+        <Stat label="Total frags" value={String(totalKills)} />
         <Stat
           label="Team accuracy"
           value={shotsFired > 0 ? percent(shotsHit / shotsFired) : "—"}
@@ -99,7 +99,7 @@ function MatchSummaryPanel({ match }: { match: MatchDetail }) {
         ) : null}
         {topKiller ? (
           <p className="text-steel-400">
-            <span className="text-steel-500">Most kills </span>
+            <span className="text-steel-500">Most frags </span>
             <PlayerLink name={topKiller.name} /> {topKiller.kills}
           </p>
         ) : null}
@@ -123,8 +123,10 @@ type ScoreColumn = {
 /** Every counter the server records, in the order they matter to a player. */
 const SCORE_COLUMNS: ScoreColumn[] = [
   { key: "score", label: "Score" },
-  { key: "kills", label: "K" },
-  { key: "deaths", label: "D" },
+  // "Frags", not "kills" — the column keys stay `kills` because that is what
+  // the server and the data contract call them. Only the labels change.
+  { key: "kills", label: "Frags" },
+  { key: "deaths", label: "Deaths" },
   { key: "caps", label: "Caps" },
   { key: "maxStreak", label: "Streak" },
   {
@@ -147,7 +149,7 @@ const SCORE_COLUMNS: ScoreColumn[] = [
   { key: "flagHoldMs", label: "Flag held", format: (r) => seconds(r.flagHoldMs) },
   { key: "flagPickups", label: "Picks" },
   { key: "flagReturns", label: "Returns" },
-  { key: "flagCarrierKills", label: "Carrier K" },
+  { key: "flagCarrierKills", label: "Carrier frags" },
   { key: "captureAssists", label: "Assists" },
   {
     key: "fastestCaptureMs",
@@ -447,7 +449,7 @@ export function MatchDetailView({
               Everything the server recorded
             </h2>
 
-            <EventSection title="Kills" count={match.kills.length}>
+            <EventSection title="Frags" count={match.kills.length}>
               <table className="w-full text-sm">
                 <tbody>
                   {match.kills.map((kill, i) => (
@@ -463,12 +465,12 @@ export function MatchDetailView({
                         ) : (
                           <span className="text-steel-400">
                             <PlayerLink name={kill.killerName} />
-                            <span className="mx-1.5 text-steel-600">killed</span>
+                            <span className="mx-1.5 text-steel-600">fragged</span>
                             <PlayerLink name={kill.victimName} />
                           </span>
                         )}
                         {kill.teamKill ? (
-                          <span className="ml-2 text-xs text-rust-400">team kill</span>
+                          <span className="ml-2 text-xs text-rust-400">team frag</span>
                         ) : null}
                       </td>
                       <td className="px-3 py-1.5 text-right text-xs text-steel-500">

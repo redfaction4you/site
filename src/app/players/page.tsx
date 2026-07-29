@@ -38,7 +38,7 @@ export default async function PlayersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr>
-                  {["Player", "Matches", "Kills", "Deaths", "K/D", "Caps", "Acc", "Streak"].map(
+                  {["Player", "Matches", "Frags", "Deaths", "F/D", "Caps", "Acc", "Streak"].map(
                     (h, i) => (
                       <th
                         key={h}

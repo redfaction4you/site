@@ -13,14 +13,18 @@ export type NavItem = {
  * things.
  */
 export const NAV: NavItem[] = [
-  { href: "/maps", label: "Maps", phase: 2 },
-  { href: "/mods", label: "Mods", phase: 2 },
-  { href: "/models", label: "Models", phase: 2 },
-  { href: "/weapons", label: "Weapons", phase: 2 },
-  { href: "/tools", label: "Tools", phase: 2 },
+  // The catalogue sections are built now, so they carry no phase tag. They are
+  // empty, but an empty shelf and an unbuilt shelf are different things and the
+  // pages say which they are.
+  { href: "/maps", label: "Maps" },
+  { href: "/mods", label: "Mods" },
+  { href: "/models", label: "Models" },
+  { href: "/weapons", label: "Weapons" },
+  { href: "/tools", label: "Tools" },
   { href: "/videos", label: "Videos" },
   { href: "/guides", label: "Guides" },
   { href: "/matches", label: "Matches" },
+  { href: "/players", label: "Players" },
   { href: "/events", label: "Events", phase: 4 },
 ];
 
