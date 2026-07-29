@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { dayLabel } from "@/components/match-archive";
@@ -28,6 +29,12 @@ const SERVER = {
 };
 
 const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
+
+/** Seconds to m:ss, for the match clock. */
+function clock(seconds: number): string {
+  const whole = Math.max(0, Math.round(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -120,12 +127,54 @@ export default async function ServerPage() {
       <div className="panel mt-6 grid gap-6 p-6 lg:grid-cols-[auto_1fr]">
         <div className="lg:border-r lg:border-basalt-700 lg:pr-8">
           <StatusBadge status={status} />
+
           {online?.map ? (
-            <p className="mt-2 text-sm text-steel-400">
-              {online.map}
-              {online.gameType ? ` · ${online.gameType}` : ""}
+            <div className="mt-3 flex gap-3">
+              {online.mapInfo ? (
+                <a
+                  href={online.mapInfo.pageUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="relative block h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-basalt-700 bg-basalt-850"
+                  title={`${online.mapInfo.name} on FactionFiles`}
+                >
+                  <Image
+                    src={online.mapInfo.imageUrl}
+                    alt=""
+                    fill
+                    sizes="112px"
+                    className="object-cover"
+                    unoptimized
+                  />
+                </a>
+              ) : null}
+              <div className="min-w-0">
+                <p className="truncate text-sm text-steel-200">{online.map}</p>
+                <p className="text-xs text-steel-500">
+                  {online.gameType ?? ""}
+                  {online.game?.timeLeft != null
+                    ? ` · ${clock(online.game.timeLeft)} left`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* The in-progress score, when there is a game to have one. */}
+          {online?.game && online.game.teamBased && online.players > 0 ? (
+            <p className="mt-3 font-mono text-lg tabular-nums">
+              <span className="text-rust-400">{online.game.redScore}</span>
+              <span className="mx-2 text-steel-600">-</span>
+              <span className="text-oxide-400">{online.game.blueScore}</span>
             </p>
           ) : null}
+
+          {online?.game?.players.length ? (
+            <p className="mt-2 truncate text-xs text-steel-500">
+              {online.game.players.map((p) => p.name).join(", ")}
+            </p>
+          ) : null}
+
           {status.state === "offline" ? (
             <p className="mt-2 text-sm text-steel-500">Normal between games.</p>
           ) : null}

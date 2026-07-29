@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cdn.discordapp.com" },
       // YouTube thumbnails for the video archive.
       { protocol: "https", hostname: "i.ytimg.com" },
+      // Map preview images for whatever the server is currently running.
+      { protocol: "https", hostname: "www.factionfiles.com" },
       ...r2Pattern(),
     ],
   },

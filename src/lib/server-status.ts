@@ -12,6 +12,8 @@
  */
 
 const RFSB_API = "https://rfsb.factionfiles.com/api/v2/server";
+const RFSB_PLAYERS_API = "https://rfsb.factionfiles.com/api/v2/players";
+const RFSB_LOOKUP_API = "https://rfsb.factionfiles.com/api/v2/ff-rfl-lookup";
 
 /** How long a cached answer stays good, in seconds. */
 const REVALIDATE = 30;
@@ -19,8 +21,44 @@ const REVALIDATE = 30;
 /** Give up rather than hang a page render on a third party being slow. */
 const TIMEOUT_MS = 4000;
 
+/** Live state of the game in progress, when there is one. */
+export type LiveGame = {
+  /** Seconds remaining, or null if the server does not report it. */
+  timeLeft: number | null;
+  redScore: number;
+  blueScore: number;
+  teamBased: boolean;
+  /**
+   * Who is on. The shape of a player entry could not be verified: the server
+   * was empty every time this was checked, so the array was always empty.
+   * Parsed defensively, and anything unrecognised is simply not shown.
+   */
+  players: { name: string; team: string | null; score: number | null }[];
+};
+
+/** The current map, matched to its FactionFiles page and preview image. */
+export type MapInfo = {
+  name: string;
+  fileId: number;
+  imageUrl: string;
+  pageUrl: string;
+};
+
 export type ServerStatus =
-  | { state: "online"; players: number; humans: number; bots: number; maxPlayers: number; map: string | null; gameType: string | null; client: string | null; matchMode: boolean }
+  | {
+      state: "online";
+      players: number;
+      humans: number;
+      bots: number;
+      maxPlayers: number;
+      map: string | null;
+      gameType: string | null;
+      client: string | null;
+      matchMode: boolean;
+      /** Null when the extra lookups failed; the page just shows less. */
+      game: LiveGame | null;
+      mapInfo: MapInfo | null;
+    }
   | { state: "offline" }
   /** The browser API could not be reached. We do not know, and say so. */
   | { state: "unknown"; reason: string };
@@ -35,6 +73,7 @@ type RfsbResponse = {
     patch_name?: string;
     patch_ver?: string;
     flags?: string[];
+    rfl_name?: string;
     player_count_info?: {
       num_players?: number;
       max_players?: number;
@@ -54,6 +93,86 @@ const GAME_TYPES: Record<string, string> = {
 function gameType(raw: string | undefined): string | null {
   if (!raw) return null;
   return GAME_TYPES[raw] ?? raw.replace(/_/g, " ");
+}
+
+/** Shared fetch: short timeout, cached, and never throws past the caller. */
+async function getJson<T>(url: string): Promise<T | null> {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      next: { revalidate: REVALIDATE },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The in-progress game: score, clock and who is playing.
+ *
+ * Separate endpoint from the server summary, so it is fetched only when the
+ * server is actually up. A failure here degrades the panel rather than the page.
+ */
+async function getLiveGame(host: string, port: string): Promise<LiveGame | null> {
+  const body = await getJson<{
+    success?: boolean;
+    game?: {
+      time_left?: number;
+      scores?: { red?: number; blue?: number };
+      is_team_based?: boolean;
+    };
+    players?: unknown[];
+  }>(`${RFSB_PLAYERS_API}/${host}/${port}`);
+
+  if (!body?.success || !body.game) return null;
+
+  const players = (Array.isArray(body.players) ? body.players : [])
+    .map((entry) => {
+      const p = entry as Record<string, unknown>;
+      const name = typeof p.name === "string" ? p.name : null;
+      if (!name) return null;
+      return {
+        name,
+        team: typeof p.team === "string" ? p.team : null,
+        score: typeof p.score === "number" ? p.score : null,
+      };
+    })
+    .filter((p): p is LiveGame["players"][number] => p !== null);
+
+  return {
+    timeLeft: typeof body.game.time_left === "number" ? body.game.time_left : null,
+    redScore: body.game.scores?.red ?? 0,
+    blueScore: body.game.scores?.blue ?? 0,
+    teamBased: Boolean(body.game.is_team_based),
+    players,
+  };
+}
+
+/**
+ * Matches the running map to its FactionFiles entry, which is where the preview
+ * image comes from. Two hops: the level filename resolves to a file id, and the
+ * id addresses the image.
+ */
+async function getMapInfo(rflName: string | undefined): Promise<MapInfo | null> {
+  if (!rflName) return null;
+
+  const lookup = await getJson<{
+    success?: boolean;
+    file_name?: string;
+    file_id?: number;
+    guessed?: boolean;
+  }>(`${RFSB_LOOKUP_API}/${encodeURIComponent(rflName)}`);
+
+  if (!lookup?.success || !lookup.file_id) return null;
+
+  return {
+    name: lookup.file_name || rflName,
+    fileId: lookup.file_id,
+    imageUrl: `https://www.factionfiles.com/files_images/preview.php?id=${lookup.file_id}`,
+    pageUrl: `https://www.factionfiles.com/ff.php?action=file&id=${lookup.file_id}`,
+  };
 }
 
 export async function getServerStatus(): Promise<ServerStatus> {
@@ -83,8 +202,17 @@ export async function getServerStatus(): Promise<ServerStatus> {
 
     const counts = body.info.player_count_info ?? {};
 
+    // Only now that we know the server is up. Both are optional extras: if
+    // either fails the panel shows less rather than the page failing.
+    const [game, mapInfo] = await Promise.all([
+      getLiveGame(host, port),
+      getMapInfo(body.info.rfl_name),
+    ]);
+
     return {
       state: "online",
+      game,
+      mapInfo,
       players: counts.num_players ?? 0,
       humans: counts.num_humans ?? counts.num_players ?? 0,
       bots: counts.num_bots ?? 0,
