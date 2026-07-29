@@ -7,7 +7,7 @@ import type {
   MatchSummary,
   PublicScoreRow,
 } from "@/lib/matches/queries";
-import { DaySelector, dayLabel, duration, matchTime } from "@/components/match-archive";
+import { dayLabel, duration, matchTime } from "@/components/match-archive";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -41,99 +41,34 @@ function PlayerLink({ name, className }: { name: string | null; className?: stri
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div>
-      <dt className="font-display text-[11px] uppercase tracking-widest text-steel-500">
-        {label}
-      </dt>
-      <dd className="mt-1 font-mono text-lg tabular-nums text-steel-100">{value}</dd>
-      {hint ? <dd className="text-xs text-steel-500">{hint}</dd> : null}
-    </div>
-  );
-}
-
-/**
- * The at-a-glance block.
- *
- * Everything here is derived from the scoreboard rather than stored, so it
- * cannot disagree with the table below it.
- */
-function MatchSummaryPanel({ match }: { match: MatchDetail }) {
-  const active = match.players.filter((p) => !p.spectator);
-  const totalKills = active.reduce((sum, p) => sum + p.kills, 0);
-  const shotsFired = active.reduce((sum, p) => sum + p.shotsFired, 0);
-  const shotsHit = active.reduce((sum, p) => sum + p.shotsHit, 0);
-
-  const top = (key: keyof PublicScoreRow) =>
-    active.reduce<PublicScoreRow | null>(
-      (best, p) => (!best || (p[key] as number) > (best[key] as number) ? p : best),
-      null,
-    );
-
-  const topKiller = top("kills");
-  const topScorer = top("score");
-  const topCapper = active.some((p) => p.caps > 0) ? top("caps") : null;
-
-  return (
-    <div className="panel mt-8 p-6">
-      <dl className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Duration" value={duration(match.startedAt, match.endedAt)} />
-        <Stat label="Players" value={String(active.length)} />
-        <Stat label="Total frags" value={String(totalKills)} />
-        <Stat
-          label="Team accuracy"
-          value={shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
-          hint={shotsFired > 0 ? `${shotsHit} of ${shotsFired}` : undefined}
-        />
-        <Stat label="Captures" value={String(match.captures.length)} />
-        <Stat label="Flag events" value={String(match.flagEvents.length)} />
-      </dl>
-
-      <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-basalt-700 pt-4 text-sm">
-        {topScorer ? (
-          <p className="text-steel-400">
-            <span className="text-steel-500">Top score </span>
-            <PlayerLink name={topScorer.name} /> {topScorer.score}
-          </p>
-        ) : null}
-        {topKiller ? (
-          <p className="text-steel-400">
-            <span className="text-steel-500">Most frags </span>
-            <PlayerLink name={topKiller.name} /> {topKiller.kills}
-          </p>
-        ) : null}
-        {topCapper ? (
-          <p className="text-steel-400">
-            <span className="text-steel-500">Most caps </span>
-            <PlayerLink name={topCapper.name} /> {topCapper.caps}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 type ScoreColumn = {
   key: keyof PublicScoreRow;
   label: string;
   format?: (row: PublicScoreRow) => string;
 };
 
-/** Every counter the server records, in the order they matter to a player. */
-const SCORE_COLUMNS: ScoreColumn[] = [
+/**
+ * What a scoreboard shows at a glance.
+ *
+ * Six columns fit a half-width table without sideways scrolling, which is what
+ * lets both teams sit next to each other on one screen. Everything else the
+ * server records is still here, one click away under "All statistics", rather
+ * than forcing a horizontal scrollbar on the thing people read most.
+ */
+const CORE_COLUMNS: ScoreColumn[] = [
   { key: "score", label: "Score" },
-  // "Frags", not "kills", the column keys stay `kills` because that is what
-  // the server and the data contract call them. Only the labels change.
   { key: "kills", label: "Frags" },
   { key: "deaths", label: "Deaths" },
   { key: "caps", label: "Caps" },
-  { key: "maxStreak", label: "Streak" },
   {
     key: "accuracy",
     label: "Acc",
     format: (r) => (r.shotsFired > 0 ? percent(r.accuracy) : "-"),
   },
+];
+
+const EXTRA_COLUMNS: ScoreColumn[] = [
+  { key: "maxStreak", label: "Streak" },
   { key: "shotsHit", label: "Hits", format: (r) => String(Math.round(r.shotsHit)) },
   { key: "shotsFired", label: "Shots", format: (r) => String(Math.round(r.shotsFired)) },
   {
@@ -158,42 +93,45 @@ const SCORE_COLUMNS: ScoreColumn[] = [
   },
 ];
 
-/**
- * A team's scoreboard, showing every counter the server records.
- *
- * Columns that are zero for everyone in this match are dropped, so a match
- * where nobody returned a flag does not carry a column of dashes. The table
- * scrolls sideways rather than hiding data on narrow screens.
- */
-function Scoreboard({ team, players }: { team: string; players: PublicScoreRow[] }) {
-  if (players.length === 0) return null;
-
-  const columns = SCORE_COLUMNS.filter((column) =>
-    // Keep a column only if somebody in this match has a value for it, so a
-    // match where nobody returned a flag does not carry a column of dashes.
+/** Drops columns nobody in this match has a value for. */
+function used(columns: ScoreColumn[], players: PublicScoreRow[]): ScoreColumn[] {
+  return columns.filter((column) =>
     players.some((p) => {
       const raw = p[column.key];
       return typeof raw === "number" && raw !== 0;
     }),
   );
+}
+
+function Scoreboard({
+  team,
+  players,
+  columns,
+}: {
+  team: string;
+  players: PublicScoreRow[];
+  columns: ScoreColumn[];
+}) {
+  if (players.length === 0) return null;
+  const shown = used(columns, players);
 
   return (
     <div className="panel overflow-x-auto">
       <table className="w-full text-sm">
-        <caption className="px-4 pt-4 text-left font-display text-sm font-bold uppercase tracking-wider">
+        <caption className="px-3 pt-3 text-left font-display text-xs font-bold uppercase tracking-wider">
           <span className={TEAM_TEXT[team] ?? "text-steel-200"}>
             {team || "unassigned"}
           </span>
         </caption>
         <thead>
           <tr>
-            <th className="px-3 py-2 text-left font-display text-[11px] uppercase tracking-widest text-steel-500">
+            <th className="px-3 py-1.5 text-left font-display text-[10px] uppercase tracking-widest text-steel-500">
               Player
             </th>
-            {columns.map((column) => (
+            {shown.map((column) => (
               <th
                 key={String(column.key)}
-                className="px-3 py-2 text-right font-display text-[11px] uppercase tracking-widest text-steel-500"
+                className="px-2 py-1.5 text-right font-display text-[10px] uppercase tracking-widest text-steel-500"
               >
                 {column.label}
               </th>
@@ -203,13 +141,13 @@ function Scoreboard({ team, players }: { team: string; players: PublicScoreRow[]
         <tbody>
           {players.map((player) => (
             <tr key={`${player.team}-${player.name}`} className="border-t border-basalt-700">
-              <td className="whitespace-nowrap px-3 py-2">
+              <td className="max-w-[10rem] truncate px-3 py-1.5">
                 <PlayerLink name={player.name} />
               </td>
-              {columns.map((column) => (
+              {shown.map((column) => (
                 <td
                   key={String(column.key)}
-                  className="px-3 py-2 text-right font-mono tabular-nums text-steel-300"
+                  className="whitespace-nowrap px-2 py-1.5 text-right font-mono tabular-nums text-steel-300"
                 >
                   {column.format
                     ? column.format(player)
@@ -236,60 +174,89 @@ function EventSection({
 }) {
   if (count === 0) return null;
   return (
-    <details className="panel mt-4">
-      <summary className="cursor-pointer p-4 font-display text-sm font-semibold text-steel-200 hover:text-rust-300">
+    <details className="panel">
+      <summary className="cursor-pointer p-3 font-display text-xs font-semibold text-steel-200 hover:text-rust-300">
         {title} <span className="text-steel-500">({count})</span>
       </summary>
-      <div className="max-h-[32rem] overflow-y-auto border-t border-basalt-700">
+      <div className="max-h-[26rem] overflow-y-auto border-t border-basalt-700">
         {children}
       </div>
     </details>
   );
 }
 
-function PrevNext({
+/**
+ * Match navigation as a horizontal strip rather than a sidebar.
+ *
+ * A sidebar costs a fixed slice of every screen, which is exactly the width the
+ * two scoreboards need to sit side by side. Across the top it costs one line.
+ */
+function MatchNav({
+  days,
+  siblings,
+  match,
   previous,
   next,
 }: {
+  days: DaySummary[];
+  siblings: MatchSummary[];
+  match: MatchDetail;
   previous: MatchLink | null;
   next: MatchLink | null;
 }) {
   return (
-    <nav className="mt-10 flex items-stretch justify-between gap-4 border-t border-basalt-700 pt-6">
+    <div className="mt-4 flex flex-wrap items-center gap-2">
       {previous ? (
         <Link
           href={`/matches/${previous.archiveDay}/${previous.sourceMatchId}`}
-          className="panel group min-w-0 flex-1 p-4"
+          title={`${previous.mapName}, ${dayLabel(previous.archiveDay)}`}
+          className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
         >
-          <span className="font-display text-[11px] uppercase tracking-widest text-steel-500">
-            ← Previous match
-          </span>
-          <span className="mt-1 block truncate text-sm text-steel-200 group-hover:text-rust-300">
-            {previous.mapName}
-          </span>
-          <span className="text-xs text-steel-500">{dayLabel(previous.archiveDay)}</span>
+          &larr; Prev
         </Link>
-      ) : (
-        <span className="flex-1" />
-      )}
+      ) : null}
+
+      {siblings.map((sibling) => {
+        const current = sibling.sourceMatchId === match.sourceMatchId;
+        return (
+          <Link
+            key={sibling.id}
+            href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
+            aria-current={current ? "page" : undefined}
+            className={
+              "max-w-[14rem] truncate rounded-sm border px-2.5 py-1 text-xs transition-colors " +
+              (current
+                ? "border-rust-500 bg-rust-500/10 text-rust-300"
+                : "border-basalt-700 bg-basalt-850 text-steel-400 hover:text-steel-200")
+            }
+          >
+            {sibling.mapName}
+            <span className="ml-1.5 font-mono text-steel-500">
+              {sibling.redScore}-{sibling.blueScore}
+            </span>
+          </Link>
+        );
+      })}
 
       {next ? (
         <Link
           href={`/matches/${next.archiveDay}/${next.sourceMatchId}`}
-          className="panel group min-w-0 flex-1 p-4 text-right"
+          title={`${next.mapName}, ${dayLabel(next.archiveDay)}`}
+          className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
         >
-          <span className="font-display text-[11px] uppercase tracking-widest text-steel-500">
-            Next match →
-          </span>
-          <span className="mt-1 block truncate text-sm text-steel-200 group-hover:text-rust-300">
-            {next.mapName}
-          </span>
-          <span className="text-xs text-steel-500">{dayLabel(next.archiveDay)}</span>
+          Next &rarr;
         </Link>
-      ) : (
-        <span className="flex-1" />
-      )}
-    </nav>
+      ) : null}
+
+      {days.length > 1 ? (
+        <Link
+          href="/matches"
+          className="ml-auto rounded-sm border border-basalt-700 bg-basalt-850 px-2.5 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
+        >
+          All {days.length} nights
+        </Link>
+      ) : null}
+    </div>
   );
 }
 
@@ -302,251 +269,262 @@ export function MatchDetailView({
 }: {
   match: MatchDetail;
   days: DaySummary[];
-  /** The other matches that night, so the night stays navigable. */
   siblings: MatchSummary[];
   previous: MatchLink | null;
   next: MatchLink | null;
 }) {
-  const teams = [...new Set(match.players.filter((p) => !p.spectator).map((p) => p.team))];
+  const active = match.players.filter((p) => !p.spectator);
+  const teams = [...new Set(active.map((p) => p.team))];
   const spectators = match.players.filter((p) => p.spectator);
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-16">
-      <div className="grid gap-8 lg:grid-cols-[16rem_1fr]">
-        {/* The calendar stays put, so moving around never needs the back button. */}
-        <aside className="lg:sticky lg:top-8 lg:self-start">
-          <h2 className="mb-3 font-display text-xs uppercase tracking-widest text-steel-500">
-            Match nights
-          </h2>
-          <DaySelector days={days} selected={match.archiveDay} />
+  const totalKills = active.reduce((sum, p) => sum + p.kills, 0);
+  const shotsFired = active.reduce((sum, p) => sum + p.shotsFired, 0);
+  const shotsHit = active.reduce((sum, p) => sum + p.shotsHit, 0);
 
-          <h2 className="mb-3 mt-6 font-display text-xs uppercase tracking-widest text-steel-500">
-            This night
-          </h2>
-          <ol className="space-y-1">
-            {siblings.map((sibling) => {
-              const current = sibling.sourceMatchId === match.sourceMatchId;
-              return (
-                <li key={sibling.id}>
-                  <Link
-                    href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
-                    aria-current={current ? "page" : undefined}
+  const top = (key: keyof PublicScoreRow) =>
+    active.reduce<PublicScoreRow | null>(
+      (best, p) => (!best || (p[key] as number) > (best[key] as number) ? p : best),
+      null,
+    );
+  const topScorer = top("score");
+  const topKiller = top("kills");
+  const topCapper = active.some((p) => p.caps > 0) ? top("caps") : null;
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <p className="eyebrow">
+        <Link href="/matches" className="hover:text-rust-300">
+          Matches
+        </Link>
+        <span className="mx-2 text-steel-600">/</span>
+        <Link href={`/matches/${match.archiveDay}`} className="hover:text-rust-300">
+          {dayLabel(match.archiveDay)}
+        </Link>
+      </p>
+
+      {/* Title, score and the whole summary on one line each. */}
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        <h1 className="font-display text-2xl font-bold text-steel-100">
+          {match.mapName}
+        </h1>
+        <span className="font-mono text-2xl tabular-nums">
+          <span className={match.winner === "red" ? "text-rust-400" : "text-steel-500"}>
+            {match.redScore}
+          </span>
+          <span className="mx-1.5 text-steel-600">-</span>
+          <span className={match.winner === "blue" ? "text-oxide-400" : "text-steel-500"}>
+            {match.blueScore}
+          </span>
+        </span>
+        <span className="text-sm text-steel-400">
+          {match.mode} · {matchTime(match.startedAt)} ·{" "}
+          {duration(match.startedAt, match.endedAt)} · {active.length} players
+          {match.overtime ? " · overtime" : ""}
+          {match.status !== "final" ? ` · ${match.status}` : ""}
+        </span>
+      </div>
+
+      <MatchNav
+        days={days}
+        siblings={siblings}
+        match={match}
+        previous={previous}
+        next={next}
+      />
+
+      {/* Summary as a single line of figures. */}
+      <div className="panel mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 p-4 text-sm">
+        <span className="text-steel-400">
+          <span className="font-mono text-lg text-steel-100">{totalKills}</span> frags
+        </span>
+        <span className="text-steel-400">
+          <span className="font-mono text-lg text-steel-100">
+            {shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
+          </span>{" "}
+          team accuracy
+        </span>
+        <span className="text-steel-400">
+          <span className="font-mono text-lg text-steel-100">
+            {match.captures.length}
+          </span>{" "}
+          captures
+        </span>
+        {topScorer ? (
+          <span className="text-steel-400">
+            Top score <PlayerLink name={topScorer.name} />{" "}
+            <span className="font-mono text-steel-200">{topScorer.score}</span>
+          </span>
+        ) : null}
+        {topKiller ? (
+          <span className="text-steel-400">
+            Most frags <PlayerLink name={topKiller.name} />{" "}
+            <span className="font-mono text-steel-200">{topKiller.kills}</span>
+          </span>
+        ) : null}
+        {topCapper ? (
+          <span className="text-steel-400">
+            Most caps <PlayerLink name={topCapper.name} />{" "}
+            <span className="font-mono text-steel-200">{topCapper.caps}</span>
+          </span>
+        ) : null}
+      </div>
+
+      {/* Both teams side by side. This is the reason for everything above. */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {teams.map((team) => (
+          <Scoreboard
+            key={team}
+            team={team}
+            players={active.filter((p) => p.team === team)}
+            columns={CORE_COLUMNS}
+          />
+        ))}
+      </div>
+
+      {spectators.length ? (
+        <p className="mt-2 text-xs text-steel-500">
+          Spectating: {spectators.map((p) => p.name).join(", ")}
+        </p>
+      ) : null}
+
+      {/* Everything the server records, without pushing it onto the front. */}
+      <details className="panel mt-4">
+        <summary className="cursor-pointer p-3 font-display text-xs font-semibold text-steel-200 hover:text-rust-300">
+          All statistics
+        </summary>
+        <div className="space-y-4 border-t border-basalt-700 p-3">
+          {teams.map((team) => (
+            <Scoreboard
+              key={team}
+              team={team}
+              players={active.filter((p) => p.team === team)}
+              columns={[...CORE_COLUMNS, ...EXTRA_COLUMNS]}
+            />
+          ))}
+        </div>
+      </details>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Captures, the short list that is worth reading in full. */}
+        {match.captures.length ? (
+          <div className="panel p-4">
+            <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-steel-500">
+              Capture timeline
+            </h2>
+            <ol className="mt-3 space-y-1.5 text-sm">
+              {match.captures.map((capture, i) => (
+                <li
+                  key={`${capture.elapsedSeconds}-${i}`}
+                  className="flex flex-wrap items-baseline gap-x-2.5"
+                >
+                  <span className="font-mono tabular-nums text-steel-500">
+                    {clock(capture.elapsedSeconds)}
+                  </span>
+                  <span
                     className={
-                      "block truncate rounded-sm border px-3 py-1.5 text-xs transition-colors " +
-                      (current
-                        ? "border-rust-500 bg-rust-500/10 text-rust-300"
-                        : "border-basalt-700 bg-basalt-850 text-steel-400 hover:text-steel-200")
+                      "font-display text-[10px] font-semibold uppercase tracking-wider " +
+                      (TEAM_TEXT[capture.team] ?? "text-steel-300")
                     }
                   >
-                    {sibling.mapName}
-                    <span className="ml-1 font-mono text-steel-500">
-                      {sibling.redScore}–{sibling.blueScore}
-                    </span>
-                  </Link>
+                    {capture.team}
+                  </span>
+                  <PlayerLink name={capture.playerName} />
+                  <span className="font-mono tabular-nums text-steel-500">
+                    {capture.redScore}-{capture.blueScore}
+                  </span>
                 </li>
-              );
-            })}
-          </ol>
-        </aside>
-
-        <div className="min-w-0">
-          <p className="eyebrow">
-            <Link href="/matches" className="hover:text-rust-300">
-              Matches
-            </Link>
-            <span className="mx-2 text-steel-600">/</span>
-            <Link
-              href={`/matches/${match.archiveDay}`}
-              className="hover:text-rust-300"
-            >
-              {dayLabel(match.archiveDay)}
-            </Link>
-          </p>
-
-          <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">
-            {match.mapName}
-          </h1>
-
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-steel-400">
-            <span className="font-mono text-2xl tabular-nums">
-              <span className={match.winner === "red" ? "text-rust-400" : "text-steel-500"}>
-                {match.redScore}
-              </span>
-              <span className="mx-2 text-steel-600">–</span>
-              <span
-                className={match.winner === "blue" ? "text-oxide-400" : "text-steel-500"}
-              >
-                {match.blueScore}
-              </span>
-            </span>
-            <span>{match.mode}</span>
-            <span>Started {matchTime(match.startedAt)}</span>
-            {match.overtime ? <span className="text-oxide-400">Overtime</span> : null}
-            {match.status !== "final" ? (
-              <span className="text-oxide-400">{match.status}</span>
-            ) : null}
+              ))}
+            </ol>
           </div>
+        ) : null}
 
-          <MatchSummaryPanel match={match} />
-
-          <div className="mt-8 space-y-4">
-            {teams.map((team) => (
-              <Scoreboard
-                key={team}
-                team={team}
-                players={match.players.filter((p) => !p.spectator && p.team === team)}
-              />
-            ))}
-          </div>
-
-          {spectators.length ? (
-            <p className="mt-4 text-xs text-steel-500">
-              Spectating: {spectators.map((p) => p.name).join(", ")}
-            </p>
-          ) : null}
-
-          {/* --- Captures --- */}
-          {match.captures.length ? (
-            <section className="mt-10">
-              <h2 className="font-display text-lg font-bold text-steel-100">
-                Capture timeline
-              </h2>
-              <ol className="mt-4 space-y-2">
-                {match.captures.map((capture, i) => (
-                  <li
-                    key={`${capture.elapsedSeconds}-${i}`}
-                    className="panel flex flex-wrap items-baseline gap-x-3 gap-y-1 p-3 text-sm"
-                  >
-                    <span className="font-mono tabular-nums text-steel-500">
-                      {clock(capture.elapsedSeconds)}
-                    </span>
-                    <span
-                      className={
-                        "font-display text-xs font-semibold uppercase tracking-wider " +
-                        (TEAM_TEXT[capture.team] ?? "text-steel-300")
-                      }
-                    >
-                      {capture.team}
-                    </span>
-                    <PlayerLink name={capture.playerName} />
-                    <span className="font-mono tabular-nums text-steel-500">
-                      {capture.redScore}–{capture.blueScore}
-                    </span>
-                    {capture.assists.length ? (
-                      <span className="text-xs text-steel-500">
-                        assisted by {capture.assists.join(", ")}
-                      </span>
-                    ) : null}
-                  </li>
+        {/* Event streams, collapsed. */}
+        <div className="space-y-3">
+          <EventSection title="Frags" count={match.kills.length}>
+            <table className="w-full text-sm">
+              <tbody>
+                {match.kills.map((kill, i) => (
+                  <tr key={i} className="border-b border-basalt-800 last:border-0">
+                    <td className="w-14 px-3 py-1 font-mono tabular-nums text-steel-500">
+                      {clock(kill.elapsedSeconds)}
+                    </td>
+                    <td className="px-2 py-1 text-steel-400">
+                      {kill.suicide ? (
+                        <>
+                          <PlayerLink name={kill.victimName} /> died
+                        </>
+                      ) : (
+                        <>
+                          <PlayerLink name={kill.killerName} />
+                          <span className="mx-1.5 text-steel-600">fragged</span>
+                          <PlayerLink name={kill.victimName} />
+                        </>
+                      )}
+                      {kill.teamKill ? (
+                        <span className="ml-2 text-xs text-rust-400">team frag</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-1 text-right text-xs text-steel-500">
+                      {kill.weapon ?? ""}
+                    </td>
+                  </tr>
                 ))}
-              </ol>
-            </section>
-          ) : null}
+              </tbody>
+            </table>
+          </EventSection>
 
-          {/* --- Event streams --- */}
-          <section className="mt-10">
-            <h2 className="font-display text-lg font-bold text-steel-100">
-              Everything the server recorded
-            </h2>
+          <EventSection title="Flag events" count={match.flagEvents.length}>
+            <table className="w-full text-sm">
+              <tbody>
+                {match.flagEvents.map((event, i) => (
+                  <tr key={i} className="border-b border-basalt-800 last:border-0">
+                    <td className="w-14 px-3 py-1 font-mono tabular-nums text-steel-500">
+                      {clock(event.elapsedSeconds)}
+                    </td>
+                    <td className="px-2 py-1 text-steel-400">
+                      {event.message || (
+                        <>
+                          <PlayerLink name={event.playerName} />
+                          {event.flagOwner ? (
+                            <span
+                              className={
+                                "ml-2 " + (TEAM_TEXT[event.flagOwner] ?? "text-steel-500")
+                              }
+                            >
+                              {event.flagOwner} flag
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </EventSection>
 
-            <EventSection title="Frags" count={match.kills.length}>
-              <table className="w-full text-sm">
-                <tbody>
-                  {match.kills.map((kill, i) => (
-                    <tr key={i} className="border-b border-basalt-800 last:border-0">
-                      <td className="w-16 px-3 py-1.5 font-mono tabular-nums text-steel-500">
-                        {clock(kill.elapsedSeconds)}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {kill.suicide ? (
-                          <span className="text-steel-400">
-                            <PlayerLink name={kill.victimName} /> died
-                          </span>
-                        ) : (
-                          <span className="text-steel-400">
-                            <PlayerLink name={kill.killerName} />
-                            <span className="mx-1.5 text-steel-600">fragged</span>
-                            <PlayerLink name={kill.victimName} />
-                          </span>
-                        )}
-                        {kill.teamKill ? (
-                          <span className="ml-2 text-xs text-rust-400">team frag</span>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-1.5 text-right text-xs text-steel-500">
-                        {kill.weapon ?? ""}
-                        {kill.flagContext ? ` · ${kill.flagContext}` : ""}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </EventSection>
-
-            <EventSection title="Flag events" count={match.flagEvents.length}>
-              <table className="w-full text-sm">
-                <tbody>
-                  {match.flagEvents.map((event, i) => (
-                    <tr key={i} className="border-b border-basalt-800 last:border-0">
-                      <td className="w-16 px-3 py-1.5 font-mono tabular-nums text-steel-500">
-                        {clock(event.elapsedSeconds)}
-                      </td>
-                      <td className="w-32 px-3 py-1.5 font-display text-[11px] uppercase tracking-wider text-steel-500">
-                        {event.eventType}
-                      </td>
-                      <td className="px-3 py-1.5 text-steel-400">
-                        {event.message || (
-                          <>
-                            <PlayerLink name={event.playerName} />
-                            {event.flagOwner ? (
-                              <span
-                                className={
-                                  "ml-2 " + (TEAM_TEXT[event.flagOwner] ?? "text-steel-500")
-                                }
-                              >
-                                {event.flagOwner} flag
-                              </span>
-                            ) : null}
-                          </>
-                        )}
-                        {event.recovery ? (
-                          <span className="ml-2 text-xs text-signal-green">recovery</span>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-1.5 text-right text-xs text-steel-500">
-                        {event.carryMs ? seconds(event.carryMs) : ""}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </EventSection>
-
-            <EventSection title="Roster changes" count={match.rosterEvents.length}>
-              <table className="w-full text-sm">
-                <tbody>
-                  {match.rosterEvents.map((event, i) => (
-                    <tr key={i} className="border-b border-basalt-800 last:border-0">
-                      <td className="w-16 px-3 py-1.5 font-mono tabular-nums text-steel-500">
-                        {clock(event.elapsedSeconds)}
-                      </td>
-                      <td className="px-3 py-1.5 text-steel-400">
-                        <PlayerLink name={event.playerName} />
-                        <span className="mx-1.5 text-steel-600">{event.eventType}</span>
-                        {event.fromTeam || event.toTeam ? (
-                          <span className="text-steel-500">
-                            {event.fromTeam ?? "?"} → {event.toTeam ?? "?"}
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </EventSection>
-          </section>
-
-          <PrevNext previous={previous} next={next} />
+          <EventSection title="Roster changes" count={match.rosterEvents.length}>
+            <table className="w-full text-sm">
+              <tbody>
+                {match.rosterEvents.map((event, i) => (
+                  <tr key={i} className="border-b border-basalt-800 last:border-0">
+                    <td className="w-14 px-3 py-1 font-mono tabular-nums text-steel-500">
+                      {clock(event.elapsedSeconds)}
+                    </td>
+                    <td className="px-2 py-1 text-steel-400">
+                      <PlayerLink name={event.playerName} />
+                      <span className="mx-1.5 text-steel-600">{event.eventType}</span>
+                      {event.fromTeam || event.toTeam ? (
+                        <span className="text-steel-500">
+                          {event.fromTeam ?? "?"} to {event.toTeam ?? "?"}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </EventSection>
         </div>
       </div>
     </div>
