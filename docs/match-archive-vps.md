@@ -31,6 +31,35 @@ player statistics. It lives in `match_players.identity_key`, and no query in
 The VPS `ADMIN_SECRET` is never copied to the website and the site has no
 ability to control the server. This is a one-way push.
 
+## What is different from the handoff package
+
+The package stored each day as a JSON document in Vercel Blob. This site stores
+the same sanitised data in the Postgres database it already has.
+
+**So there is no Blob store to connect and no `BLOB_READ_WRITE_TOKEN`.** If
+you are following the original instructions, skip that step; it does not apply.
+
+The reason is player statistics. A per-day document answers "what happened on
+Tuesday" and nothing else. Questions across matches — a player's accuracy over
+a month, captures across a season — would mean fetching and parsing every day
+in the range on every request. Tables answer both.
+
+The ingest contract is unchanged, so the package's sync script works as-is.
+
+## Public API
+
+Open on purpose: publishing what we hold is the mitigation for becoming a
+single point of failure for this history.
+
+```
+GET /api/rf4u/archive                     index of nights
+GET /api/rf4u/archive?date=YYYY-MM-DD     one night's results
+```
+
+The day document keeps the original contract's shape and `snake_case` field
+names, so anything already written against it keeps working. The bulk event
+streams (`kills`, `flagEvents`, `rosterEvents`) are returned as stored.
+
 ## Website setup
 
 Already done, but for the record:
