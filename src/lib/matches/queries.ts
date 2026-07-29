@@ -137,6 +137,8 @@ export const getMatch = cache(async function getMatch(
       kills: matches.kills,
       flagEvents: matches.flagEvents,
       rosterEvents: matches.rosterEvents,
+      report: matches.report,
+      reportModel: matches.reportModel,
     })
     .from(matches)
     .where(

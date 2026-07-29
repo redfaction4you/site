@@ -413,6 +413,22 @@ export const matches = pgTable(
     ingestedAt: timestamp("ingested_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+
+    /**
+     * A short machine-written report of the match.
+     *
+     * Generated once from the scoreboard and event log, then stored. Not
+     * regenerated per view: it would cost money for nothing and would read
+     * differently every time. Null means it has not been written yet, or that
+     * generation is not configured, and the page simply omits it.
+     *
+     * Always labelled as machine-written wherever it is shown. This sits on an
+     * archive whose value is that its information can be trusted, and prose
+     * nobody wrote should say so.
+     */
+    report: text("report"),
+    reportModel: text("report_model"),
+    reportAt: timestamp("report_at", { withTimezone: true }),
   },
   (match) => [
     // The dedicated server re-sends recent days on every sync, so ingest has to

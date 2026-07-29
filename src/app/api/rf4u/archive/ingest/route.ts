@@ -13,6 +13,7 @@
  */
 import { timingSafeEqual } from "node:crypto";
 
+import { backfillReports } from "@/lib/ai/backfill";
 import { storeDay } from "@/lib/matches/ingest";
 import { sanitizeDay } from "@/lib/matches/sanitize";
 
@@ -58,12 +59,22 @@ export async function POST(request: Request) {
     const day = sanitizeDay(JSON.parse(body));
     const result = await storeDay(day);
 
+    // Decoration, not part of the contract. It writes a few reports and leaves
+    // the rest for the next sync, and it cannot fail the ingest.
+    let reports = 0;
+    try {
+      reports = await backfillReports();
+    } catch (error) {
+      console.warn("[archive-ingest] report backfill threw:", error);
+    }
+
     return Response.json({
       ok: true,
       day: result.archiveDay,
       matches: result.matchesWritten,
       players: result.playersWritten,
       captures: result.capturesWritten,
+      reports,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Archive ingest failed";

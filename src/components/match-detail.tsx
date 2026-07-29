@@ -369,6 +369,27 @@ export function MatchDetailView({
         ) : null}
       </div>
 
+      {/* The report, labelled. Prose nobody wrote should say so, especially on
+          a site whose value is that its information can be trusted. */}
+      {match.report ? (
+        <div className="panel mt-4 p-4">
+          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
+            {match.report
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean)
+              .map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+          </div>
+          <p className="mt-3 text-[11px] text-steel-600">
+            Written automatically from the scoreboard and event log
+            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
+            figures recorded above.
+          </p>
+        </div>
+      ) : null}
+
       {/* Both teams side by side. This is the reason for everything above. */}
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {teams.map((team) => (
