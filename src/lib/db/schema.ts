@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -344,6 +345,173 @@ export const screenshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Match archive
+//
+// Populated by the dedicated server, which posts a day's results to
+// /api/rf4u/archive/ingest. Stored as tables rather than day-sized documents
+// because the point of keeping this data is eventually to answer questions
+// across matches — a player's accuracy over a month, captures in a season —
+// and a per-day document cannot answer those without reading all of them.
+//
+// PRIVACY: everything the public sees is sanitised at ingest. The one field
+// that never leaves the server is `match_players.identity_key`. Read the
+// comment on it before using it anywhere.
+// ---------------------------------------------------------------------------
+
+export const matches = pgTable(
+  "matches",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    /** The match id as the dedicated server knows it. Not unique across servers. */
+    sourceMatchId: integer("source_match_id").notNull(),
+
+    /** Which server produced it. Part of the identity of a match. */
+    server: text("server").notNull(),
+
+    /**
+     * The RF4U calendar day, in America/Los_Angeles — a match night that runs
+     * past midnight UTC still belongs to the evening it started. Timestamps
+     * stay UTC; only the grouping is local.
+     */
+    archiveDay: date("archive_day").notNull(),
+
+    status: text("status").notNull().default("unknown"),
+    mapName: text("map_name").notNull(),
+    mode: text("mode").notNull().default("CTF"),
+
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+
+    redScore: integer("red_score").default(0).notNull(),
+    blueScore: integer("blue_score").default(0).notNull(),
+    overtime: boolean("overtime").default(false).notNull(),
+    winner: text("winner"),
+
+    /**
+     * Bulk event streams, kept as documents rather than rows.
+     *
+     * A single match can carry thousands of kill events. They are shown as
+     * optional detail on one match's page and never queried across matches,
+     * so rows would cost a great deal and buy nothing. Captures are different
+     * — they drive the timeline and are worth querying — so they get a table.
+     */
+    kills: jsonb("kills").$type<unknown[]>().default([]).notNull(),
+    flagEvents: jsonb("flag_events").$type<unknown[]>().default([]).notNull(),
+    rosterEvents: jsonb("roster_events").$type<unknown[]>().default([]).notNull(),
+
+    ingestedAt: timestamp("ingested_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (match) => [
+    // The dedicated server re-sends recent days on every sync, so ingest has to
+    // be idempotent. This is the key it upserts on.
+    unique("matches_server_source_id_key").on(match.server, match.sourceMatchId),
+    index("matches_archive_day_idx").on(match.archiveDay),
+    index("matches_started_at_idx").on(match.startedAt),
+  ],
+);
+
+export const matchPlayers = pgTable(
+  "match_players",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+
+    name: text("name").notNull(),
+    team: text("team").notNull().default(""),
+    spectator: boolean("spectator").default(false).notNull(),
+
+    score: integer("score").default(0).notNull(),
+    kills: integer("kills").default(0).notNull(),
+    deaths: integer("deaths").default(0).notNull(),
+    caps: integer("caps").default(0).notNull(),
+    maxStreak: integer("max_streak").default(0).notNull(),
+
+    accuracy: doublePrecision("accuracy").default(0).notNull(),
+    shotsHit: doublePrecision("shots_hit").default(0).notNull(),
+    shotsFired: doublePrecision("shots_fired").default(0).notNull(),
+    damageGiven: doublePrecision("damage_given").default(0).notNull(),
+    damageTaken: doublePrecision("damage_taken").default(0).notNull(),
+
+    flagHoldMs: integer("flag_hold_ms").default(0).notNull(),
+    flagPickups: integer("flag_pickups").default(0).notNull(),
+    flagDrops: integer("flag_drops").default(0).notNull(),
+    flagReturns: integer("flag_returns").default(0).notNull(),
+    flagCarrierKills: integer("flag_carrier_kills").default(0).notNull(),
+    flagCarrierDeaths: integer("flag_carrier_deaths").default(0).notNull(),
+    captureAssists: integer("capture_assists").default(0).notNull(),
+    flagRecoveries: integer("flag_recoveries").default(0).notNull(),
+    successfulFlagDrives: integer("successful_flag_drives").default(0).notNull(),
+    successfulCarryMs: integer("successful_carry_ms").default(0).notNull(),
+    fastestCaptureMs: integer("fastest_capture_ms"),
+
+    /**
+     * PRIVATE. Never send this to a browser.
+     *
+     * The dedicated server's own stable handle for a player. An RF player name
+     * is neither unique nor stable, so this is the only thing that could ever
+     * reliably link a Discord account to an in-game identity — which the build
+     * plan calls the hard part of player statistics, not the charts.
+     *
+     * It is kept because it cannot be reconstructed later: discard it now and
+     * every past match becomes unattributable forever. It is not exposed
+     * because nobody browsing a scoreboard needs it. Every read path in
+     * src/lib/matches.ts selects columns explicitly, and none of them select
+     * this one.
+     */
+    identityKey: text("identity_key"),
+  },
+  (player) => [
+    index("match_players_match_idx").on(player.matchId),
+    // Stats by name today, by identity once the mapping exists.
+    index("match_players_name_idx").on(player.name),
+    index("match_players_identity_idx").on(player.identityKey),
+  ],
+);
+
+export const matchCaptures = pgTable(
+  "match_captures",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+
+    elapsedSeconds: integer("elapsed_seconds").default(0).notNull(),
+    team: text("team").notNull().default(""),
+    redScore: integer("red_score").default(0).notNull(),
+    blueScore: integer("blue_score").default(0).notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+
+    playerName: text("player_name"),
+    assists: jsonb("assists").$type<string[]>().default([]).notNull(),
+    driveParticipants: jsonb("drive_participants")
+      .$type<{ name: string; carry_ms: number }[]>()
+      .default([])
+      .notNull(),
+
+    message: text("message").default("").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }),
+  },
+  (capture) => [
+    index("match_captures_match_idx").on(capture.matchId),
+    index("match_captures_elapsed_idx").on(capture.matchId, capture.elapsedSeconds),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations. These add no SQL of their own; they are what lets
 // db.query.items.findMany({ with: { files: true } }) work in one round trip
 // instead of a query per item.
@@ -378,4 +546,17 @@ export const screenshotsRelations = relations(screenshots, ({ one }) => ({
 
 export const mapMetaRelations = relations(mapMeta, ({ one }) => ({
   item: one(items, { fields: [mapMeta.itemId], references: [items.id] }),
+}));
+
+export const matchesRelations = relations(matches, ({ many }) => ({
+  players: many(matchPlayers),
+  captures: many(matchCaptures),
+}));
+
+export const matchPlayersRelations = relations(matchPlayers, ({ one }) => ({
+  match: one(matches, { fields: [matchPlayers.matchId], references: [matches.id] }),
+}));
+
+export const matchCapturesRelations = relations(matchCaptures, ({ one }) => ({
+  match: one(matches, { fields: [matchCaptures.matchId], references: [matches.id] }),
 }));

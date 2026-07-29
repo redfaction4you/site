@@ -15,6 +15,13 @@
       "when": 1785302366020,
       "tag": "0001_fair_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785308252815,
+      "tag": "0002_calm_wallow",
+      "breakpoints": true
     }
   ]
 }

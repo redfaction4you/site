@@ -19,7 +19,8 @@ export const NAV: NavItem[] = [
   { href: "/weapons", label: "Weapons", phase: 2 },
   { href: "/tools", label: "Tools", phase: 2 },
   { href: "/videos", label: "Videos" },
-  { href: "/guides", label: "Guides", phase: 2 },
+  { href: "/guides", label: "Guides" },
+  { href: "/matches", label: "Matches" },
   { href: "/events", label: "Events", phase: 4 },
 ];
 

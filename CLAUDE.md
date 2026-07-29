@@ -126,6 +126,35 @@ sixth section is an entry there plus two three-line route files.
 - Listing pages only ever show `status = 'published'`; drafts 404 on their
   detail route. Verified against a seeded row, not assumed.
 
+## Match archive (`src/lib/matches/`, `/matches`)
+
+The dedicated server pushes each night's results to
+`POST /api/rf4u/archive/ingest`, authenticated by `RF4U_ARCHIVE_SYNC_SECRET`.
+Setup and troubleshooting: `docs/match-archive-vps.md`.
+
+- **`sanitize.ts` is a security boundary and an allowlist.** Every stored field
+  is named in it. A new field appearing in the VPS export cannot leak through,
+  because it simply is not copied. **Never** replace this with a spread of the
+  source object.
+- **`match_players.identity_key` is stored and never served.** It is the only
+  stable key that could link a Discord account to an in-game player, which the
+  build plan calls the hard part of player statistics. Every query in
+  `queries.ts` names its columns and none name that one. Do not use
+  `db.query.matchPlayers.findMany()` here — it would select everything.
+- **Duplicate player rows are merged by maximum, not summed.** The server emits
+  periodic snapshots, so two rows are one player counted twice. Summing would
+  double everyone's night. Accuracy is recomputed from shot counts rather than
+  trusted.
+- **Ingest is idempotent** — the VPS re-sends recent days on every sync.
+  Matches upsert on `(server, source_match_id)`; players and captures are
+  replaced. A match deleted upstream is deleted here.
+- **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
+  to that evening even though it is the next day in UTC. Timestamps stay UTC;
+  only the grouping is local.
+- Stored in Postgres rather than the day-sized documents the handoff package
+  used, because player statistics need to query across matches and a per-day
+  document cannot answer that without reading all of them.
+
 ## Conventions
 
 - Data that is small and rarely changes lives in a typed file under `src/lib/`
