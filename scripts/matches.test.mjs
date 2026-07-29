@@ -253,6 +253,36 @@ test("garbage input is refused rather than half-stored", () => {
   assert.throws(() => sanitizeDay({ matches: [] }), /no usable date/);
 });
 
+test("cancelled matches are not stored", () => {
+  const payload = samplePayload();
+  payload.matches.push({
+    ...payload.matches[0],
+    id: 102,
+    status: "cancelled",
+    map_name: "Abandoned",
+  });
+
+  const day = sanitizeDay(payload);
+  assert.equal(day.matches.length, 1, "the cancelled match survived");
+  assert.equal(day.matches[0].mapName, "Warlords Pro (No Fog)");
+});
+
+test("cancellation is matched however it is spelled or cased", () => {
+  for (const status of ["cancelled", "Canceled", "ABORTED"]) {
+    const payload = samplePayload();
+    payload.matches[0].status = status;
+    assert.equal(sanitizeDay(payload).matches.length, 0, `"${status}" was kept`);
+  }
+});
+
+test("matches still in progress are kept", () => {
+  // Only cancellation is discarded. A match mid-game should appear and be
+  // updated to final on a later sync, not vanish until it finishes.
+  const payload = samplePayload();
+  payload.matches[0].status = "active";
+  assert.equal(sanitizeDay(payload).matches.length, 1);
+});
+
 test("a day with no matches is valid, not an error", () => {
   const day = sanitizeDay({ calendarDate: "2026-07-28", matches: [] });
   assert.equal(day.matches.length, 0);

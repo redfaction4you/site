@@ -386,6 +386,20 @@ export function isValidDay(value: unknown): boolean {
   );
 }
 
+/**
+ * Match states we do not keep.
+ *
+ * A cancelled match is one that was abandoned before it counted — a bad map
+ * load, a restart, someone dropping in the first minute. Its scoreboard is
+ * noise: it drags player averages down and pads the match count with games
+ * nobody played. The archive is a record of matches that happened.
+ *
+ * Dropped at ingest rather than hidden at display, so it never occupies a row
+ * or an id. Because ingest removes matches that disappear from a re-synced day,
+ * anything already stored and later cancelled is cleaned up on the next sync.
+ */
+const DISCARDED_STATUSES = new Set(["cancelled", "canceled", "aborted"]);
+
 /** Sanitises a whole day's export. Throws if it is not usable. */
 export function sanitizeDay(source: unknown): SanitizedDay {
   if (!source || typeof source !== "object") {
@@ -393,7 +407,10 @@ export function sanitizeDay(source: unknown): SanitizedDay {
   }
 
   const payload = source as Record<string, unknown>;
-  const matches = list(payload.matches).map(sanitizeMatch).slice(0, 128);
+  const matches = list(payload.matches)
+    .map(sanitizeMatch)
+    .filter((match) => !DISCARDED_STATUSES.has(match.status.toLowerCase()))
+    .slice(0, 128);
 
   let archiveDay: string;
   if (isValidDay(payload.calendarDate)) {
