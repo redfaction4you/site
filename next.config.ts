@@ -28,6 +28,18 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // One canonical hostname. Serving the site at both the apex and www means
+      // every page has two URLs, which splits search engines and leaves two
+      // versions of every link people paste. The apex wins because it is what
+      // the site is called.
+      //
+      // Scoped by host, so preview deployments and localhost are unaffected.
+      {
+        source: "/:path*",
+        has: [{ type: "host" as const, value: "www.redfaction4you.com" }],
+        destination: "https://redfaction4you.com/:path*",
+        permanent: true,
+      },
       // The old tournament hub keeps working. Phase 4 replaces the target.
       { source: "/rf4u", destination: "/events", permanent: false },
       // Tournaments folded into Events. Anything already linked keeps working.
