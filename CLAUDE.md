@@ -4,7 +4,7 @@ A community archive for Red Faction (2001): maps, mods, player models, custom
 weapons, tools, guides, videos and events. Free, no account needed to download,
 self-hosted so it does not vanish when someone else's server does.
 
-Intended repo home: `github.com/redfaction4you/site` (org not created yet).
+Repo: `github.com/redfaction4you/site` (public).
 
 ## The scope rule
 
@@ -25,9 +25,8 @@ Phase 1 is built and running locally. Outstanding to finish it:
 2. ~~Verify migrations landed~~ — **done, 28 July 2026.** `npm run db:check`
    passes: accounts, sessions, users, verificationToken all present, one
    migration recorded.
-3. **GitHub org + repo.** Git is initialised locally and Phase 1 is committed on
-   `main`; there is no remote. The org `redfaction4you` does not exist yet, and
-   GitHub has no API for creating one, so that step is a browser job.
+3. ~~GitHub org + repo~~ — **done, 28 July 2026.** Public at
+   `redfaction4you/site`, `main` tracking `origin/main`.
 4. **Vercel** — import, env vars, **generate a separate `AUTH_SECRET` for
    production**, add the production callback URL to Discord.
 5. **Domain repoint** — last. `redfaction4you.com` is currently a Google Site and
