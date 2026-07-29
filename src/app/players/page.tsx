@@ -38,7 +38,17 @@ export default async function PlayersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr>
-                  {["Player", "Matches", "Frags", "Deaths", "F/D", "Caps", "Acc", "Streak"].map(
+                  {[
+                    "Player",
+                    "Matches",
+                    "Frags",
+                    "Deaths",
+                    "F/D",
+                    "Caps",
+                    "Lead carries",
+                    "Acc",
+                    "Streak",
+                  ].map(
                     (h, i) => (
                       <th
                         key={h}
@@ -81,6 +91,12 @@ export default async function PlayersPage() {
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
                         {player.caps}
+                      </td>
+                      <td
+                        className="px-3 py-2 text-right font-mono tabular-nums text-steel-400"
+                        title="Drives this player carried furthest and a teammate finished"
+                      >
+                        {player.leadCarries || "-"}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
                         {player.shotsFired > 0

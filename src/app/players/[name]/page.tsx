@@ -85,7 +85,26 @@ export default async function PlayerPage({ params }: Props) {
           hint={`${player.deaths} deaths`}
         />
         <Stat label="F/D" value={kd.toFixed(2)} />
-        <Stat label="Captures" value={String(player.caps)} />
+        <Stat
+          label="Captures"
+          value={String(player.caps)}
+          hint={
+            player.relayCaps > 0
+              ? `${player.soloCaps} solo, ${player.relayCaps} relay`
+              : undefined
+          }
+        />
+        {/*
+          The contribution the scoreboard never showed. A flag often changes
+          hands: someone carries it most of the length, dies at the door, and a
+          teammate walks it in. Only the finisher got a cap. This counts the
+          drives you carried longest and somebody else finished.
+        */}
+        <Stat
+          label="Lead carries"
+          value={String(player.leadCarries)}
+          hint="carried furthest, teammate capped"
+        />
         <Stat
           label="Accuracy"
           value={accuracy === null ? "-" : percent(accuracy)}

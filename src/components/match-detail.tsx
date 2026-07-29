@@ -86,6 +86,9 @@ const EXTRA_COLUMNS: ScoreColumn[] = [
   { key: "flagReturns", label: "Returns" },
   { key: "flagCarrierKills", label: "Carrier frags" },
   { key: "captureAssists", label: "Assists" },
+  // The number that did not exist before: drives you carried longest and
+  // somebody else touched down.
+  { key: "leadCarries", label: "Lead carries" },
   {
     key: "fastestCaptureMs",
     label: "Best cap",

@@ -11,6 +11,7 @@ import { and, eq, notInArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { creditDrives, reconstructDrives } from "./drives";
 import type { SanitizedDay } from "./sanitize";
 
 export type IngestResult = {
@@ -74,6 +75,10 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
     await db.delete(matchPlayers).where(eq(matchPlayers.matchId, row.id));
     await db.delete(matchCaptures).where(eq(matchCaptures.matchId, row.id));
 
+    // Who actually moved the flag on each capture. The scoreboard only records
+    // who touched it down, so this is reconstructed from the event log.
+    const credit = creditDrives(reconstructDrives(match.flagEvents, match.captures));
+
     if (match.players.length) {
       await db.insert(matchPlayers).values(
         match.players.map((player) => ({
@@ -103,6 +108,12 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
           successfulCarryMs: player.successfulCarryMs,
           fastestCaptureMs: player.fastestCaptureMs,
           identityKey: player.identityKey,
+          ...(credit.get(player.name.toLocaleLowerCase("en-US")) ?? {
+            soloCaps: 0,
+            relayCaps: 0,
+            leadCarries: 0,
+            winningCarryMs: 0,
+          }),
         })),
       );
       playersWritten += match.players.length;

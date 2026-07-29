@@ -479,6 +479,25 @@ export const matchPlayers = pgTable(
     fastestCaptureMs: integer("fastest_capture_ms"),
 
     /**
+     * Credit for moving the flag, reconstructed from the event log.
+     *
+     * The scoreboard gives one person the cap: whoever touched it down. A flag
+     * often changes hands first, and the player who carried it most of the way
+     * and died at the door currently shows up nowhere. These separate that out.
+     *
+     * `leadCarries` is the number that did not exist before: drives this player
+     * carried longest and somebody else finished.
+     *
+     * Computed at ingest by src/lib/matches/drives.ts. If the dedicated server
+     * ever populates its own capture_assists and drive_participants fields,
+     * prefer those and retire this.
+     */
+    soloCaps: integer("solo_caps").default(0).notNull(),
+    relayCaps: integer("relay_caps").default(0).notNull(),
+    leadCarries: integer("lead_carries").default(0).notNull(),
+    winningCarryMs: integer("winning_carry_ms").default(0).notNull(),
+
+    /**
      * PRIVATE. Never send this to a browser.
      *
      * The dedicated server's own stable handle for a player. An RF player name

@@ -142,6 +142,9 @@ export type PublicScoreRow = {
   flagCarrierKills: number;
   captureAssists: number;
   fastestCaptureMs: number | null;
+  soloCaps: number;
+  relayCaps: number;
+  leadCarries: number;
 };
 
 export const getMatch = cache(async function getMatch(
@@ -198,6 +201,9 @@ export const getMatch = cache(async function getMatch(
       flagCarrierKills: matchPlayers.flagCarrierKills,
       captureAssists: matchPlayers.captureAssists,
       fastestCaptureMs: matchPlayers.fastestCaptureMs,
+      soloCaps: matchPlayers.soloCaps,
+      relayCaps: matchPlayers.relayCaps,
+      leadCarries: matchPlayers.leadCarries,
     })
     .from(matchPlayers)
     .where(eq(matchPlayers.matchId, match.id))
@@ -296,6 +302,9 @@ export type PlayerTotals = {
   flagReturns: number;
   bestStreak: number;
   fastestCaptureMs: number | null;
+  soloCaps: number;
+  relayCaps: number;
+  leadCarries: number;
   firstSeen: string | null;
   lastSeen: string | null;
 };
@@ -317,6 +326,9 @@ const playerTotalColumns = {
   fastestCaptureMs: sql<
     number | null
   >`min(nullif(${matchPlayers.fastestCaptureMs}, 0))::int`,
+  soloCaps: sql<number>`coalesce(sum(${matchPlayers.soloCaps}), 0)::int`,
+  relayCaps: sql<number>`coalesce(sum(${matchPlayers.relayCaps}), 0)::int`,
+  leadCarries: sql<number>`coalesce(sum(${matchPlayers.leadCarries}), 0)::int`,
 };
 
 /** Everyone who has played, most active first. */
