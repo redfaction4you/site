@@ -46,6 +46,8 @@ export const latestDay = cache(async function latestDay(): Promise<string | null
 });
 
 export type MatchSummary = {
+  /** Position in the night, from 1. Derived from play order, not from the id. */
+  number: number;
   id: string;
   sourceMatchId: number;
   server: string;
@@ -89,7 +91,10 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
     .where(eq(matches.archiveDay, archiveDay))
     .orderBy(asc(matches.startedAt), asc(matches.sourceMatchId));
 
-  return rows;
+  // Numbered by when they were played, not by the server's match id. The ids
+  // keep counting across restarts, so the third game of the evening is rarely
+  // match 3 as far as the server is concerned.
+  return rows.map((row, index) => ({ ...row, number: index + 1 }));
 });
 
 /** A player row as the public sees it. No identity key, by construction. */
@@ -554,6 +559,21 @@ export const getMatchStartTimes = cache(async function getMatchStartTimes(
   return rows
     .map((row) => row.startedAt?.toISOString())
     .filter((value): value is string => Boolean(value));
+});
+
+/** Headline figures for one night, for the session page. */
+export const nightTotals = cache(async function nightTotals(archiveDay: string) {
+  const [row] = await db
+    .select({
+      players: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+      frags: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
+      captures: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)));
+
+  return row ?? { players: 0, frags: 0, captures: 0 };
 });
 
 /** Every written column, newest first. */

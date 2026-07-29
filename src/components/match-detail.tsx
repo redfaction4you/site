@@ -224,12 +224,15 @@ function MatchNav({
             href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
             aria-current={current ? "page" : undefined}
             className={
-              "max-w-[14rem] truncate rounded-sm border px-2.5 py-1 text-xs transition-colors " +
+              "max-w-[16rem] truncate rounded-sm border px-2.5 py-1 text-xs transition-colors " +
               (current
                 ? "border-rust-500 bg-rust-500/10 text-rust-300"
                 : "border-basalt-700 bg-basalt-850 text-steel-400 hover:text-steel-200")
             }
           >
+            <span className="font-display text-[10px] uppercase tracking-wider text-steel-500">
+              {sibling.number}
+            </span>{" "}
             {sibling.mapName}
             <span className="ml-1.5 font-mono text-steel-500">
               {sibling.redScore}-{sibling.blueScore}
@@ -277,6 +280,10 @@ export function MatchDetailView({
   const teams = [...new Set(active.map((p) => p.team))];
   const spectators = match.players.filter((p) => p.spectator);
 
+  const position = siblings.find(
+    (s) => s.sourceMatchId === match.sourceMatchId,
+  )?.number;
+
   const totalKills = active.reduce((sum, p) => sum + p.kills, 0);
   const shotsFired = active.reduce((sum, p) => sum + p.shotsFired, 0);
   const shotsHit = active.reduce((sum, p) => sum + p.shotsHit, 0);
@@ -305,6 +312,11 @@ export function MatchDetailView({
       {/* Title, score and the whole summary on one line each. */}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
         <h1 className="font-display text-2xl font-bold text-steel-100">
+          {/* The night's running order, so the sequence is obvious from the
+              title rather than only from the strip below it. */}
+          {position ? (
+            <span className="mr-2 text-steel-500">Match {position}</span>
+          ) : null}
           {match.mapName}
         </h1>
         <span className="font-mono text-2xl tabular-nums">

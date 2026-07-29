@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DaySelector, MatchList, dayLabel } from "@/components/match-archive";
-import { listDays, listMatchesForDay } from "@/lib/matches/queries";
+import { DaySelector, dayLabel, duration, matchTime } from "@/components/match-archive";
+import {
+  getColumn,
+  listDays,
+  listMatchesForDay,
+  nightTotals,
+} from "@/lib/matches/queries";
 import { isValidDay } from "@/lib/matches/sanitize";
 
 type Props = { params: Promise<{ day: string }> };
@@ -12,8 +18,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isValidDay(day)) return { title: "Not found" };
 
   return {
-    title: `Matches, ${dayLabel(day)}`,
-    description: `Red Faction match results from ${dayLabel(day)} on the RedFaction4You server.`,
+    title: `Match night, ${dayLabel(day)}`,
+    description: `Every match played on ${dayLabel(day)} on the RedFaction4You server, with scoreboards and the night's write-up.`,
   };
 }
 
@@ -21,35 +27,133 @@ export default async function MatchDayPage({ params }: Props) {
   const { day } = await params;
   if (!isValidDay(day)) notFound();
 
-  const [days, matches] = await Promise.all([listDays(), listMatchesForDay(day)]);
+  const [days, matches, column, totals] = await Promise.all([
+    listDays(),
+    listMatchesForDay(day),
+    getColumn(day),
+    nightTotals(day),
+  ]);
 
-  // A well-formed date with nothing in it is a 404, not an empty page: there is
-  // no match night there to link to.
   if (matches.length === 0) notFound();
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-16">
-      <p className="eyebrow">Archive</p>
-      <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">Matches</h1>
-      <p className="mt-4 max-w-2xl text-lg leading-relaxed text-steel-300">
-        Every match played on the RF4U server, kept as a permanent record.
-        Scoreboards, capture timelines and who actually carried the flag.
-      </p>
+  const first = matches[0]?.startedAt ?? null;
+  const last = matches[matches.length - 1]?.endedAt ?? null;
+  const sessionMinutes =
+    first && last ? Math.round((last.getTime() - first.getTime()) / 60000) : null;
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[16rem_1fr]">
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <p className="eyebrow">
+        <Link href="/matches" className="hover:text-rust-300">
+          Matches
+        </Link>
+      </p>
+      <h1 className="mt-1 font-display text-3xl font-bold text-steel-100">
+        {dayLabel(day)}
+      </h1>
+
+      {/* The night at a glance. */}
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm text-steel-400">
+        <span>
+          <span className="font-mono text-steel-100">{matches.length}</span>{" "}
+          {matches.length === 1 ? "match" : "matches"}
+        </span>
+        {sessionMinutes ? (
+          <span>
+            <span className="font-mono text-steel-100">{sessionMinutes}</span> minutes
+            from first to last
+          </span>
+        ) : null}
+        <span>
+          <span className="font-mono text-steel-100">{totals.players}</span> players
+        </span>
+        <span>
+          <span className="font-mono text-steel-100">{totals.frags}</span> frags
+        </span>
+        <span>
+          <span className="font-mono text-steel-100">{totals.captures}</span> captures
+        </span>
+        {first ? <span>Started {matchTime(first)}</span> : null}
+      </div>
+
+      {/* The write-up for this night, where one exists. It belongs with the
+          session it describes, not only on a separate news page. */}
+      {column ? (
+        <Link href={`/news/${day}`} className="panel group mt-6 block p-5">
+          <p className="font-display text-[10px] uppercase tracking-widest text-rust-500">
+            The write-up
+          </p>
+          <h2 className="mt-1 font-display text-xl font-bold text-steel-100 transition-colors group-hover:text-rust-300">
+            {column.headline}
+          </h2>
+          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-steel-400">
+            {column.body.split("\n").find(Boolean)}
+          </p>
+          <p className="mt-2 text-xs text-rust-400 group-hover:text-rust-300">
+            Read the full write-up
+          </p>
+        </Link>
+      ) : null}
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_16rem]">
+        <section>
+          <h2 className="font-display text-xs uppercase tracking-widest text-steel-500">
+            The matches, in order
+          </h2>
+
+          <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+            {matches.map((match) => (
+              <li key={match.id}>
+                <Link
+                  href={`/matches/${day}/${match.sourceMatchId}`}
+                  className="panel group flex h-full flex-col p-4"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-display text-[10px] uppercase tracking-widest text-rust-500">
+                      Match {match.number}
+                    </span>
+                    <span className="font-mono text-lg tabular-nums">
+                      <span
+                        className={
+                          match.winner === "red" ? "text-rust-400" : "text-steel-500"
+                        }
+                      >
+                        {match.redScore}
+                      </span>
+                      <span className="mx-1 text-steel-600">-</span>
+                      <span
+                        className={
+                          match.winner === "blue" ? "text-oxide-400" : "text-steel-500"
+                        }
+                      >
+                        {match.blueScore}
+                      </span>
+                    </span>
+                  </div>
+
+                  <h3 className="mt-1 truncate font-display text-base font-bold text-steel-100 transition-colors group-hover:text-rust-300">
+                    {match.mapName}
+                  </h3>
+
+                  <p className="mt-1 text-xs text-steel-500">
+                    {match.mode} · {matchTime(match.startedAt)} ·{" "}
+                    {duration(match.startedAt, match.endedAt)} · {match.playerCount}{" "}
+                    players
+                    {match.overtime ? " · overtime" : ""}
+                    {match.status !== "final" ? ` · ${match.status}` : ""}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <aside>
           <h2 className="mb-3 font-display text-xs uppercase tracking-widest text-steel-500">
-            Match nights
+            Other nights
           </h2>
           <DaySelector days={days} selected={day} />
         </aside>
-
-        <section>
-          <h2 className="mb-4 font-display text-xl font-bold text-steel-100">
-            {dayLabel(day)}
-          </h2>
-          <MatchList archiveDay={day} matches={matches} />
-        </section>
       </div>
     </div>
   );
