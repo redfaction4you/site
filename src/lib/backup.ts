@@ -16,6 +16,7 @@
  * Restoring is inserting the rows back. No proprietary format, no version
  * coupling, no tooling required beyond something that reads JSON.
  */
+import { createCipheriv, randomBytes } from "node:crypto";
 import { gzipSync } from "node:zlib";
 
 import {
@@ -42,6 +43,43 @@ import {
 
 /** Objects live under this prefix, one per day. */
 const PREFIX = "backups/";
+
+/**
+ * Backups are encrypted before upload, and this is not belt and braces.
+ *
+ * The bucket has a public custom domain attached, which makes every object in
+ * it readable by anyone who knows the key. The first backup written here was
+ * downloadable at files.redfaction4you.com within seconds, and it contained
+ * match_players.identity_key, the private handle the whole read layer is
+ * carefully written to never expose. A dump of the database is the one file
+ * that must not be casually fetchable, and it was sitting in the most fetchable
+ * place we have.
+ *
+ * Encrypting it means the storage location stops being load bearing. Even
+ * published, the object is noise without the key, which lives only in the
+ * environment. A separate private bucket would also fix it and is worth doing,
+ * but this is correct regardless of which bucket it lands in.
+ *
+ * AES-256-GCM, so tampering is detected rather than silently restored.
+ */
+const MAGIC = Buffer.from("RF4UBK1\n", "utf8");
+
+function encryptionKey(): Buffer | null {
+  const hex = process.env.BACKUP_ENCRYPTION_KEY?.trim();
+  if (!hex) return null;
+  if (!/^[0-9a-f]{64}$/i.test(hex)) {
+    throw new Error("BACKUP_ENCRYPTION_KEY must be 64 hex characters, 32 bytes");
+  }
+  return Buffer.from(hex, "hex");
+}
+
+/** magic | iv (12) | auth tag (16) | ciphertext */
+function encrypt(plain: Buffer, key: Buffer): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const body = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([MAGIC, iv, cipher.getAuthTag(), body]);
+}
 
 /**
  * How many daily backups to keep.
@@ -120,16 +158,32 @@ export async function runBackup(): Promise<BackupResult> {
     data,
   };
 
-  const body = gzipSync(Buffer.from(JSON.stringify(document), "utf8"));
-  const key = `${PREFIX}${takenAt.toISOString().slice(0, 10)}.json.gz`;
+  const cipherKey = encryptionKey();
+  if (!cipherKey) {
+    // Refuse rather than write a readable dump into a public bucket. A backup
+    // that leaks the database is worse than no backup, because it fails
+    // silently and looks like success.
+    throw new Error(
+      "BACKUP_ENCRYPTION_KEY is not set. Refusing to write an unencrypted backup.",
+    );
+  }
+
+  const body = encrypt(
+    gzipSync(Buffer.from(JSON.stringify(document), "utf8")),
+    cipherKey,
+  );
+  const key = `${PREFIX}${takenAt.toISOString().slice(0, 10)}.rf4ubk`;
 
   await s3.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
       Body: body,
-      ContentType: "application/json",
-      ContentEncoding: "gzip",
+      ContentType: "application/octet-stream",
+      // So a deleted object stops being served in minutes rather than hours.
+      // The first one sat in Cloudflare's edge cache for four hours after it
+      // was removed from the bucket.
+      CacheControl: "no-store, max-age=0",
     }),
   );
 
