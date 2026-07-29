@@ -35,7 +35,9 @@ Hard rules:
 - Do not open with "In a thrilling match" or similar filler.
 - Do not use em dashes.
 - Refer to players exactly by the names given, including odd capitalisation.
-- Never guess a player's gender. Use they/them if you need a pronoun.
+- Never guess a player's gender. Use they and them for everyone, without
+  exception, however the name reads to you. Never write he, she, his or her
+  about a player.
 - Maximum three paragraphs.
 
 On timing: each capture is labelled with where it sits in the match. Use that

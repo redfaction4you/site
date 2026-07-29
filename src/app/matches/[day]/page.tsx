@@ -136,10 +136,12 @@ export default async function MatchDayPage({ params }: Props) {
                   </h3>
 
                   <p className="mt-1 text-xs text-steel-500">
-                    {match.mode} · {matchTime(match.startedAt)} ·{" "}
-                    {duration(match.startedAt, match.endedAt)} · {match.playerCount}{" "}
-                    players
-                    {match.overtime ? " · overtime" : ""}
+                    {match.mode} · {matchTime(match.startedAt)}
+                    {/* Duration only when it says something: nearly every match
+                        runs the full ten minutes. */}
+                    {match.overtime
+                      ? ` · overtime, ${duration(match.startedAt, match.endedAt)}`
+                      : ""}
                     {match.status !== "final" ? ` · ${match.status}` : ""}
                   </p>
                 </Link>

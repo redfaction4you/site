@@ -327,6 +327,34 @@ export function MatchDetailView({
     (s) => s.sourceMatchId === match.sourceMatchId,
   )?.number;
 
+  /**
+   * Team sizes rather than a headcount. These are always N against N, so "3v3"
+   * tells a player what kind of game it was in a way "6 players" does not. An
+   * uneven match says so, since 3v2 is worth knowing when reading a scoreboard.
+   */
+  const teamSizes = (() => {
+    const sizes = teams.map((team) => active.filter((p) => p.team === team).length);
+    if (sizes.length === 2) return `${sizes[0]}v${sizes[1]}`;
+    return `${active.length} players`;
+  })();
+
+  /** A full regulation match. Anything else is worth putting on the page. */
+  const REGULATION_SECONDS = 600;
+  const playedSeconds =
+    match.startedAt && match.endedAt
+      ? Math.round((match.endedAt.getTime() - match.startedAt.getTime()) / 1000)
+      : null;
+
+  const notableDuration = (() => {
+    if (playedSeconds === null) return null;
+    const clockText = duration(match.startedAt, match.endedAt);
+    if (match.overtime) return `overtime, ${clockText}`;
+    // A tolerance, because the recorded start and end are a second or two off
+    // the round timer and a match that ran 9:58 did not end early.
+    if (Math.abs(playedSeconds - REGULATION_SECONDS) > 20) return `ran ${clockText}`;
+    return null;
+  })();
+
   // Frags by weapon, per player, counted from the frag log we already store.
   const weaponsByPlayer = new Map<string, { weapon: string; kills: number }[]>();
   {
@@ -392,9 +420,11 @@ export function MatchDetailView({
           </span>
         </span>
         <span className="text-sm text-steel-400">
-          {match.mode} · {matchTime(match.startedAt)} ·{" "}
-          {duration(match.startedAt, match.endedAt)} · {active.length} players
-          {match.overtime ? " · overtime" : ""}
+          {match.mode} · {matchTime(match.startedAt)} · {teamSizes}
+          {/* Duration only when it says something. Nearly every match runs the
+              full ten minutes, so printing 10:00 on all of them is noise. It
+              earns its place when the match went to overtime or ended early. */}
+          {notableDuration ? ` · ${notableDuration}` : ""}
           {match.status !== "final" ? ` · ${match.status}` : ""}
         </span>
       </div>
@@ -406,6 +436,28 @@ export function MatchDetailView({
         previous={previous}
         next={next}
       />
+
+      {/* The write-up comes first: it says what happened, and the figures below
+          are there to check it against. Prose nobody wrote is labelled as such,
+          especially on a site whose value is that its information is reliable. */}
+      {match.report ? (
+        <div className="panel mt-4 p-4">
+          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
+            {match.report
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean)
+              .map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+          </div>
+          <p className="mt-3 text-[11px] text-steel-600">
+            Written automatically from the scoreboard and event log
+            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
+            figures recorded on this page.
+          </p>
+        </div>
+      ) : null}
 
       {/* Summary as a single line of figures. */}
       <div className="panel mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 p-4 text-sm">
@@ -443,27 +495,6 @@ export function MatchDetailView({
           </span>
         ) : null}
       </div>
-
-      {/* The report, labelled. Prose nobody wrote should say so, especially on
-          a site whose value is that its information can be trusted. */}
-      {match.report ? (
-        <div className="panel mt-4 p-4">
-          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
-            {match.report
-              .split(/\n{2,}/)
-              .map((paragraph) => paragraph.trim())
-              .filter(Boolean)
-              .map((paragraph, i) => (
-                <p key={i}>{paragraph}</p>
-              ))}
-          </div>
-          <p className="mt-3 text-[11px] text-steel-600">
-            Written automatically from the scoreboard and event log
-            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
-            figures recorded on this page.
-          </p>
-        </div>
-      ) : null}
 
       {/* Both teams side by side. This is the reason for everything above. */}
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
