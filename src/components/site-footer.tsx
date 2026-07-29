@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { DISCORD_INVITE, NAV } from "@/lib/nav";
+import { DISCORD_INVITE, VISIBLE_NAV } from "@/lib/nav";
 
 export function SiteFooter() {
   return (
@@ -24,7 +24,7 @@ export function SiteFooter() {
         <div>
           <p className="eyebrow">Site</p>
           <ul className="mt-3 space-y-1.5 text-sm">
-            {NAV.map((item) => (
+            {VISIBLE_NAV.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}

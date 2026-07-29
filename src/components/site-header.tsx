@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { UserMenu } from "@/components/user-menu";
 import { auth, discordConfigured } from "@/lib/auth";
-import { NAV } from "@/lib/nav";
+import { VISIBLE_NAV } from "@/lib/nav";
 
 export async function SiteHeader() {
   // The header renders on every page, so anything that throws here takes the
@@ -38,7 +38,7 @@ export async function SiteHeader() {
           aria-label="Main"
           className="hidden flex-1 items-center gap-0.5 md:flex"
         >
-          {NAV.map((item) => (
+          {VISIBLE_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -59,7 +59,7 @@ export async function SiteHeader() {
         aria-label="Main, compact"
         className="flex gap-1 overflow-x-auto border-t border-basalt-800 px-3 py-2 md:hidden"
       >
-        {NAV.map((item) => (
+        {VISIBLE_NAV.map((item) => (
           <Link
             key={item.href}
             href={item.href}
