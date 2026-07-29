@@ -25,16 +25,6 @@ const SECTION_BLURBS: Record<string, string> = {
   "/events": "Tournaments and the Hall of Champions.",
 };
 
-/**
- * Kept to one line each. The full versions live in the build plan; a visitor
- * deciding whether this site is worth their time needs the claim, not the essay.
- */
-const COMMITMENTS = [
-  ["Labelled honestly", "Every file tagged with the clients that can load it."],
-  ["Nothing disappears", "Our own copy, permanent URLs, backed up."],
-  ["Nobody locked out", "No account to browse or download. Ever."],
-];
-
 export default async function HomePage() {
   const [status, totals, latest, players] = await Promise.all([
     getServerStatus(),
@@ -48,20 +38,15 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      {/* Hero, deliberately short. The point of the site in two lines. */}
-      <p className="eyebrow">Red Faction · 2001 · still going</p>
-      <h1 className="mt-2 max-w-3xl font-brand text-3xl leading-[1.15] text-steel-100 sm:text-4xl">
-        Everything for Red Faction,{" "}
-        <span className="text-rust-500">in one place that stays up.</span>
-      </h1>
-      <p className="mt-3 max-w-2xl text-base leading-relaxed text-steel-300">
-        Match results, player records and the files for a game from 2001, collected
-        properly instead of scattered across dead forums. Free, no account needed.
-      </p>
+      {/* No visible hero: the wordmark in the header already says what this is,
+          and the page opens straight into what is actually happening. The
+          heading stays for screen readers and search results, which both expect
+          a page to name itself. */}
+      <h1 className="sr-only">RedFaction4You</h1>
 
       {/* Live strip: the server, and what the archive holds. Answers "is
           anything happening here" without a scroll. */}
-      <div className="panel mt-6 flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
+      <div className="panel flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
         <Link href="/server" className="group flex items-center gap-2.5">
           <span
             aria-hidden="true"
@@ -137,20 +122,6 @@ export default async function HomePage() {
         ))}
       </div>
 
-      {/* Commitments, one line each. */}
-      <div className="mt-6 grid gap-x-8 gap-y-3 border-t border-basalt-800 pt-5 sm:grid-cols-3">
-        {COMMITMENTS.map(([title, body], index) => (
-          <div key={title} className="flex gap-3">
-            <span className="font-display text-xs font-bold text-rust-600">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <div>
-              <h3 className="font-display text-sm font-bold text-steel-100">{title}</h3>
-              <p className="mt-0.5 text-xs leading-relaxed text-steel-400">{body}</p>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
