@@ -7,6 +7,7 @@ import { MatchTimes } from "@/components/match-times";
 import { archiveTotals, getMatchStartTimes, latestDay } from "@/lib/matches/queries";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { getServerStatus, type ServerStatus } from "@/lib/server-status";
+import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
 
 export const metadata: Metadata = {
   title: "Server",
@@ -29,6 +30,14 @@ const SERVER = {
 };
 
 const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
+
+/** Minutes into something a person would say out loud. */
+function formatAgo(minutes: number): string {
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  return `${Math.round(hours / 24)} days`;
+}
 
 /** Seconds to m:ss, for the match clock. */
 function clock(seconds: number): string {
@@ -108,12 +117,17 @@ function StatusBadge({ status }: { status: ServerStatus }) {
 }
 
 export default async function ServerPage() {
-  const [totals, latest, status, startTimes] = await Promise.all([
+  const [totals, latest, status, startTimes, lastSync] = await Promise.all([
     archiveTotals(),
     latestDay(),
     getServerStatus(),
     getMatchStartTimes(),
+    lastSyncAt(),
   ]);
+
+  const syncMinutesAgo = lastSync
+    ? Math.round((Date.now() - lastSync.getTime()) / 60_000)
+    : null;
 
   const online = status.state === "online" ? status : null;
 
@@ -228,6 +242,24 @@ export default async function ServerPage() {
               </Link>{" "}
               over {totals.dayCount} {totals.dayCount === 1 ? "night" : "nights"}
               {latest ? `, latest ${dayLabel(latest)}` : ""}.
+            </p>
+          ) : null}
+
+          {/*
+            Says when results last arrived, and says so loudly once they stop.
+            A stalled sync is invisible otherwise: the site keeps serving
+            yesterday's matches and looks entirely fine.
+          */}
+          {syncMinutesAgo !== null ? (
+            <p
+              className={
+                "mt-2 text-xs " +
+                (syncMinutesAgo > SYNC_STALE_MINUTES ? "text-oxide-400" : "text-steel-500")
+              }
+            >
+              {syncMinutesAgo > SYNC_STALE_MINUTES
+                ? `No results received for ${formatAgo(syncMinutesAgo)}. The server may not be reporting.`
+                : `Results last received ${formatAgo(syncMinutesAgo)} ago.`}
             </p>
           ) : null}
         </div>
