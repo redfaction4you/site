@@ -13,11 +13,14 @@ export function SiteFooter() {
           <p className="mt-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.32em] text-rust-500">
             Red Faction Archive
           </p>
+          {/* Describes what is actually here. The file catalogue is built but
+              empty and hidden from the navigation, so promising it in the
+              footer would send people looking for shelves with nothing on
+              them. */}
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-steel-400">
-            A community archive for Red Faction (2001). Maps, mods, tools,
-            guides and videos, kept in one place. Everything here is free,
-            nothing is walled off, and you never need an account to download
-            anything.
+            A community archive for Red Faction (2001). Match results, player
+            records and the community server, kept in one place. Everything
+            here is free, nothing is walled off, and you never need an account.
           </p>
         </div>
 
@@ -59,14 +62,6 @@ export function SiteFooter() {
               >
                 GitHub
               </a>
-            </li>
-            <li>
-              <Link
-                href="/videos"
-                className="text-steel-400 transition-colors hover:text-steel-200"
-              >
-                Video archive
-              </Link>
             </li>
           </ul>
         </div>
