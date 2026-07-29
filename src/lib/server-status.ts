@@ -55,6 +55,8 @@ export type ServerStatus =
       gameType: string | null;
       client: string | null;
       matchMode: boolean;
+      /** Server rule flags, already filtered and labelled for display. */
+      rules: string[];
       /** Null when the extra lookups failed; the page just shows less. */
       game: LiveGame | null;
       mapInfo: MapInfo | null;
@@ -93,6 +95,42 @@ const GAME_TYPES: Record<string, string> = {
 function gameType(raw: string | undefined): string | null {
   if (!raw) return null;
   return GAME_TYPES[raw] ?? raw.replace(/_/g, " ");
+}
+
+/**
+ * Flags that tell a player nothing. Every server in the browser is dedicated
+ * and internet-listed, so showing them is noise on a panel meant to answer
+ * "what am I joining".
+ */
+const IGNORED_FLAGS = new Set(["dedicated", "internet", "lan", "passworded_off"]);
+
+/**
+ * Readable names for the rule flags the browser reports.
+ *
+ * Only the ones whose meaning is unambiguous get a rewritten label. Anything
+ * else falls through to its own name with the underscores taken out, which is
+ * honest: a flag we do not recognise is shown as the server named it rather
+ * than guessed at.
+ */
+const FLAG_LABELS: Record<string, string> = {
+  af_only: "Alpine only",
+  match_mode: "Match mode",
+  gaussian_spread: "Gaussian spread",
+  damage_notifications: "Damage numbers",
+  force_respawn: "Force respawn",
+  balance_teams: "Balanced teams",
+  team_damage: "Team damage",
+  fall_damage: "Fall damage",
+  weapons_stay: "Weapons stay",
+  flag_dropping: "Flag dropping",
+  drop_amps: "Drop amps",
+};
+
+function ruleTags(flags: string[] | undefined): string[] {
+  if (!Array.isArray(flags)) return [];
+  return flags
+    .filter((flag) => !IGNORED_FLAGS.has(flag))
+    .map((flag) => FLAG_LABELS[flag] ?? flag.replace(/_/g, " "));
 }
 
 /** Shared fetch: short timeout, cached, and never throws past the caller. */
@@ -224,6 +262,7 @@ export async function getServerStatus(): Promise<ServerStatus> {
           ? `${body.info.patch_name} ${body.info.patch_ver}`
           : null,
       matchMode: Boolean(body.info.flags?.includes("match_mode")),
+      rules: ruleTags(body.info.flags),
     };
   } catch (error) {
     // A timeout or a network failure means we do not know, not that the server

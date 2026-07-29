@@ -175,6 +175,20 @@ export default async function ServerPage() {
             </p>
           ) : null}
 
+          {/* What rules you are joining, from the server's own flags. */}
+          {online?.rules.length ? (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {online.rules.map((rule) => (
+                <li
+                  key={rule}
+                  className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-0.5 font-display text-[10px] uppercase tracking-wider text-steel-400"
+                >
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           {status.state === "offline" ? (
             <p className="mt-2 text-sm text-steel-500">Normal between games.</p>
           ) : null}
