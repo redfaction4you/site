@@ -194,6 +194,48 @@ function EventSection({
  * A sidebar costs a fixed slice of every screen, which is exactly the width the
  * two scoreboards need to sit side by side. Across the top it costs one line.
  */
+/**
+ * A step arrow that keeps its space when there is nowhere to go.
+ *
+ * Rendering these conditionally made the whole strip jump: match 1 had no
+ * previous, so its pills sat one button to the left of every other match's, and
+ * the row you were reading moved under the cursor as you stepped through the
+ * night. A disabled placeholder of the same width holds the line still.
+ */
+function Step({ to, label }: { to: MatchLink | null; label: string }) {
+  const shape =
+    "flex w-16 shrink-0 items-center justify-center rounded-sm border px-2 py-1 " +
+    "text-center font-display text-xs";
+
+  if (!to) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${shape} border-basalt-800 bg-basalt-900 text-steel-700`}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={`/matches/${to.archiveDay}/${to.sourceMatchId}`}
+      title={`${to.mapName}, ${dayLabel(to.archiveDay)}`}
+      className={`${shape} border-basalt-700 bg-basalt-850 text-steel-400 hover:border-basalt-600 hover:text-steel-100`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+/**
+ * The night's running order.
+ *
+ * Reads as a sequence rather than a row of names: the number leads, the map
+ * follows, the score trails. Fixed-width numbers mean the pills line up as a
+ * column of 1 2 3 4 no matter how long the map names are.
+ */
 function MatchNav({
   days,
   siblings,
@@ -208,56 +250,54 @@ function MatchNav({
   next: MatchLink | null;
 }) {
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
-      {previous ? (
-        <Link
-          href={`/matches/${previous.archiveDay}/${previous.sourceMatchId}`}
-          title={`${previous.mapName}, ${dayLabel(previous.archiveDay)}`}
-          className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
-        >
-          &larr; Prev
-        </Link>
-      ) : null}
+    <div className="mt-4 flex flex-wrap items-stretch gap-2">
+      <Step to={previous} label="Prev" />
 
-      {siblings.map((sibling) => {
-        const current = sibling.sourceMatchId === match.sourceMatchId;
-        return (
-          <Link
-            key={sibling.id}
-            href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
-            aria-current={current ? "page" : undefined}
-            className={
-              "max-w-[16rem] truncate rounded-sm border px-2.5 py-1 text-xs transition-colors " +
-              (current
-                ? "border-rust-500 bg-rust-500/10 text-rust-300"
-                : "border-basalt-700 bg-basalt-850 text-steel-400 hover:text-steel-200")
-            }
-          >
-            <span className="font-display text-[10px] uppercase tracking-wider text-steel-500">
-              {sibling.number}
-            </span>{" "}
-            {sibling.mapName}
-            <span className="ml-1.5 font-mono text-steel-500">
-              {sibling.redScore}-{sibling.blueScore}
-            </span>
-          </Link>
-        );
-      })}
+      <ol className="flex min-w-0 flex-1 flex-wrap items-stretch gap-2">
+        {siblings.map((sibling) => {
+          const current = sibling.sourceMatchId === match.sourceMatchId;
+          return (
+            <li key={sibling.id} className="min-w-0">
+              <Link
+                href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
+                aria-current={current ? "page" : undefined}
+                className={
+                  "flex h-full items-center gap-2 rounded-sm border px-2.5 py-1 text-xs transition-colors " +
+                  (current
+                    ? "border-rust-500 bg-rust-500/10"
+                    : "border-basalt-700 bg-basalt-850 hover:border-basalt-600")
+                }
+              >
+                <span
+                  className={
+                    "w-4 shrink-0 text-center font-display text-sm font-bold tabular-nums " +
+                    (current ? "text-rust-400" : "text-steel-600")
+                  }
+                >
+                  {sibling.number}
+                </span>
+                <span
+                  className={
+                    "truncate " + (current ? "text-rust-300" : "text-steel-300")
+                  }
+                >
+                  {sibling.mapName}
+                </span>
+                <span className="shrink-0 font-mono tabular-nums text-steel-500">
+                  {sibling.redScore}-{sibling.blueScore}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
 
-      {next ? (
-        <Link
-          href={`/matches/${next.archiveDay}/${next.sourceMatchId}`}
-          title={`${next.mapName}, ${dayLabel(next.archiveDay)}`}
-          className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
-        >
-          Next &rarr;
-        </Link>
-      ) : null}
+      <Step to={next} label="Next" />
 
       {days.length > 1 ? (
         <Link
           href="/matches"
-          className="ml-auto rounded-sm border border-basalt-700 bg-basalt-850 px-2.5 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
+          className="shrink-0 rounded-sm border border-basalt-700 bg-basalt-850 px-2.5 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
         >
           All {days.length} nights
         </Link>

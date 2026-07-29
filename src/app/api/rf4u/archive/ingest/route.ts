@@ -19,7 +19,18 @@ import { storeDay } from "@/lib/matches/ingest";
 import { sanitizeDay } from "@/lib/matches/sanitize";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
+/**
+ * Generous, because writing costs time.
+ *
+ * Storing a day takes a second or two. Generating match reports takes ten to
+ * twenty seconds each, since the model spends well over a thousand tokens
+ * thinking before it writes anything, and the nightly column runs after those.
+ * At the old sixty second limit the reports used the whole budget and the
+ * column was cut off every time, which is why nights were being archived
+ * without one.
+ */
+export const maxDuration = 300;
 
 /** A night of matches with full kill logs is large, but not this large. */
 const MAX_BODY_BYTES = 4_000_000;
