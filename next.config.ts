@@ -1,5 +1,21 @@
 import type { NextConfig } from "next";
 
+/**
+ * Screenshots come from the R2 bucket, whose domain is not known until the
+ * bucket exists. Deriving the pattern from the same variable the app uses means
+ * configuring storage is one env var, not an env var plus a code change.
+ */
+function r2Pattern() {
+  const base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE;
+  if (!base) return [];
+  try {
+    return [{ protocol: "https" as const, hostname: new URL(base).hostname }];
+  } catch {
+    console.warn("[next.config] NEXT_PUBLIC_R2_PUBLIC_BASE is not a valid URL.");
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -7,6 +23,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cdn.discordapp.com" },
       // YouTube thumbnails for the video archive.
       { protocol: "https", hostname: "i.ytimg.com" },
+      ...r2Pattern(),
     ],
   },
   async redirects() {

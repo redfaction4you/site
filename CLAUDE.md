@@ -32,9 +32,11 @@ Phase 1 is built and running locally. Outstanding to finish it:
 5. **Domain repoint** — last. `redfaction4you.com` is currently a Google Site and
    keeps serving until DNS changes, so there is no downtime window.
 
-Live pages: `/`, `/videos`, `/discord`, `/members/[handle]`, `/signin`.
-Stubs (Phase 2/4): `/maps`, `/mods`, `/models`, `/weapons`, `/tools`, `/guides`,
-`/events`.
+Live pages: `/`, `/videos`, `/discord`, `/members/[handle]`, `/signin`, and the
+five catalogue sections `/maps`, `/mods`, `/models`, `/weapons`, `/tools` with
+their `/[slug]` detail pages. The catalogue is built but empty — it renders an
+empty state, not a stub.
+Stubs remaining: `/guides` (Phase 2), `/events` (Phase 4).
 
 ## Commands
 
@@ -104,6 +106,25 @@ them. Detection is by content, never by extension.
   imports carry `.ts`. That is what lets plain `node` run the real parser in
   tests and in the CLI with no build step. It is the only module written that
   way; the rest of `src/` uses `@/`.
+
+## The catalogue (`src/lib/catalogue.ts`, `src/components/catalogue-page.tsx`)
+
+One `items` table and one set of components serve all five sections. The
+per-section differences are editorial, and they live in `KIND_META` — adding a
+sixth section is an entry there plus two three-line route files.
+
+- **Filters are links carrying query parameters, not client state.** Every
+  filtered view is a real URL somebody can paste into Discord. That matters
+  more here than a slicker interaction.
+- **`author_name` is not `uploader_id`.** Most of the archive was made by people
+  who will never have an account here. Never conflate the two in UI or queries.
+- **Storage degrades honestly.** `publicUrl()` returns null when
+  `NEXT_PUBLIC_R2_PUBLIC_BASE` is unset, and the download panel says so rather
+  than rendering a dead link. Same pattern as `discordConfigured`.
+- **Setting `NEXT_PUBLIC_R2_PUBLIC_BASE` is all that is needed for images** —
+  `next.config.ts` derives the `remotePatterns` entry from it.
+- Listing pages only ever show `status = 'published'`; drafts 404 on their
+  detail route. Verified against a seeded row, not assumed.
 
 ## Conventions
 

@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -341,3 +342,40 @@ export const screenshots = pgTable(
   },
   (shot) => [uniqueIndex("screenshots_item_position_idx").on(shot.itemId, shot.position)],
 );
+
+// ---------------------------------------------------------------------------
+// Relations. These add no SQL of their own; they are what lets
+// db.query.items.findMany({ with: { files: true } }) work in one round trip
+// instead of a query per item.
+// ---------------------------------------------------------------------------
+
+export const itemsRelations = relations(items, ({ one, many }) => ({
+  files: many(files),
+  screenshots: many(screenshots),
+  mapMeta: one(mapMeta, {
+    fields: [items.id],
+    references: [mapMeta.itemId],
+  }),
+  uploader: one(users, {
+    fields: [items.uploaderId],
+    references: [users.id],
+    relationName: "uploader",
+  }),
+  author: one(users, {
+    fields: [items.authorUserId],
+    references: [users.id],
+    relationName: "author",
+  }),
+}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  item: one(items, { fields: [files.itemId], references: [items.id] }),
+}));
+
+export const screenshotsRelations = relations(screenshots, ({ one }) => ({
+  item: one(items, { fields: [screenshots.itemId], references: [items.id] }),
+}));
+
+export const mapMetaRelations = relations(mapMeta, ({ one }) => ({
+  item: one(items, { fields: [mapMeta.itemId], references: [items.id] }),
+}));

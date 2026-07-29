@@ -1,26 +1,19 @@
 import type { Metadata } from "next";
 
-import { StubPage } from "@/components/stub-page";
+import { CataloguePage } from "@/components/catalogue-page";
+import { KIND_META } from "@/lib/catalogue";
+
+const meta = KIND_META.model;
 
 export const metadata: Metadata = {
-  title: "Models",
-  description:
-    "Custom player models and character skins for Red Faction, hosted permanently and free to download.",
+  title: meta.title,
+  description: meta.intro,
 };
 
-export default function ModelsPage() {
-  return (
-    <StubPage
-      title="Player models &amp; skins"
-      phase={2}
-      summary="Custom character models and player skins, from faithful reskins of the originals to things nobody at Volition would recognise."
-      planned={[
-        "Filter by type: full models, reskins of stock characters, team-coloured variants",
-        "Preview renders rather than just a filename, so you can see it before you download",
-        "Install instructions with exact paths for the Steam, GOG and disc releases",
-        "Notes on which models work in multiplayer and which are singleplayer only",
-        "Permanent download URLs, virus scanning and hash deduplication on every upload",
-      ]}
-    />
-  );
+export default async function ModelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return <CataloguePage meta={meta} searchParams={await searchParams} />;
 }
