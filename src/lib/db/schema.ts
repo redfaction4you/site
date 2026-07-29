@@ -19,6 +19,11 @@ import type { AdapterAccountType } from "next-auth/adapters";
 // Type-only import: erased at compile time, so drizzle-kit never has to
 // resolve it. Keeps the client list in one place rather than duplicating it.
 import type { RfClient } from "../rfl/clients.ts";
+import type {
+  PublicFlagEvent,
+  PublicKill,
+  PublicRosterEvent,
+} from "../matches/sanitize.ts";
 
 /**
  * Phase 1 identity tables, plus the Phase 2 catalogue.
@@ -398,9 +403,12 @@ export const matches = pgTable(
      * so rows would cost a great deal and buy nothing. Captures are different
      * — they drive the timeline and are worth querying — so they get a table.
      */
-    kills: jsonb("kills").$type<unknown[]>().default([]).notNull(),
-    flagEvents: jsonb("flag_events").$type<unknown[]>().default([]).notNull(),
-    rosterEvents: jsonb("roster_events").$type<unknown[]>().default([]).notNull(),
+    kills: jsonb("kills").$type<PublicKill[]>().default([]).notNull(),
+    flagEvents: jsonb("flag_events").$type<PublicFlagEvent[]>().default([]).notNull(),
+    rosterEvents: jsonb("roster_events")
+      .$type<PublicRosterEvent[]>()
+      .default([])
+      .notNull(),
 
     ingestedAt: timestamp("ingested_at", { withTimezone: true })
       .defaultNow()

@@ -7,7 +7,7 @@
  * it has no business in a scoreboard. Selecting whole rows with
  * `db.query.matchPlayers.findMany()` would quietly undo that, so don't.
  */
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
@@ -134,6 +134,9 @@ export const getMatch = cache(async function getMatch(
       blueScore: matches.blueScore,
       overtime: matches.overtime,
       winner: matches.winner,
+      kills: matches.kills,
+      flagEvents: matches.flagEvents,
+      rosterEvents: matches.rosterEvents,
     })
     .from(matches)
     .where(
@@ -194,6 +197,182 @@ export const getMatch = cache(async function getMatch(
 });
 
 export type MatchDetail = NonNullable<Awaited<ReturnType<typeof getMatch>>>;
+
+export type MatchLink = {
+  archiveDay: string;
+  sourceMatchId: number;
+  mapName: string;
+};
+
+/**
+ * The matches either side of this one, in the order they were played.
+ *
+ * Deliberately across the whole archive rather than within the night: the last
+ * match of an evening should lead to the first of the next one. Having to press
+ * the browser's back button to move between matches is the thing this fixes.
+ */
+export const getAdjacentMatches = cache(async function getAdjacentMatches(
+  startedAt: Date | null,
+  matchId: string,
+): Promise<{ previous: MatchLink | null; next: MatchLink | null }> {
+  if (!startedAt) return { previous: null, next: null };
+
+  const columns = {
+    archiveDay: matches.archiveDay,
+    sourceMatchId: matches.sourceMatchId,
+    mapName: matches.mapName,
+  };
+
+  const [previous] = await db
+    .select(columns)
+    .from(matches)
+    .where(and(lt(matches.startedAt, startedAt), ne(matches.id, matchId)))
+    .orderBy(desc(matches.startedAt))
+    .limit(1);
+
+  const [next] = await db
+    .select(columns)
+    .from(matches)
+    .where(and(gt(matches.startedAt, startedAt), ne(matches.id, matchId)))
+    .orderBy(asc(matches.startedAt))
+    .limit(1);
+
+  return { previous: previous ?? null, next: next ?? null };
+});
+
+// ---------------------------------------------------------------------------
+// Players
+//
+// Aggregated by name, because that is the only key we can show. An RF player
+// name is neither unique nor stable, so two people who used the same name will
+// be merged here and one person who renamed will be split. The pages say so
+// rather than implying more precision than exists. `identity_key` is what will
+// eventually fix this; it is stored and deliberately not used yet.
+// ---------------------------------------------------------------------------
+
+export type PlayerTotals = {
+  name: string;
+  matchesPlayed: number;
+  kills: number;
+  deaths: number;
+  caps: number;
+  score: number;
+  shotsHit: number;
+  shotsFired: number;
+  damageGiven: number;
+  damageTaken: number;
+  flagHoldMs: number;
+  flagReturns: number;
+  bestStreak: number;
+  fastestCaptureMs: number | null;
+  firstSeen: string | null;
+  lastSeen: string | null;
+};
+
+const playerTotalColumns = {
+  name: sql<string>`min(${matchPlayers.name})`,
+  matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+  kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
+  deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
+  caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+  score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
+  shotsHit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}), 0)::float8`,
+  shotsFired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}), 0)::float8`,
+  damageGiven: sql<number>`coalesce(sum(${matchPlayers.damageGiven}), 0)::float8`,
+  damageTaken: sql<number>`coalesce(sum(${matchPlayers.damageTaken}), 0)::float8`,
+  flagHoldMs: sql<number>`coalesce(sum(${matchPlayers.flagHoldMs}), 0)::int`,
+  flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
+  bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
+  fastestCaptureMs: sql<
+    number | null
+  >`min(nullif(${matchPlayers.fastestCaptureMs}, 0))::int`,
+};
+
+/** Everyone who has played, most active first. */
+export const listPlayers = cache(async function listPlayers(): Promise<PlayerTotals[]> {
+  const rows = await db
+    .select({
+      ...playerTotalColumns,
+      firstSeen: sql<string | null>`min(${matches.archiveDay})::text`,
+      lastSeen: sql<string | null>`max(${matches.archiveDay})::text`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(eq(matchPlayers.spectator, false))
+    .groupBy(sql`lower(${matchPlayers.name})`)
+    .orderBy(sql`count(distinct ${matchPlayers.matchId}) desc`, sql`2 desc`);
+
+  return rows;
+});
+
+export const getPlayer = cache(async function getPlayer(
+  name: string,
+): Promise<PlayerTotals | null> {
+  const [row] = await db
+    .select({
+      ...playerTotalColumns,
+      firstSeen: sql<string | null>`min(${matches.archiveDay})::text`,
+      lastSeen: sql<string | null>`max(${matches.archiveDay})::text`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(sql`lower(${matchPlayers.name}) = lower(${name})`)
+    .groupBy(sql`lower(${matchPlayers.name})`)
+    .limit(1);
+
+  return row ?? null;
+});
+
+export type PlayerMatchRow = {
+  archiveDay: string;
+  sourceMatchId: number;
+  mapName: string;
+  mode: string;
+  startedAt: Date | null;
+  team: string;
+  won: boolean | null;
+  redScore: number;
+  blueScore: number;
+  score: number;
+  kills: number;
+  deaths: number;
+  caps: number;
+  accuracy: number;
+};
+
+/** Every match this player appeared in, newest first. */
+export const getPlayerMatches = cache(async function getPlayerMatches(
+  name: string,
+): Promise<PlayerMatchRow[]> {
+  const rows = await db
+    .select({
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      mode: matches.mode,
+      startedAt: matches.startedAt,
+      team: matchPlayers.team,
+      winner: matches.winner,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      score: matchPlayers.score,
+      kills: matchPlayers.kills,
+      deaths: matchPlayers.deaths,
+      caps: matchPlayers.caps,
+      accuracy: matchPlayers.accuracy,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(sql`lower(${matchPlayers.name}) = lower(${name})`)
+    .orderBy(desc(matches.startedAt));
+
+  return rows.map(({ winner, ...row }) => ({
+    ...row,
+    // Null rather than false when the match had no winner: a cancelled match
+    // is not a loss.
+    won: winner ? winner === row.team : null,
+  }));
+});
 
 /**
  * A whole day, assembled for the public JSON API.

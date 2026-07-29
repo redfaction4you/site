@@ -92,6 +92,43 @@ export type PublicCapture = {
   observedAt: Date | null;
 };
 
+export type PublicKill = {
+  elapsedSeconds: number;
+  killerName: string | null;
+  killerTeam: string | null;
+  victimName: string;
+  victimTeam: string | null;
+  weapon: string | null;
+  suicide: boolean;
+  teamKill: boolean;
+  flagContext: string | null;
+  observedAt: string | null;
+};
+
+export type PublicFlagEvent = {
+  eventType: string;
+  elapsedSeconds: number;
+  flagOwner: string | null;
+  playerName: string | null;
+  killerName: string | null;
+  victimName: string | null;
+  carryMs: number;
+  attribution: string | null;
+  recovery: boolean;
+  previousCarrierName: string | null;
+  message: string;
+  observedAt: string | null;
+};
+
+export type PublicRosterEvent = {
+  eventType: string;
+  playerName: string | null;
+  fromTeam: string | null;
+  toTeam: string | null;
+  elapsedSeconds: number;
+  observedAt: string | null;
+};
+
 export type PublicMatch = {
   sourceMatchId: number;
   status: string;
@@ -105,9 +142,9 @@ export type PublicMatch = {
   winner: string | null;
   players: PublicPlayer[];
   captures: PublicCapture[];
-  kills: unknown[];
-  flagEvents: unknown[];
-  rosterEvents: unknown[];
+  kills: PublicKill[];
+  flagEvents: PublicFlagEvent[];
+  rosterEvents: PublicRosterEvent[];
 };
 
 export type SanitizedDay = {
