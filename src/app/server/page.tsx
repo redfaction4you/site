@@ -27,7 +27,19 @@ const SERVER = {
   address: process.env.NEXT_PUBLIC_SERVER_ADDRESS ?? null,
   client: process.env.NEXT_PUBLIC_SERVER_CLIENT ?? "Alpine Faction",
   location: process.env.NEXT_PUBLIC_SERVER_LOCATION ?? null,
+  slots: process.env.NEXT_PUBLIC_SERVER_SLOTS ?? null,
 };
+
+/**
+ * Live status is somebody else's job, on purpose.
+ *
+ * FactionFiles runs the community server browser and our server is already
+ * listed on it. Pointing at that is strictly better than us polling game
+ * servers ourselves: no UDP tracker to keep alive, no Windows service, no
+ * operational duty — the exact things the build plan cut. It also means the
+ * list stays right when we are not looking at it.
+ */
+const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -56,6 +68,7 @@ export default async function ServerPage() {
         <dl className="grid gap-5 sm:grid-cols-2">
           <Field label="Server">{SERVER.name}</Field>
           <Field label="Client">{SERVER.client}</Field>
+          {SERVER.slots ? <Field label="Slots">{SERVER.slots}</Field> : null}
           {SERVER.location ? (
             <Field label="Location">{SERVER.location}</Field>
           ) : null}
@@ -80,6 +93,28 @@ export default async function ServerPage() {
             )}
           </Field>
         </dl>
+      </div>
+
+      <div className="panel mt-6 flex flex-wrap items-center justify-between gap-4 p-6">
+        <div className="max-w-lg">
+          <h2 className="font-display text-base font-bold text-steel-100">
+            Who is on right now
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-steel-400">
+            FactionFiles runs the community server browser and this server is listed on
+            it, with current players and map. We point at theirs rather than running a
+            second one — a live tracker is a service to keep alive, and this archive is
+            not that.
+          </p>
+        </div>
+        <a
+          href={SERVER_BROWSER}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="shrink-0 rounded-sm border border-basalt-600 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-200 transition-colors hover:border-steel-500 hover:text-steel-100"
+        >
+          Open the server browser
+        </a>
       </div>
 
       <section className="mt-10">
