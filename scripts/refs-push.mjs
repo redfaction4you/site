@@ -76,7 +76,18 @@ function area(name) {
   if (/corridor|hall|tunnel/.test(name)) return "corridor";
   if (/open|outside|outdoor/.test(name)) return "open";
   if (/base|spawn/.test(name)) return "base";
-  return "other";
+
+  /*
+   * Unlabelled means establishing shot.
+   *
+   * These arrive straight out of the game as `20260711_201308_CTF-Ankhb12.jpg`,
+   * which names the map and nothing else. In practice a screenshot somebody took
+   * and filed under a map with no further description is the one they consider to
+   * represent it, which is exactly what `overview` means here. Calling it "other"
+   * would be equally a guess and would additionally be useless, since nothing
+   * prefers "other" for anything.
+   */
+  return "overview";
 }
 
 const LABELS = join(ROOT, "poses.json");

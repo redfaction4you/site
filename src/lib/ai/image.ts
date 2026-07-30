@@ -201,10 +201,22 @@ async function callCloudflare(prompt: string, sized = true): Promise<Attempt> {
  * resort, so a future rename does not need a deploy.
  */
 const PREFERRED_GEMINI = [
-  "gemini-3.1-flash-image",
-  "gemini-2.5-flash-image",
+  /*
+   * The pro model first, and it is worth the money.
+   *
+   * The flash models treat several reference images as things to blend, so the
+   * map screenshot came back as the right materials and props arranged into a
+   * courtyard that was not the level. The pro model treats the plate as a plate:
+   * same friezes, same vines, same circular flag stand, same pickups on the
+   * grass, with the figures added. That is the difference between illustrating
+   * the map and illustrating something that resembles it.
+   *
+   * Around three times the cost, on one image a night.
+   */
   "gemini-3-pro-image",
   "nano-banana-pro-preview",
+  "gemini-3.1-flash-image",
+  "gemini-2.5-flash-image",
   "gemini-3.1-flash-lite-image",
 ];
 

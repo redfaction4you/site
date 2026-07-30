@@ -835,3 +835,32 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
     playerCount: squad.red + squad.blue,
   };
 });
+
+/**
+ * Who did what on one night, best first.
+ *
+ * The night page had the totals for the evening and nothing about the people in
+ * it, so the right hand column sat empty under a day selector. This is the same
+ * aggregation `listPlayers` does, narrowed to a single day.
+ *
+ * Names its columns, like everything here, and does not name `identity_key`.
+ */
+export const nightScoreboard = cache(async function nightScoreboard(
+  archiveDay: string,
+): Promise<
+  { name: string; kills: number; deaths: number; caps: number; score: number }[]
+> {
+  return db
+    .select({
+      name: sql<string>`min(${matchPlayers.name})`,
+      kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
+      deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
+      caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+      score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
+    .groupBy(sql`lower(${matchPlayers.name})`)
+    .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
+});

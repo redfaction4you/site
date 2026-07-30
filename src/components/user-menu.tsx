@@ -12,17 +12,19 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function UserMenu({ session }: { session: Session | null }) {
-  // Discord app not created yet. Say so instead of offering a dead button.
-  if (!discordConfigured) {
-    return (
-      <span
-        className="hidden text-xs font-semibold uppercase tracking-[0.12em] text-steel-500 sm:inline"
-        title="Set AUTH_DISCORD_ID and AUTH_DISCORD_SECRET in .env.local to enable sign-in."
-      >
-        Sign-in pending
-      </span>
-    );
-  }
+  /*
+   * Nothing at all when sign-in is off, rather than a notice saying so.
+   *
+   * It used to render "Sign-in pending", which was honest when an account was
+   * going to be needed soon. It is not needed: every page here is readable
+   * without one, which is the second thing this site promises. A permanent
+   * notice about a feature nobody is waiting for is a corner of every page spent
+   * apologising for its own absence.
+   *
+   * The rest of the flow is left intact. If Discord is configured later, the
+   * button comes back on its own.
+   */
+  if (!discordConfigured) return null;
 
   if (!session?.user) {
     return (

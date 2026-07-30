@@ -21,7 +21,6 @@ import assert from "node:assert/strict";
 
 import {
   IMAGE_CAPTION,
-  MAX_FIGURES_PER_TEAM,
   MAX_MOOD_LENGTH,
   MOMENTS,
   buildComposition,
@@ -47,12 +46,13 @@ const REFS = {
 
 function composition(overrides = {}) {
   return {
-    moment: "capture-run",
+    moment: "capture-cheer",
     subject: "red",
     redCount: 3,
     blueCount: 3,
     flagTeam: "blue",
     mood: "leads that never stayed put",
+    variation: 0,
     ...overrides,
   };
 }
@@ -64,7 +64,7 @@ test("every reference is described, in the order it is passed", () => {
 
   assert.deepEqual(
     references.map((r) => r.role),
-    ["scene", "red-character", "blue-character", "flag"],
+    ["scene", "red-character", "blue-character"],
   );
 
   // Each one is introduced by its position, and the positions are 1..n in order.
@@ -80,20 +80,42 @@ test("a reference that does not exist is neither listed nor described", () => {
     blueCharacter: null,
   });
 
-  assert.deepEqual(references.map((r) => r.role), ["scene", "red-character", "flag"]);
+  assert.deepEqual(references.map((r) => r.role), ["scene", "red-character"]);
   assert.doesNotMatch(prompt, /character model for the blue team/);
-  assert.match(prompt, new RegExp("Reference 3 is the flag"));
+  assert.match(prompt, /Reference 2 is the character model for the red team/);
 });
 
-test("no flag reference is attached when no flag was moving", () => {
-  const { prompt, references } = buildComposition(
+test("only a carry puts a flag in anyone's hand", () => {
+  // A capture returns the flag to its stand the instant it completes, so a player
+  // celebrating a score holds nothing, and between matches nobody does either.
+  // An earlier version had somebody cheering in their own flag room with the
+  // enemy flag, which is a picture of something that cannot happen.
+  const cheering = buildComposition(
     SCENE,
-    composition({ moment: "celebration", flagTeam: null }),
+    composition({ moment: "capture-cheer", flagTeam: "blue" }),
+    REFS,
+  );
+  assert.ok(!cheering.references.some((r) => r.role === "flag"));
+  assert.match(cheering.prompt, /No flag anywhere in shot/);
+
+  const carrying = buildComposition(
+    SCENE,
+    composition({ moment: "flag-run", flagTeam: "blue" }),
+    REFS,
+  );
+  assert.ok(carrying.references.some((r) => r.role === "flag"));
+  assert.match(carrying.prompt, /flag being carried/);
+});
+
+test("a carry never shows a flag stand behind the runner", () => {
+  // Which flag is it? A stand in frame invites the question and answers it wrong.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "flag-run", flagTeam: "blue" }),
     REFS,
   );
 
-  assert.ok(!references.some((r) => r.role === "flag"));
-  assert.doesNotMatch(prompt, /flag is in shot/);
+  assert.match(prompt, /No flag stand is visible behind them/);
 });
 
 test("a team with nobody in it contributes no character reference", () => {
@@ -108,36 +130,111 @@ test("a team with nobody in it contributes no character reference", () => {
 
 /* --- what the picture claims --------------------------------------------- */
 
-test("the figure counts are the real squad sizes", () => {
-  assert.match(
-    buildComposition(SCENE, composition({ redCount: 3, blueCount: 3 }), REFS).prompt,
-    /exactly 3 figures in red and 3 figures in blue/,
+test("a solo celebration frames one player, not the whole squad", () => {
+  // A telephoto portrait does not claim to show everybody who played, any more
+  // than a photograph of a striker claims the other ten were absent.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "capture-cheer", redCount: 3, blueCount: 3 }),
+    REFS,
   );
-  assert.match(
-    buildComposition(SCENE, composition({ redCount: 2, blueCount: 2 }), REFS).prompt,
-    /exactly 2 figures in red and 2 figures in blue/,
-  );
+
+  assert.match(prompt, /In frame: 1 figure in red, and nobody else/);
 });
 
-test("one player a side reads as a figure, not figures", () => {
-  assert.match(
-    buildComposition(SCENE, composition({ redCount: 1, blueCount: 1 }), REFS).prompt,
-    /exactly 1 figure in red and 1 figure in blue/,
+test("a moment never shows more people than actually played", () => {
+  // The huddle wants three. A 1v1 has one, and inventing team mates would be a
+  // claim about who was there.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "huddle", subject: "red", redCount: 1, blueCount: 1 }),
+    REFS,
   );
+
+  assert.match(prompt, /In frame: 1 figure in red/);
+  assert.doesNotMatch(prompt, /3 figures/);
+});
+
+test("a huddle uses the real squad size when there are enough of them", () => {
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "huddle", subject: "red", redCount: 3, blueCount: 3 }),
+    REFS,
+  );
+
+  assert.match(prompt, /In frame: 3 figures in red/);
 });
 
 test("an absurd squad size is clamped rather than drawn", () => {
-  // A malformed row claiming forty players would otherwise ask for a crowd that
-  // looks nothing like the match it illustrates.
-  const { prompt } = buildComposition(SCENE, composition({ redCount: 40 }), REFS);
-  assert.match(prompt, new RegExp(`exactly ${MAX_FIGURES_PER_TEAM} figures in red`));
+  // A malformed row claiming forty players would otherwise ask for a crowd.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "huddle", subject: "red", redCount: 40 }),
+    REFS,
+  );
+
+  assert.doesNotMatch(prompt, /40 figures/);
+  assert.match(prompt, /In frame: 3 figures in red/);
 });
 
-test("the location must not be relocated or redecorated", () => {
+test("a face-off puts one of each side in frame", () => {
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "face-off", subject: "red", flagTeam: null }),
+    REFS,
+  );
+
+  assert.match(prompt, /one player in red as the subject, and one in blue/);
+});
+
+test("the crop varies between nights rather than being fixed", () => {
+  // The same framing every week is its own monotony. Reproducible per night,
+  // different across a run of them.
+  const crops = new Set();
+  for (let v = 0; v < 6; v++) {
+    const { prompt } = buildComposition(
+      SCENE,
+      composition({ moment: "capture-cheer", variation: v }),
+      REFS,
+    );
+    crops.add(prompt.match(/Framed [^.]+\./)?.[0] ?? "none");
+  }
+
+  assert.ok(crops.size > 1, "every variation produced the same crop");
+});
+
+test("a carry is never cropped past the waist", () => {
+  // The stride and the flag streaming behind are the whole picture.
+  for (let v = 0; v < 6; v++) {
+    const { prompt } = buildComposition(
+      SCENE,
+      composition({ moment: "flag-run", flagTeam: "blue", variation: v }),
+      REFS,
+    );
+    assert.doesNotMatch(prompt, /head and shoulders/);
+  }
+});
+
+test("the treatment names the glass rather than hinting at it", () => {
+  // "Shallow depth of field" is a hint and gets read loosely. A focal length and
+  // an aperture are a specification, and the training behind them is full of
+  // actual sports photography shot that way.
   const { prompt } = buildComposition(SCENE, composition(), REFS);
 
-  assert.match(prompt, /Use this environment exactly/);
-  assert.match(prompt, /Do not relocate the scene/);
+  assert.match(prompt, /400mm f\/2\.8/);
+  assert.match(prompt, /completely out of focus/);
+  assert.match(prompt, /no readable edges/);
+});
+
+test("the location supplies colour and light, not layout", () => {
+  // At f/2.8 on 400mm the background is a wash, so asking for its architecture to
+  // be reproduced was asking for precision that will not survive the blur and
+  // that the model gets wrong anyway.
+  const { prompt } = buildComposition(SCENE, composition(), REFS);
+
+  assert.match(prompt, /colours, materials\s+and light rather than its layout/);
+  assert.match(prompt, /does not need to be reproduced/);
+  assert.match(prompt, /nothing\s+like it/);
 });
 
 test("the prompt never asserts a setting of its own", () => {
@@ -151,22 +248,22 @@ test("the prompt never asserts a setting of its own", () => {
 
 /* --- the moment ----------------------------------------------------------- */
 
-test("a red capture carries the blue flag, and the other way round", () => {
-  const red = pickMoment({
-    sourceMatchId: "1", mapName: "Ankh b12", redScore: 3, blueScore: 1,
-    winner: "red", overtime: false, redPlayers: 3, bluePlayers: 3,
-    captures: [{ team: "red", elapsedSeconds: 100 }],
-  });
-  assert.equal(red.subject, "red");
-  assert.equal(red.flagTeam, "blue");
-
-  const blue = pickMoment({
-    sourceMatchId: "2", mapName: "Ankh b12", redScore: 0, blueScore: 2,
-    winner: "blue", overtime: false, redPlayers: 2, bluePlayers: 2,
-    captures: [{ team: "blue", elapsedSeconds: 400 }],
-  });
-  assert.equal(blue.subject, "blue");
-  assert.equal(blue.flagTeam, "red");
+test("a carry is always of the enemy flag, never your own", () => {
+  // You score by taking theirs home. Backwards here would misrepresent the game
+  // to anybody who plays it.
+  for (const [id, winner, enemy] of [["1", "red", "blue"], ["2", "blue", "red"]]) {
+    // Try both ids so whichever rotation lands on a carry is covered.
+    for (const attempt of [id, id + id]) {
+      const picked = pickMoment({
+        sourceMatchId: attempt, mapName: "Ankh b12", redScore: 3, blueScore: 1,
+        winner, overtime: false, redPlayers: 3, bluePlayers: 3,
+        captures: [{ team: winner, elapsedSeconds: 100 }],
+      });
+      assert.equal(picked.subject, winner);
+      if (picked.moment === "flag-run") assert.equal(picked.flagTeam, enemy);
+      else assert.equal(picked.flagTeam, null);
+    }
+  }
 });
 
 test("a match nobody won is never illustrated as a celebration", () => {
@@ -175,24 +272,35 @@ test("a match nobody won is never illustrated as a celebration", () => {
     winner: null, overtime: false, redPlayers: 3, bluePlayers: 3, captures: [],
   });
 
-  assert.notEqual(drawn.moment, "celebration");
+  assert.notEqual(drawn.moment, "capture-cheer");
   assert.equal(drawn.flagTeam, null);
 });
 
-test("a match with no captures gets the defensive picture", () => {
+test("a win with no captures is not shown as a celebration", () => {
   const held = pickMoment({
     sourceMatchId: "4", mapName: "Huna b8", redScore: 0, blueScore: 0,
     winner: "red", overtime: false, redPlayers: 3, bluePlayers: 3, captures: [],
   });
 
-  assert.equal(held.moment, "celebration");
+  assert.notEqual(held.moment, "capture-cheer");
   assert.equal(held.flagTeam, null);
 });
 
+test("a hammering is shown from the losing side", () => {
+  // The more honest picture of a one-sided night than the winners enjoying it.
+  const beaten = pickMoment({
+    sourceMatchId: "5", mapName: "Huna b8", redScore: 5, blueScore: 0,
+    winner: "red", overtime: false, redPlayers: 3, bluePlayers: 3, captures: [],
+  });
+
+  assert.equal(beaten.moment, "two-talking");
+  assert.equal(beaten.subject, "blue");
+});
+
 test("an invented moment falls back instead of reaching the image model", () => {
-  assert.equal(validateMoment({ moment: "epic showdown" }, "celebration"), "celebration");
-  assert.equal(validateMoment(null, "defence"), "defence");
-  assert.equal(validateMoment({ moment: " CAPTURE-RUN " }, "defence"), "capture-run");
+  assert.equal(validateMoment({ moment: "epic showdown" }, "huddle"), "huddle");
+  assert.equal(validateMoment(null, "face-off"), "face-off");
+  assert.equal(validateMoment({ moment: " CAPTURE-CHEER " }, "face-off"), "capture-cheer");
 });
 
 test("every moment key produces a usable prompt", () => {
@@ -257,21 +365,21 @@ const SHOTS = [
 ];
 
 test("a capture is shown in the scoring side's own flag room", () => {
-  assert.equal(chooseShot(SHOTS, "capture-run", "red", 0).key, "r1");
-  assert.equal(chooseShot(SHOTS, "capture-run", "blue", 0).key, "b1");
+  assert.equal(chooseShot(SHOTS, "capture-cheer", "red", 0).key, "r1");
+  assert.equal(chooseShot(SHOTS, "capture-cheer", "blue", 0).key, "b1");
 });
 
 test("a celebration is shown in the middle rather than a flag room", () => {
-  assert.equal(chooseShot(SHOTS, "celebration", "red", 0).area, "mid");
+  assert.equal(chooseShot(SHOTS, "huddle", "red", 0).area, "mid");
 });
 
 test("a map with only one shot still gets a picture", () => {
   const only = [{ area: "mid", key: "m1" }];
-  assert.equal(chooseShot(only, "capture-run", "red", 0).key, "m1");
+  assert.equal(chooseShot(only, "capture-cheer", "red", 0).key, "m1");
 });
 
 test("a map with no shots at all returns nothing to fall back on", () => {
-  assert.equal(chooseShot([], "capture-run", "red", 0), null);
+  assert.equal(chooseShot([], "capture-cheer", "red", 0), null);
 });
 
 test("the same day always picks the same shot", () => {
@@ -280,7 +388,7 @@ test("the same day always picks the same shot", () => {
   const a = rotationFor("2026-07-29");
   const b = rotationFor("2026-07-29");
   assert.equal(a, b);
-  assert.equal(chooseShot(SHOTS, "celebration", "red", a).key, chooseShot(SHOTS, "celebration", "red", b).key);
+  assert.equal(chooseShot(SHOTS, "huddle", "red", a).key, chooseShot(SHOTS, "huddle", "red", b).key);
   assert.notEqual(rotationFor("2026-07-29"), rotationFor("2026-07-30"));
 });
 

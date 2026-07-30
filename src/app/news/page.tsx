@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
+import { MapShot } from "@/components/map-shot";
 import { dayLabel, matchTime } from "@/components/match-archive";
-import { archiveTotals, listColumns, listMatchesForDay } from "@/lib/matches/queries";
+import {
+  archiveTotals,
+  listColumns,
+  listMatchesForDay,
+  nightScoreboard,
+} from "@/lib/matches/queries";
 
 export const metadata: Metadata = {
   title: "News",
@@ -27,6 +33,7 @@ export default async function NewsPage() {
 
   const [lead, ...earlier] = columns;
   const leadMatches = lead ? await listMatchesForDay(lead.archiveDay) : [];
+  const leadPlayers = lead ? await nightScoreboard(lead.archiveDay) : [];
 
   if (!lead) {
     return (
@@ -131,6 +138,11 @@ export default async function NewsPage() {
                       {match.blueScore}
                     </span>
                   </span>
+                  <MapShot
+                    mapName={match.mapName}
+                    className="hidden w-12 shrink-0 sm:block"
+                    sizes="48px"
+                  />
                   <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
                     {match.mapName}
                   </span>
@@ -148,6 +160,40 @@ export default async function NewsPage() {
           >
             The full night
           </Link>
+
+          {/* Who was actually there. The page described a night without ever
+              naming anybody in it, which reads oddly next to a column that is
+              mostly about people. */}
+          {leadPlayers.length ? (
+            <section className="mt-6">
+              <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+                Who played
+              </h2>
+              <ol>
+                {leadPlayers.map((player, index) => (
+                  <li key={player.name} className="border-b border-basalt-900">
+                    <Link
+                      href={`/players/${encodeURIComponent(player.name)}`}
+                      className="group flex items-baseline gap-2 py-1.5"
+                    >
+                      <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
+                        {player.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                        {player.kills}
+                      </span>
+                      <span className="w-11 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
+                        {player.caps} caps
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
         </aside>
       </div>
 
@@ -161,8 +207,14 @@ export default async function NewsPage() {
               <li key={entry.archiveDay} className="border-b border-basalt-900">
                 <Link
                   href={`/news/${entry.archiveDay}`}
-                  className="group flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2"
+                  className="group flex flex-wrap items-center gap-x-4 gap-y-0.5 py-2"
                 >
+                  <ColumnImage
+                    imageKey={entry.imageKey}
+                    model={entry.imageModel}
+                    headline={entry.headline}
+                    className="hidden w-20 shrink-0 sm:block"
+                  />
                   <span className="w-36 shrink-0 font-mono text-[0.6875rem] text-steel-600">
                     {dayLabel(entry.archiveDay)}
                   </span>

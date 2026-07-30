@@ -64,7 +64,13 @@ export function pickMatch(matches: PickableMatch[]): PickableMatch | null {
   );
 }
 
-export type MomentKind = "capture-run" | "defence" | "celebration" | "readying";
+export type MomentKind =
+  | "flag-run"
+  | "capture-cheer"
+  | "point-out"
+  | "two-talking"
+  | "huddle"
+  | "face-off";
 
 export type PickedMoment = {
   moment: MomentKind;
@@ -88,29 +94,53 @@ export type PickedMoment = {
  */
 export function pickMoment(match: PickableMatch): PickedMoment {
   const winner = match.winner;
+  const decided = Math.abs(match.redScore - match.blueScore);
 
-  if (match.captures.length > 0) {
-    // The last capture by the side that won it: the one that settled the match if
-    // they won, and their best moment if the winner is unrecorded.
-    const theirs = winner
-      ? match.captures.filter((capture) => capture.team === winner)
-      : match.captures;
-
-    const scoring = theirs.length > 0 ? theirs : match.captures;
-    const subject = scoring[scoring.length - 1].team;
-
-    return {
-      moment: "capture-run",
-      subject,
-      flagTeam: subject === "red" ? "blue" : "red",
-    };
+  /*
+   * A capture is the only thing the event log positively evidences, so a side
+   * that scored gets the celebration: the picture then illustrates something that
+   * provably happened.
+   *
+   * In capture the flag you score by carrying the enemy flag to your own stand,
+   * so the flag in a red team's capture is the blue one. Getting that backwards
+   * would put a picture on the site that misrepresents the game to anybody who
+   * plays it.
+   */
+  if (match.captures.length > 0 && winner) {
+    const theirs = match.captures.filter((capture) => capture.team === winner);
+    if (theirs.length > 0) {
+      /*
+       * Two honest pictures of the same fact, alternating so a run of nights does
+       * not look identical: the run itself, flag in hand, or the celebration after
+       * it with nothing in hand. Which one is decided by the day, so it stays
+       * reproducible.
+       */
+      const carrying = rotationFor(String(match.sourceMatchId)) % 2 === 0;
+      return {
+        moment: carrying ? "flag-run" : "capture-cheer",
+        subject: winner,
+        // The enemy flag is the one you carry home. Backwards here would
+        // misrepresent the game to anybody who plays it.
+        flagTeam: carrying ? (winner === "red" ? "blue" : "red") : null,
+      };
+    }
   }
 
-  if (winner) return { moment: "celebration", subject: winner, flagTeam: null };
+  /*
+   * Nobody scored, or nobody won. Both are real outcomes and neither is a
+   * celebration, so the picture is about the people rather than the result: the
+   * losing side talking it over, or two players who never gave each other an inch.
+   */
+  if (winner) {
+    // A hammering gets the losing side afterwards, which is the more honest
+    // picture of a one-sided night than the winners enjoying it.
+    const losing: Team = winner === "red" ? "blue" : "red";
+    return decided >= 3
+      ? { moment: "two-talking", subject: losing, flagTeam: null }
+      : { moment: "huddle", subject: winner, flagTeam: null };
+  }
 
-  // Nobody scored and nobody is recorded as winning. A firefight over a stand is
-  // the honest picture of that, and it claims nothing.
-  return { moment: "defence", subject: "red", flagTeam: null };
+  return { moment: "face-off", subject: "red", flagTeam: null };
 }
 
 /**

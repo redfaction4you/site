@@ -6,7 +6,7 @@
  * apart and the drift shows up as a missing picture weeks later.
  *
  * The images themselves are not in the repo; this is the record of what they are.
- * Set fingerprint b040255c86f7.
+ * Set fingerprint ba9af99f16da.
  *
  * `MAP_ALIASES` is the one part worth editing by hand: it maps the map names the
  * server actually reports onto the folders here, so variants that share their
@@ -110,6 +110,7 @@ export const MAP_SHOTS: Record<string, MapShot[]> = {
     { area: "mid", key: "refs/maps/ankh-b12/mid-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/ankh-b12/red-flagroom-01.jpg" },
     { area: "mid-alt", key: "refs/maps/ankh-b12/mid-alt-01.jpg" },
+    { area: "overview", key: "refs/maps/ankh-b12/overview-01.jpg" },
   ],
   "dark-warlords": [
     { area: "mid", key: "refs/maps/dark-warlords/mid-01.jpg" },

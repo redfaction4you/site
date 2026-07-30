@@ -57,10 +57,16 @@ const MIN_IMAGE_BYTES = 8_000;
  * firefight is the moment. It is deliberately never used for a celebration.
  */
 const POSE_PREFERENCE: Record<MomentKind, string[]> = {
-  "capture-run": ["run", "walk", "jump", "stance", "aim", "crouch"],
-  defence: ["crouch", "aim", "stance", "death", "run"],
-  celebration: ["stance", "idle", "walk", "aim", "crouch"],
-  readying: ["walk", "stance", "idle", "aim", "crouch"],
+  // Mid stride with the flag: a running body and nothing else will do.
+  "flag-run": ["run", "walk", "jump", "stance", "aim"],
+  // Mid celebration, so a running body reads best; a jump works too.
+  "capture-cheer": ["run", "jump", "walk", "stance", "aim"],
+  // Squared up and gesturing: an upright, weight-settled pose.
+  "point-out": ["stance", "aim", "idle", "walk", "crouch"],
+  // Stood talking, so nothing mid stride.
+  "two-talking": ["idle", "stance", "walk", "crouch", "aim"],
+  huddle: ["idle", "stance", "crouch", "walk", "aim"],
+  "face-off": ["stance", "aim", "idle", "walk", "run"],
 };
 
 /** Three quarter views show the most of a model; a back view the least. */
@@ -212,6 +218,7 @@ export async function makeColumnImage(
     blueCount: match.bluePlayers,
     flagTeam: picked.flagTeam,
     mood: await buildMoodPhrase(column),
+    variation: rotation,
   };
 
   const { prompt, references } = buildComposition(

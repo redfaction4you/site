@@ -31,24 +31,70 @@
  * which is what connects it to the map screenshots.
  */
 export const MOMENTS = {
-  "capture-run": {
+  "flag-run": {
     action:
-      "a figure sprinting while carrying the enemy flag, others in pursuit behind them",
-    /** A capture is scored at the capturing team's own stand. */
-    area: "own-flagroom",
+      "a single player mid stride carrying the enemy flag, head up, running it home",
+    figures: 1,
+    /*
+     * Deliberately not a flag room. They are between the two of them, which is
+     * where a carry actually happens, and putting a stand behind somebody holding
+     * a flag invites the question of which flag it is.
+     */
+    area: "mid",
+    /** The only moment where a flag in hand makes sense. */
+    carriesFlag: true,
+    /*
+     * Full body, and it has to be: the stride and the flag streaming behind are
+     * the whole picture. Cropping to the shoulders would lose both.
+     */
+    framing: "full",
   },
-  defence: {
+  "capture-cheer": {
     action:
-      "a firefight around the flag stand, one side pushing in and the other holding",
+      "a single player caught mid celebration just after scoring: running, one arm " +
+      "raised, mouth open in a shout, weapon low in the other hand",
+    figures: 1,
     area: "own-flagroom",
+    carriesFlag: false,
+    // The shot a sports desk actually runs after a goal: head and shoulders,
+    // face doing the work, everything else gone.
+    framing: "shoulders",
   },
-  celebration: {
-    action: "the winning side gathered together after the final whistle",
+  "point-out": {
+    action:
+      "one player squared up and pointing across at an opponent who is out of focus " +
+      "behind them, the gesture of somebody saying be ready",
+    figures: 2,
     area: "mid",
+    carriesFlag: false,
+    framing: "waist",
   },
-  readying: {
-    action: "both sides spread out and moving into position before the first shot",
+  "two-talking": {
+    action:
+      "two team mates stood close together in conversation, heads down, one with a " +
+      "hand on the other's shoulder, the flat body language of a side that just lost",
+    figures: 2,
     area: "mid",
+    carriesFlag: false,
+    framing: "chest",
+  },
+  huddle: {
+    action:
+      "three team mates gathered in a tight group, helmets together, talking between " +
+      "matches",
+    figures: 3,
+    area: "mid",
+    carriesFlag: false,
+    framing: "chest",
+  },
+  "face-off": {
+    action:
+      "two opposing players stood a few paces apart facing each other, neither " +
+      "backing off, sizing one another up",
+    figures: 2,
+    area: "mid",
+    carriesFlag: false,
+    framing: "waist",
   },
 } as const;
 
@@ -71,10 +117,65 @@ export type Composition = {
   subject: Team;
   redCount: number;
   blueCount: number;
-  /** Whose flag is visible, if any. Null means no flag in shot. */
+  /**
+   * Whose flag is being carried, and only ever for `flag-run`.
+   *
+   * A capture returns the flag to its stand the instant it completes, so somebody
+   * celebrating a score is not holding one, and between matches nobody is either.
+   * An earlier version put the enemy flag in the hand of a player cheering in
+   * their own flag room, which is a picture of something that cannot happen.
+   * `buildComposition` ignores this unless the moment actually carries.
+   */
   flagTeam: Team | null;
   /** A short phrase from the writing. The only place prose reaches the picture. */
   mood: string;
+  /**
+   * Rotates the choices that have no right answer, like the crop.
+   *
+   * Derived from the archive day, so the same night always produces the same
+   * picture while consecutive nights differ. See `rotationFor`.
+   */
+  variation: number;
+};
+
+/**
+ * How tightly the subject is cropped.
+ *
+ * Varying this is most of what stops a run of these looking like the same
+ * photograph every week. A long lens on a sports desk is as often shoulders up on
+ * a face as it is a full figure, and the tighter crops are where the character
+ * models look best: less body to get wrong, more of the thing the picture is
+ * about.
+ */
+/**
+ * Which crops each moment can take, roughly widest first.
+ *
+ * A list rather than one value, because the same crop every week is its own kind
+ * of monotony. `buildComposition` picks from it with the day's rotation, so a
+ * night is reproducible but a run of them is not identical.
+ *
+ * The lists are per moment because not every crop suits every picture. A carry
+ * has to be full length or the stride and the flag are gone; a reaction shot can
+ * be tight on the face because the face is the point.
+ */
+export const FRAMING_CHOICES: Record<string, string[]> = {
+  "flag-run": ["full", "waist"],
+  "capture-cheer": ["shoulders", "chest", "waist"],
+  "point-out": ["waist", "chest"],
+  "two-talking": ["chest", "shoulders", "waist"],
+  huddle: ["chest", "waist"],
+  "face-off": ["waist", "full", "chest"],
+};
+
+const FRAMING: Record<string, string> = {
+  full: "Framed head to toe, the whole figure in shot.",
+  waist:
+    "Framed from the waist up, closer than a full length shot and tighter on what " +
+    "they are doing.",
+  chest: "Framed from the chest up, close enough to read posture and expression.",
+  shoulders:
+    "Framed head and shoulders, a tight portrait crop filling the frame, the way a " +
+    "sports desk runs a reaction shot.",
 };
 
 /** Longest mood phrase that reaches the image model. */
@@ -98,29 +199,40 @@ export const MAX_FIGURES_PER_TEAM = 6;
  * trusted to apply them.
  */
 const TREATMENT = [
-  // The photographic half. Grain and available light are what stop this looking
-  // like a promotional render and make it read as a moment somebody caught.
-  "Photojournalistic press photograph, as a sports desk would file it from the",
-  "sideline. Available light only, matching the light already in the location.",
-  "Visible film grain, shallow depth of field, slight motion blur on whatever is",
-  "moving, a shutter caught mid action rather than a posed shot.",
-  "Plain unmarked surfaces on equipment and armour.",
+  /*
+   * Named glass, because these models respond to it.
+   *
+   * "Shallow depth of field" is a hint and gets interpreted loosely. A focal
+   * length and an aperture are a specification, and the training data behind them
+   * is full of actual sports photography shot exactly that way. 400mm at f/2.8 is
+   * what somebody covering a match from the sideline is holding, and it is the
+   * combination that produces a background with no readable edges in it at all.
+   *
+   * That blur is doing real work beyond looking right. The location only has to
+   * carry the correct palette and light, not the correct geometry, which is the
+   * one thing the model reliably gets wrong. A wash of the right colours reads as
+   * the right place; a sharp drawing of the wrong walls does not.
+   */
+  "Shot on a 400mm f/2.8 telephoto from the sideline at full aperture, the way a",
+  "sports photographer covers a match. Strongly compressed perspective. The",
+  "subject is sharp and fills much of the frame.",
+  "The background is completely out of focus: a smooth continuous wash of colour",
+  "and soft light with no readable edges, no legible shapes and nothing in it a",
+  "viewer could identify. Round bokeh on any highlight. Focus falls off",
+  "immediately behind the subject.",
+  "Available light only, matching the light and colour of the location.",
+  "Visible film grain and the slight imperfection of a real frame caught quickly.",
   "Wide landscape framing, filling a 16:9 frame.",
   /*
-   * The fidelity half, which matters as much and is easy to leave out.
-   *
-   * Given a low polygon model from 2001 an image model will helpfully render a
-   * modern high detail version of it, and the result stops looking like this game
-   * and starts looking like a remake of it. The references already carry the right
-   * level of detail, so the instruction is to match them rather than improve on
-   * them. It reads oddly as a request. It is the difference between a picture of
-   * Red Faction and a picture of something else.
+   * The fidelity half. Given a low polygon model from 2001 an image model will
+   * helpfully render a modern high detail version, and the result stops looking
+   * like this game and starts looking like a remake of it.
    */
   "Match the visual fidelity of the reference images exactly. This is an early",
   "2000s game engine: simple low polygon geometry with visible flat facets, low",
   "resolution textures, hard edges, and plain unfussy surfaces. Do not add detail,",
-  "do not smooth the geometry, and do not make the armour or the architecture more",
-  "realistic or more modern than the references show.",
+  "do not smooth the geometry, and do not make the armour more realistic or more",
+  "modern than the references show.",
   "A photograph taken of that game, not a reimagining of it.",
 ].join(" ");
 
@@ -159,18 +271,37 @@ function promptFor(
   references: Reference[],
 ): string {
   const lines: string[] = [
-    "Compose a single photograph from the supplied reference images.",
+    // "Photograph taken in", not "compose from". Composition invites the model to
+    // build a new scene that merely resembles the references. This asks it to
+    // point a camera at a place that already exists.
+    "A single photograph taken on location in the place shown below, with the",
+    "figures described added to it.",
     "",
   ];
 
   references.forEach((reference, index) => {
     const n = index + 1;
     if (reference.role === "scene") {
+      /*
+       * Phrased as an edit of a photograph that already exists, not as a scene to
+       * build from a description of one.
+       *
+       * This used to end "the camera may be somewhere else in the same room",
+       * added so a flag room close-up could be reframed into an action shot. It
+       * reads as permission to rebuild the space, and that is what came back: the
+       * right materials and palette and the signature props, arranged into a
+       * courtyard that was not the level. The model treats several references as
+       * things to compose freely unless it is told one of them is the ground
+       * truth, so this one is now described as a finished plate to add figures to.
+       */
       lines.push(
-        `Reference ${n} is the location. Use this environment exactly: its`,
-        "architecture, materials, colours and lighting. Do not relocate the scene",
-        "anywhere else and do not redecorate it. The camera may be somewhere else in",
-        "the same room.",
+        `Reference ${n} is the location, and it is there for its colours, materials`,
+        "and light rather than its layout. Almost all of it will be far out of focus",
+        "behind the subject, so it does not need to be reproduced: take the palette,",
+        "the tone of the light, the sky if there is one, and the general character of",
+        "the surfaces, and let them dissolve into the blur. Do not carefully rebuild",
+        "its architecture, and do not replace it with somewhere that looks nothing",
+        "like it.",
       );
     } else if (reference.role === "red-character") {
       lines.push(
@@ -190,24 +321,68 @@ function promptFor(
         "must be this exact model, in blue, armed the same way.",
       );
     } else {
-      lines.push(`Reference ${n} is the flag. Use this exact object.`);
+      lines.push(
+        `Reference ${n} is the flag being carried. Use this exact object, held in`,
+        "one hand and streaming behind them as they run.",
+      );
     }
   });
 
   lines.push("");
 
-  const red = figures(composition.redCount);
-  const blue = figures(composition.blueCount);
-  lines.push(
-    `Show exactly ${red} ${plural(red)} in red and ${blue} ${plural(blue)} in blue, and nobody else.`,
+  /*
+   * How many people are in frame, which is the moment's business rather than the
+   * squad's.
+   *
+   * This used to demand the full squad on both sides, back when the picture was a
+   * wide action shot. A telephoto portrait of one player celebrating does not
+   * claim to show everybody who played, any more than a photograph of a striker
+   * claims the other ten were absent. What it must never do is show more people
+   * than were actually there, so the moment's appetite is capped by the real
+   * count.
+   */
+  const moment = MOMENTS[composition.moment];
+  const carrying = moment.carriesFlag && composition.flagTeam !== null;
+  const onSide = figures(
+    composition.subject === "red" ? composition.redCount : composition.blueCount,
+  );
+  const other = figures(
+    composition.subject === "red" ? composition.blueCount : composition.redCount,
   );
 
-  lines.push(`The moment: ${MOMENTS[composition.moment].action}.`);
+  const subjectCount = Math.max(1, Math.min(moment.figures, onSide || 1));
+  const needsOpponent =
+    composition.moment === "face-off" || composition.moment === "point-out";
 
-  if (composition.flagTeam) {
-    const carrier = composition.subject;
+  if (needsOpponent && other > 0) {
     lines.push(
-      `The ${composition.flagTeam} flag is in shot, carried by a figure in ${carrier}.`,
+      `In frame: one player in ${composition.subject} as the subject, and one in ` +
+        `${composition.subject === "red" ? "blue" : "red"} behind them. Nobody else.`,
+    );
+  } else {
+    lines.push(
+      `In frame: ${subjectCount} ${plural(subjectCount)} in ${composition.subject}, ` +
+        "and nobody else.",
+    );
+  }
+
+  lines.push(`The moment: ${moment.action}.`);
+
+  // Varied per night rather than fixed per moment, so a run of these does not
+  // look like the same photograph with different players in it.
+  const choices = FRAMING_CHOICES[composition.moment] ?? [moment.framing];
+  const crop = choices[Math.abs(composition.variation) % choices.length];
+  lines.push(FRAMING[crop] ?? FRAMING.full);
+
+  if (carrying) {
+    lines.push(
+      "No flag stand is visible behind them: they are between the two bases, not",
+      "at either one.",
+    );
+  } else {
+    lines.push(
+      "No flag anywhere in shot. A capture returns it to its stand the moment it",
+      "completes, and between matches nobody is carrying one.",
     );
   }
 
@@ -273,7 +448,7 @@ export function buildComposition(
   if (available.blueCharacter && figures(composition.blueCount) > 0) {
     references.push({ role: "blue-character", key: available.blueCharacter });
   }
-  if (composition.flagTeam && available.flag) {
+  if (MOMENTS[composition.moment].carriesFlag && composition.flagTeam && available.flag) {
     references.push({ role: "flag", key: available.flag });
   }
 
