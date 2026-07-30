@@ -206,6 +206,10 @@ export async function backfillProfiles(): Promise<number> {
     .filter((row) => written.get(row.nameKey) !== row.matchCount)
     .slice(0, MAX_PROFILES_PER_RUN);
 
+  console.log(
+    `[ai] profiles: ${current.length} players, ${existing.length} written, ${pending.length} pending this run`,
+  );
+
   const model = activeModel();
   let count = 0;
 
