@@ -108,6 +108,15 @@
     border-radius: var(--radius-panel);
   }
 
+  /* A strip thin enough that a scrollbar under it reads as a rendering fault.
+     The fade at its edge does the same job. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Diagonal warning stripe, straight from the tournament hub.
      Used as a single 8px rule under the header. */
   .hazard {

@@ -9,6 +9,8 @@ import {
   listPlayers,
   recentMatches,
 } from "@/lib/matches/queries";
+import { Ticker } from "@/components/ticker";
+import { getTicker } from "@/lib/matches/ticker";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { getServerStatus } from "@/lib/server-status";
 
@@ -24,13 +26,14 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent] = await Promise.all([
+  const [status, totals, latest, players, columns, recent, ticker] = await Promise.all([
     getServerStatus(),
     archiveTotals(),
     latestDay(),
     listPlayers(),
     listColumns(),
     recentMatches(6),
+    getTicker(),
   ]);
 
   const online = status.state === "online" ? status : null;
@@ -49,9 +52,15 @@ export default async function HomePage() {
   const leaders = [...players].sort((a, b) => b.kills - a.kills).slice(0, 6);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
+    <>
       <h1 className="sr-only">RedFaction4You</h1>
 
+      {/* Records strip, full bleed, directly under the hazard stripe. */}
+      <div className="-mt-px">
+        <Ticker items={ticker} />
+      </div>
+
+      <div className="mx-auto max-w-6xl px-4 pb-10">
       {/* Status readout. One line, with the map the server is on. */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-basalt-800 py-2.5 text-xs">
         <Link href="/server" className="group flex items-center gap-2">
@@ -275,6 +284,7 @@ export default async function HomePage() {
           Join the Discord
         </a>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
