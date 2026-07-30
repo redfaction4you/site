@@ -99,8 +99,19 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     });
   }
 
+  /**
+   * A floor, because the raw record is meaningless.
+   *
+   * The quickest capture on file is 184 milliseconds, which is not a fast flag
+   * run: it is someone touching a flag that was already sitting at the capture
+   * point. Headlining that as a record celebrates the tap-in, which is the
+   * exact contribution this archive otherwise takes care not to over-credit.
+   * Two seconds is the point below which the number stops describing a run.
+   */
+  const MIN_MEANINGFUL_CAPTURE_MS = 2000;
+
   const quickest = best
-    .filter((row) => (row.fastestCaptureMs ?? 0) > 0)
+    .filter((row) => (row.fastestCaptureMs ?? 0) >= MIN_MEANINGFUL_CAPTURE_MS)
     .reduce<(typeof best)[number] | null>(
       (a, b) => (!a || (b.fastestCaptureMs ?? 0) < (a.fastestCaptureMs ?? 0) ? b : a),
       null,
