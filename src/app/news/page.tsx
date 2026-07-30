@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { dayLabel } from "@/components/match-archive";
-import { listColumns } from "@/lib/matches/queries";
+import { dayLabel, matchTime } from "@/components/match-archive";
+import { archiveTotals, listColumns, listMatchesForDay } from "@/lib/matches/queries";
 
 export const metadata: Metadata = {
   title: "News",
@@ -12,43 +12,167 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The news index, laid out as a front page rather than a list.
+ *
+ * A page heading, a sentence of explanation and one bordered card is mostly
+ * empty space that tells a reader nothing. The newest write-up now runs as the
+ * lead with its opening paragraphs and the night's scores beside it, and older
+ * ones are a dense list underneath. It reads as something to read even with a
+ * single entry.
+ */
 export default async function NewsPage() {
-  const columns = await listColumns();
+  const [columns, totals] = await Promise.all([listColumns(), archiveTotals()]);
+
+  const [lead, ...earlier] = columns;
+  const leadMatches = lead ? await listMatchesForDay(lead.archiveDay) : [];
+
+  if (!lead) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <p className="eyebrow">Read</p>
+        <h1 className="mt-2 font-display text-3xl font-bold text-steel-100">News</h1>
+        <p className="mt-3 text-base leading-relaxed text-steel-300">
+          A write-up of each match night: how the evening went, what turned each game,
+          and who stood out.
+        </p>
+        <p className="mt-6 text-sm text-steel-500">
+          Nothing written yet. A report appears here after each night of matches
+          finishes.
+        </p>
+      </div>
+    );
+  }
+
+  const paragraphs = lead.body
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <p className="eyebrow">Read</p>
-      <h1 className="mt-2 font-display text-3xl font-bold text-steel-100">News</h1>
-      <p className="mt-3 text-base leading-relaxed text-steel-300">
-        A write-up of each match night: how the evening went, what turned each game,
-        and who stood out.
-      </p>
+    <div className="mx-auto max-w-6xl px-4 pb-10">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
+        <p className="eyebrow">Match reports</p>
+        <p className="font-mono text-xs text-steel-600">
+          <span className="text-steel-300">{columns.length}</span>{" "}
+          {columns.length === 1 ? "report" : "reports"} ·{" "}
+          <span className="text-steel-300">{totals.matchCount}</span> matches ·{" "}
+          <span className="text-steel-300">{totals.dayCount}</span> nights
+        </p>
+      </div>
 
-      {columns.length === 0 ? (
-        <div className="panel mt-8 p-6 text-center">
-          <p className="text-sm text-steel-400">
-            Nothing written yet. A column appears once a night of matches has finished.
+      <div className="grid gap-x-10 gap-y-8 py-6 lg:grid-cols-[1.55fr_1fr]">
+        {/* The lead report, with enough of it to be worth reading here. */}
+        <article className="min-w-0">
+          <p className="text-xs text-steel-500">
+            {dayLabel(lead.archiveDay)} · {lead.matchCount}{" "}
+            {lead.matchCount === 1 ? "match" : "matches"}
           </p>
-        </div>
+          <h1 className="mt-1.5 font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
+            <Link href={`/news/${lead.archiveDay}`} className="hover:text-rust-400">
+              {lead.headline}
+            </Link>
+          </h1>
+
+          <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
+            {paragraphs.slice(0, 3).map((paragraph, i) => (
+              <p key={i}>{paragraph}</p>
+            ))}
+          </div>
+
+          {paragraphs.length > 3 ? (
+            <Link
+              href={`/news/${lead.archiveDay}`}
+              className="mt-3 inline-block font-display text-[11px] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
+            >
+              Read the rest
+            </Link>
+          ) : null}
+        </article>
+
+        {/* The scores it is describing, so the claims sit next to the record. */}
+        <aside className="min-w-0">
+          <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+            That night
+          </h2>
+          <ul>
+            {leadMatches.map((match) => (
+              <li key={match.id} className="border-b border-basalt-900">
+                <Link
+                  href={`/matches/${lead.archiveDay}/${match.sourceMatchId}`}
+                  className="group flex items-center gap-3 py-1.5"
+                >
+                  <span className="w-4 shrink-0 font-display text-[11px] tabular-nums text-steel-700">
+                    {match.number}
+                  </span>
+                  <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">
+                    <span
+                      className={
+                        match.winner === "red" ? "text-rust-400" : "text-steel-600"
+                      }
+                    >
+                      {match.redScore}
+                    </span>
+                    <span className="mx-0.5 text-steel-700">-</span>
+                    <span
+                      className={
+                        match.winner === "blue" ? "text-oxide-400" : "text-steel-600"
+                      }
+                    >
+                      {match.blueScore}
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
+                    {match.mapName}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                    {matchTime(match.startedAt)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <Link
+            href={`/matches/${lead.archiveDay}`}
+            className="mt-2 inline-block font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+          >
+            The full night
+          </Link>
+        </aside>
+      </div>
+
+      {earlier.length ? (
+        <section className="border-t border-basalt-800 pt-5">
+          <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+            Earlier reports
+          </h2>
+          <ul className="mt-2">
+            {earlier.map((entry) => (
+              <li key={entry.archiveDay} className="border-b border-basalt-900">
+                <Link
+                  href={`/news/${entry.archiveDay}`}
+                  className="group flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2"
+                >
+                  <span className="w-36 shrink-0 font-mono text-[11px] text-steel-600">
+                    {dayLabel(entry.archiveDay)}
+                  </span>
+                  <span className="min-w-0 flex-1 text-sm text-steel-200 group-hover:text-rust-300">
+                    {entry.headline}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                    {entry.matchCount} {entry.matchCount === 1 ? "match" : "matches"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : (
-        <ul className="mt-8 space-y-3">
-          {columns.map((column) => (
-            <li key={column.archiveDay}>
-              <Link href={`/news/${column.archiveDay}`} className="panel group block p-5">
-                <p className="text-xs text-steel-500">
-                  {dayLabel(column.archiveDay)} · {column.matchCount}{" "}
-                  {column.matchCount === 1 ? "match" : "matches"}
-                </p>
-                <h2 className="mt-1 font-display text-lg font-bold text-steel-100 transition-colors group-hover:text-rust-300">
-                  {column.headline}
-                </h2>
-                <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-steel-400">
-                  {column.body.split("\n").find(Boolean)}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <p className="border-t border-basalt-800 pt-5 text-xs text-steel-600">
+          This is the first report. One is written after each night of matches, so
+          they accumulate as the server gets used.
+        </p>
       )}
     </div>
   );
