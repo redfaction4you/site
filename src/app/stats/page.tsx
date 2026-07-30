@@ -53,6 +53,19 @@ export default async function StatsPage() {
             person you want carrying the flag.
           </p>
 
+          {/*
+            Said plainly rather than left for a reader to work out.
+
+            People play different numbers of matches, so a total is partly a
+            measure of who turned up. The per match boards exist for exactly that
+            reason and a reader deserves to be told which is which.
+          */}
+          <p className="max-w-2xl pb-4 text-xs leading-relaxed text-steel-600">
+            Totals reward playing often as well as playing well, because not
+            everyone plays the same number of matches. The per match and per death
+            boards do not.
+          </p>
+
           <div className="grid gap-x-8 gap-y-7 pb-6 sm:grid-cols-2 lg:grid-cols-3">
             {boards.map(({ board, entries }) => (
               <section key={board.key} className="min-w-0">

@@ -77,6 +77,20 @@ const MIN_SHOTS_FOR_ACCURACY = 250;
 /** Ratios need a couple of nights before they stop being noise. */
 const MIN_MATCHES_FOR_RATIO = 3;
 
+/**
+ * Boards that measure a rate rather than a pile.
+ *
+ * Totals reward turning up. Somebody who plays every night out-frags somebody
+ * better who plays half of them, and no amount of labelling changes that: the
+ * ranking is partly a ranking of attendance. That is fine as long as it is not
+ * the only thing on offer, so the per match boards sit beside the totals and let
+ * a player who shows up rarely and plays well top something real.
+ *
+ * They need a minimum of their own. A per match average over one match is that
+ * match, not an average.
+ */
+const MIN_MATCHES_FOR_RATE = 3;
+
 export const BOARDS: Board[] = [
   {
     key: "frags",
@@ -168,6 +182,26 @@ export const BOARDS: Board[] = [
     direction: "high",
     qualifies: () => true,
     requirement: null,
+  },
+  {
+    key: "frags-per-match",
+    label: "Frags per match",
+    blurb: "Rewards playing well rather than playing often.",
+    value: (p) => (p.matchesPlayed > 0 ? p.kills / p.matchesPlayed : null),
+    format: (v) => v.toFixed(1),
+    direction: "high",
+    qualifies: (p) => p.matchesPlayed >= MIN_MATCHES_FOR_RATE,
+    requirement: `At least ${MIN_MATCHES_FOR_RATE} matches, because an average over one match is just that match.`,
+  },
+  {
+    key: "captures-per-match",
+    label: "Captures per match",
+    blurb: "How often they take a flag home, regardless of how many nights they play.",
+    value: (p) => (p.matchesPlayed > 0 ? p.caps / p.matchesPlayed : null),
+    format: (v) => v.toFixed(2),
+    direction: "high",
+    qualifies: (p) => p.matchesPlayed >= MIN_MATCHES_FOR_RATE,
+    requirement: `At least ${MIN_MATCHES_FOR_RATE} matches, because an average over one match is just that match.`,
   },
   {
     key: "frags-per-death",

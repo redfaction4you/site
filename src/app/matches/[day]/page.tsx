@@ -201,6 +201,11 @@ export default async function MatchDayPage({ params }: Props) {
                       <span className="w-11 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
                         {player.caps} caps
                       </span>
+                      {/* The denominator. People drop in and out across a night,
+                          so a frag total is partly a measure of who stayed. */}
+                      <span className="w-8 shrink-0 text-right font-mono text-[0.5625rem] tabular-nums text-steel-700">
+                        {player.matchesPlayed}/{matches.length}
+                      </span>
                     </Link>
                   </li>
                 ))}

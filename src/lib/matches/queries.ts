@@ -857,7 +857,23 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
 export const nightScoreboard = cache(async function nightScoreboard(
   archiveDay: string,
 ): Promise<
-  { name: string; kills: number; deaths: number; caps: number; score: number }[]
+  {
+    name: string;
+    kills: number;
+    deaths: number;
+    caps: number;
+    score: number;
+    /**
+     * How many of the night's matches they were actually in.
+     *
+     * Without it the table is misleading. People drop in and out across an
+     * evening, so a total is partly a measure of who stayed, and ranking by
+     * frags quietly rewards attendance. Showing the denominator does not fix the
+     * ordering, but it lets a reader see that 189 came from four matches and 75
+     * from two, which is the difference between a ranking and a claim.
+     */
+    matchesPlayed: number;
+  }[]
 > {
   return db
     .select({
@@ -866,6 +882,7 @@ export const nightScoreboard = cache(async function nightScoreboard(
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
       caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
       score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
+      matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
