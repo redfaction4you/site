@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ColumnImage } from "@/components/column-image";
-import { MapShot } from "@/components/map-shot";
-import { dayLabel, matchTime } from "@/components/match-archive";
+import { dayLabel } from "@/components/match-archive";
+import { NightMatches } from "@/components/night-matches";
 import {
   adjacentColumns,
   getColumn,
@@ -135,61 +135,7 @@ export default async function ColumnPage({ params }: Props) {
 
       {/* The record, beside the claims rather than a scroll below them. */}
       <aside className="min-w-0 space-y-7">
-        {matches.length ? (
-          <section>
-            <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
-              The matches
-            </h2>
-            <ul>
-              {matches.map((match) => (
-                <li key={match.id} className="border-b border-basalt-900">
-                  <Link
-                    href={`/matches/${day}/${match.sourceMatchId}`}
-                    className="group flex items-center gap-2.5 py-1.5"
-                  >
-                    <span className="w-4 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
-                      {match.number}
-                    </span>
-                    <span className="w-11 shrink-0 text-right font-mono text-sm tabular-nums">
-                      <span
-                        className={
-                          match.winner === "red" ? "text-rust-400" : "text-steel-600"
-                        }
-                      >
-                        {match.redScore}
-                      </span>
-                      <span className="mx-0.5 text-steel-700">-</span>
-                      <span
-                        className={
-                          match.winner === "blue" ? "text-oxide-400" : "text-steel-600"
-                        }
-                      >
-                        {match.blueScore}
-                      </span>
-                    </span>
-                    <MapShot
-                      mapName={match.mapName}
-                      className="hidden w-12 shrink-0 sm:block"
-                      sizes="48px"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
-                      {match.mapName}
-                    </span>
-                    <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
-                      {matchTime(match.startedAt)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href={`/matches/${day}`}
-              className="mt-2 inline-block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
-            >
-              The full night
-            </Link>
-          </section>
-        ) : null}
+        <NightMatches matches={matches} archiveDay={day} />
 
         {scoreboard.length ? (
           <section>
