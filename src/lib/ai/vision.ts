@@ -11,9 +11,11 @@
  * Three questions, and the first two are the reason this module exists rather
  * than being a nice-to-have:
  *
- *   - Legible text. Generated lettering is always subtly wrong, and a garbled
- *     word inside a picture on an archive whose whole value is that it can be
- *     trusted is worse than no picture.
+ *   - Legible text. Generated lettering is always subtly wrong, and a garbled word
+ *     inside a picture on an archive whose whole value is that it can be trusted
+ *     is worse than no picture. Carved ornament is exempt: these maps are Egyptian
+ *     tombs and Mesoamerican temples whose walls are covered in glyphs, and
+ *     rejecting those would mean Ankh could never be illustrated at all.
  *   - A photorealistic human face. The people in these matches are real and did not
  *     agree to be depicted. The game's own low polygon faces are fine and expected;
  *     what must not appear is anything that reads as a photograph of a person.
@@ -51,10 +53,14 @@ Reply with JSON and nothing else, in exactly this form:
 
 {"legibleText": true|false, "face": true|false, "matchesBrief": true|false, "problem": "<short reason or empty>"}
 
-- legibleText: true if any letters, words, numbers, signage, logos or watermarks
-  are visible anywhere, even partially, even if they are nonsense. Abstract marks
-  and scratches are not text. Be strict: if you can tell it is trying to be
-  writing, it is text.
+- legibleText: true if any modern lettering, words, digits, signage, logos,
+  captions or watermarks are visible anywhere, even partially, even if they are
+  nonsense. This is about anything that reads as writing put on top of the scene
+  or claiming to inform the viewer.
+  It is NOT true for decorative carving that belongs to the architecture:
+  hieroglyphs, glyph friezes, engraved ornament, runes, patterned stonework. These
+  maps are Egyptian tombs and Mesoamerican temples and their walls are covered in
+  carved ornament. That is the building, not a caption.
 - face: true only if a figure looks like a photograph of a REAL person: lifelike
   skin, real hair, photographic facial detail. The figures here are low polygon
   video game characters and their blocky faces are expected and fine, however

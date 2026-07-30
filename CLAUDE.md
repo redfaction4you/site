@@ -206,6 +206,10 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     generated. Diffusion models condition on the tokens they are given.
   - **The vision gate fails closed.** No key, a timeout, an unparseable answer are
     all rejections. An unchecked synthetic photograph must never reach a reader.
+    It knows two exceptions, both learned by it wrongly rejecting good pictures:
+    the game's own low polygon faces are not "a real person", and carved ornament
+    is not "text". Ankh is an Egyptian tomb whose walls are covered in glyphs, and
+    a strict reading meant it could never be illustrated at all.
   - **References are Gemini only, measured not assumed.** Cloudflare's FLUX.2
     accepts a multipart upload, returns 200, and ignores it: a reference that was
     20% vivid marker pixels produced outputs containing 0.00%. Cloudflare is used
