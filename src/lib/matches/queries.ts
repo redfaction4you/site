@@ -320,18 +320,32 @@ export type PlayerTotals = {
 };
 
 /**
- * Below this, a capture time stops describing a flag run.
+ * A backstop, not the rule. See below for the rule.
  *
- * The quickest on file is 184 milliseconds: somebody touching a flag that was
- * already at the capture point. Presenting that as a record celebrates the
- * tap-in, which is the exact contribution this archive otherwise takes care not
- * to over-credit. Two seconds is where the number starts meaning something.
- *
- * Lives here rather than in one of its callers because both the ticker and the
- * stat boards need it and they must agree: two places on the site disagreeing
- * about the record is worse than either answer alone.
+ * Kept only to catch a nonsense value from some future bug. Real filtering is
+ * done on whether the capture was a relay, which is a fact rather than a guess
+ * at one.
  */
 export const MIN_MEANINGFUL_CAPTURE_MS = 2000;
+
+/**
+ * Why a fastest capture only counts when nothing was relayed.
+ *
+ * `fastest_capture_ms` is how long **that player** held the flag, not how long
+ * the flag took to get home. On a relay the last carrier takes a hand-off beside
+ * their own stand and steps onto it, so the number they get is the length of the
+ * final pace or two. Every impossible value on record is one of these: 184ms,
+ * 201ms, 384ms, 653ms and 2203ms, all of them relay captures, against a fastest
+ * unrelayed run of eleven seconds.
+ *
+ * A time floor was the first attempt and it was guessing at the wrong thing. Two
+ * seconds let 2.2 through, and any floor high enough to exclude it would be a
+ * number picked to fit the data rather than derived from what the data means.
+ * Requiring `relay_caps = 0` is the actual distinction: it restricts the stat to
+ * players who carried the whole way in that match, which is the only case where
+ * their possession time and the flag's journey are the same thing.
+ */
+const UNRELAYED = sql`${matchPlayers.relayCaps} = 0`;
 
 const playerTotalColumns = {
   name: sql<string>`min(${matchPlayers.name})`,
@@ -348,19 +362,14 @@ const playerTotalColumns = {
   flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
   bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
   /**
-   * The quickest capture that was actually a run.
+   * The quickest capture that was actually a run they made themselves.
    *
-   * Floored rather than simply non-zero. The quickest on file is 184
-   * milliseconds, which is not a fast flag run: it is somebody touching a flag
-   * already sitting on the capture point. Taking the raw minimum means a player
-   * with one tap-in and several genuinely quick runs is represented by the
-   * tap-in, which both flatters them and hides their real best.
-   *
-   * The same floor the ticker uses, and for the same reason. See
-   * `MIN_MEANINGFUL_CAPTURE_MS`.
+   * Unrelayed only. See `UNRELAYED`: a relay hands the flag over beside the
+   * stand, so the last carrier's time is the length of a step and not of a run.
    */
   fastestCaptureMs: sql<number | null>`min(${matchPlayers.fastestCaptureMs}) filter (
     where ${matchPlayers.fastestCaptureMs} >= ${MIN_MEANINGFUL_CAPTURE_MS}
+      and ${UNRELAYED}
   )::int`,
   soloCaps: sql<number>`coalesce(sum(${matchPlayers.soloCaps}), 0)::int`,
   relayCaps: sql<number>`coalesce(sum(${matchPlayers.relayCaps}), 0)::int`,
@@ -863,4 +872,62 @@ export const nightScoreboard = cache(async function nightScoreboard(
     .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
+});
+
+/**
+ * The write-ups either side of one night, for reading straight on.
+ *
+ * An article that ends with no way forward is a dead end: the only route to the
+ * next one was back out to the index and in again. Newspapers have had a
+ * previous and a next at the foot of the page for a century for good reason.
+ *
+ * Older is "previous" and newer is "next", matching how the archive reads rather
+ * than how the dates sort.
+ */
+export const adjacentColumns = cache(async function adjacentColumns(
+  archiveDay: string,
+): Promise<{
+  previous: { archiveDay: string; headline: string } | null;
+  next: { archiveDay: string; headline: string } | null;
+}> {
+  const [older] = await db
+    .select({ archiveDay: nightColumns.archiveDay, headline: nightColumns.headline })
+    .from(nightColumns)
+    .where(lt(nightColumns.archiveDay, archiveDay))
+    .orderBy(desc(nightColumns.archiveDay))
+    .limit(1);
+
+  const [newer] = await db
+    .select({ archiveDay: nightColumns.archiveDay, headline: nightColumns.headline })
+    .from(nightColumns)
+    .where(gt(nightColumns.archiveDay, archiveDay))
+    .orderBy(asc(nightColumns.archiveDay))
+    .limit(1);
+
+  return { previous: older ?? null, next: newer ?? null };
+});
+
+/**
+ * Other write-ups worth offering at the end of one, newest first.
+ *
+ * Deliberately not "related": with a handful of nights on record any similarity
+ * measure would be inventing a relationship. Recent is honest and is what a
+ * reader actually wants next.
+ */
+export const otherColumns = cache(async function otherColumns(
+  archiveDay: string,
+  limit = 4,
+) {
+  return db
+    .select({
+      archiveDay: nightColumns.archiveDay,
+      headline: nightColumns.headline,
+      matchCount: nightColumns.matchCount,
+      imageKey: nightColumns.imageKey,
+      imageModel: nightColumns.imageModel,
+    })
+    .from(nightColumns)
+    .where(ne(nightColumns.archiveDay, archiveDay))
+    .orderBy(desc(nightColumns.archiveDay))
+    .limit(limit);
 });

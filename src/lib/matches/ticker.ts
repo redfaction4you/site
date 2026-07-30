@@ -43,6 +43,7 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
       accuracy: matchPlayers.accuracy,
       shotsFired: matchPlayers.shotsFired,
       fastestCaptureMs: matchPlayers.fastestCaptureMs,
+      relayCaps: matchPlayers.relayCaps,
       leadCarries: matchPlayers.leadCarries,
       archiveDay: matches.archiveDay,
       sourceMatchId: matches.sourceMatchId,
@@ -100,9 +101,16 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     });
   }
 
-  // The floor, shared with the stat boards so the two cannot disagree about the
-  // record. See MIN_MEANINGFUL_CAPTURE_MS for why a raw minimum is wrong.
+  /*
+   * Unrelayed runs only, matching the stat boards so the two cannot disagree
+   * about the record.
+   *
+   * A relay hands the flag over next to the stand, so the last carrier's time is
+   * a pace or two rather than a run. Every impossible figure on record is one of
+   * those. The floor is only a backstop now.
+   */
   const quickest = best
+    .filter((row) => row.relayCaps === 0)
     .filter((row) => (row.fastestCaptureMs ?? 0) >= MIN_MEANINGFUL_CAPTURE_MS)
     .reduce<(typeof best)[number] | null>(
       (a, b) => (!a || (b.fastestCaptureMs ?? 0) < (a.fastestCaptureMs ?? 0) ? b : a),

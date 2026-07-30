@@ -207,15 +207,8 @@ export default async function NewsPage() {
               <li key={entry.archiveDay} className="border-b border-basalt-900">
                 <Link
                   href={`/news/${entry.archiveDay}`}
-                  className="group flex flex-wrap items-center gap-x-4 gap-y-0.5 py-2"
+                  className="group flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2"
                 >
-                  <ColumnImage
-                    imageKey={entry.imageKey}
-                    model={entry.imageModel}
-                    headline={entry.headline}
-                    className="hidden w-20 shrink-0 sm:block"
-                    compact
-                  />
                   <span className="w-36 shrink-0 font-mono text-[0.6875rem] text-steel-600">
                     {dayLabel(entry.archiveDay)}
                   </span>

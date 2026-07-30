@@ -6,9 +6,11 @@ import { ColumnImage } from "@/components/column-image";
 import { MapShot } from "@/components/map-shot";
 import { dayLabel, matchTime } from "@/components/match-archive";
 import {
+  adjacentColumns,
   getColumn,
   listMatchesForDay,
   nightScoreboard,
+  otherColumns,
 } from "@/lib/matches/queries";
 import { isValidDay } from "@/lib/matches/sanitize";
 
@@ -31,10 +33,12 @@ export default async function ColumnPage({ params }: Props) {
   const { day } = await params;
   if (!isValidDay(day)) notFound();
 
-  const [column, matches, scoreboard] = await Promise.all([
+  const [column, matches, scoreboard, adjacent, others] = await Promise.all([
     getColumn(day),
     listMatchesForDay(day),
     nightScoreboard(day),
+    adjacentColumns(day),
+    otherColumns(day),
   ]);
   if (!column) notFound();
 
@@ -87,6 +91,46 @@ export default async function ColumnPage({ params }: Props) {
         recorded.
       </p>
 
+        {/*
+          A way onward, which the page did not have.
+
+          It ended on the last paragraph, and the only route to another write-up
+          was back out to the index and in again. Older is previous and newer is
+          next, matching how the archive reads rather than how dates sort.
+        */}
+        {adjacent.previous || adjacent.next ? (
+          <nav className="mt-8 grid gap-2 border-t border-basalt-800 pt-4 sm:grid-cols-2">
+            {adjacent.previous ? (
+              <Link
+                href={`/news/${adjacent.previous.archiveDay}`}
+                className="group min-w-0"
+              >
+                <span className="font-display text-[0.625rem] uppercase tracking-widest text-steel-600">
+                  Previous night
+                </span>
+                <span className="mt-0.5 block text-sm text-steel-300 group-hover:text-rust-300">
+                  {adjacent.previous.headline}
+                </span>
+              </Link>
+            ) : (
+              <span />
+            )}
+
+            {adjacent.next ? (
+              <Link
+                href={`/news/${adjacent.next.archiveDay}`}
+                className="group min-w-0 sm:text-right"
+              >
+                <span className="font-display text-[0.625rem] uppercase tracking-widest text-steel-600">
+                  Next night
+                </span>
+                <span className="mt-0.5 block text-sm text-steel-300 group-hover:text-rust-300">
+                  {adjacent.next.headline}
+                </span>
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
       </article>
 
       {/* The record, beside the claims rather than a scroll below them. */}
@@ -175,6 +219,40 @@ export default async function ColumnPage({ params }: Props) {
                 </li>
               ))}
             </ol>
+          </section>
+        ) : null}
+
+        {others.length ? (
+          <section>
+            <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
+              <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+                More reports
+              </h2>
+              <Link
+                href="/news"
+                className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              >
+                All
+              </Link>
+            </div>
+            <ul>
+              {others.map((entry) => (
+                <li key={entry.archiveDay} className="border-b border-basalt-900">
+                  <Link
+                    href={`/news/${entry.archiveDay}`}
+                    className="group block py-1.5"
+                  >
+                    <span className="font-mono text-[0.625rem] text-steel-600">
+                      {dayLabel(entry.archiveDay)} · {entry.matchCount}{" "}
+                      {entry.matchCount === 1 ? "match" : "matches"}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-snug text-steel-300 group-hover:text-rust-300">
+                      {entry.headline}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
       </aside>
