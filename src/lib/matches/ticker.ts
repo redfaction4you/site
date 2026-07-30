@@ -21,6 +21,10 @@ export type TickerItem = {
 };
 
 function seconds(ms: number): string {
+  // Keep a decimal under ten seconds. A fastest capture can genuinely be
+  // fractions of a second, and rounding it printed the record as "0s", which
+  // reads as a broken number rather than a fast one.
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
   const total = Math.round(ms / 1000);
   return total >= 60 ? `${Math.floor(total / 60)}m ${total % 60}s` : `${total}s`;
 }
