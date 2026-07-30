@@ -57,6 +57,10 @@ export default async function HomePage() {
 
   const leaders = [...players].sort((a, b) => b.kills - a.kills).slice(0, 6);
 
+  // Everything except the lead, which is already the top of the page. No extra
+  // query: listColumns has fetched the lot.
+  const earlier = columns.slice(1, 6);
+
   return (
     <>
       <h1 className="sr-only">RedFaction4You</h1>
@@ -228,6 +232,47 @@ export default async function HomePage() {
               </ul>
             )}
           </section>
+
+          {/*
+            Earlier nights, which the front page had no route to at all.
+
+            The lead was the only write-up on it, so a reader who had already
+            seen that one had nowhere to go: the archive looked like it held a
+            single article. These are the ones underneath it.
+          */}
+          {earlier.length ? (
+            <section>
+              <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
+                <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+                  Earlier nights
+                </h2>
+                <Link
+                  href="/news"
+                  className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                >
+                  All
+                </Link>
+              </div>
+              <ul>
+                {earlier.map((entry) => (
+                  <li key={entry.archiveDay} className="border-b border-basalt-900">
+                    <Link
+                      href={`/news/${entry.archiveDay}`}
+                      className="group block py-1.5"
+                    >
+                      <span className="font-mono text-[0.625rem] text-steel-600">
+                        {dayLabel(entry.archiveDay)} · {entry.matchCount}{" "}
+                        {entry.matchCount === 1 ? "match" : "matches"}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-snug text-steel-300 group-hover:text-rust-300">
+                        {entry.headline}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
