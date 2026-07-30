@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
@@ -14,12 +15,13 @@ import { getServerStatus } from "@/lib/server-status";
 export const dynamic = "force-dynamic";
 
 /**
- * The front page shows the archive rather than linking to it.
+ * A news front page: the lead story with a rail beside it.
  *
- * It used to be a row of cards, one per section, which is the navigation again
- * in a larger typeface. A visitor learned nothing from it that the header did
- * not already tell them. This shows the most recent write-up, the last matches
- * played and who is on form, so the page has something to read.
+ * Laid out so the article, the night's results and the leaderboard all sit on
+ * one screen. A headline at display size and a single paragraph took a third of
+ * the viewport and pushed the results below the fold, which is the opposite of
+ * what a front page is for. The story now runs at reading size in a column
+ * beside the numbers rather than above them.
  */
 export default async function HomePage() {
   const [status, totals, latest, players, columns, recent] = await Promise.all([
@@ -28,24 +30,30 @@ export default async function HomePage() {
     latestDay(),
     listPlayers(),
     listColumns(),
-    recentMatches(5),
+    recentMatches(6),
   ]);
 
   const online = status.state === "online" ? status : null;
   const busy = online && online.players > 0;
   const column = columns[0] ?? null;
 
-  // Most frags across the archive. A leaderboard of six is a scoreboard, not a
-  // ranking, and it reads better than pretending otherwise.
-  const leaders = [...players].sort((a, b) => b.kills - a.kills).slice(0, 5);
+  // Three paragraphs is most of a column and still fits beside the rail.
+  const paragraphs = column
+    ? column.body
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+
+  const leaders = [...players].sort((a, b) => b.kills - a.kills).slice(0, 6);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-14">
+    <div className="mx-auto max-w-6xl px-4 pb-10">
       <h1 className="sr-only">RedFaction4You</h1>
 
-      {/* Status line. Small, monospaced, sits right under the hazard stripe
-          like a readout rather than a card. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-basalt-800 py-3 text-xs">
+      {/* Status readout. One line, with the map the server is on. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-basalt-800 py-2.5 text-xs">
         <Link href="/server" className="group flex items-center gap-2">
           <span
             aria-hidden="true"
@@ -59,7 +67,11 @@ export default async function HomePage() {
             }
           />
           <span className="font-display uppercase tracking-widest text-steel-400 group-hover:text-steel-200">
-            {online ? "Server online" : status.state === "offline" ? "Server offline" : "Server unknown"}
+            {online
+              ? "Server online"
+              : status.state === "offline"
+                ? "Server offline"
+                : "Server unknown"}
           </span>
           {online ? (
             <span className="font-mono text-steel-500">
@@ -69,7 +81,7 @@ export default async function HomePage() {
           ) : null}
         </Link>
 
-        <span className="ml-auto flex flex-wrap gap-x-5 gap-y-1 font-mono text-steel-600">
+        <span className="ml-auto flex flex-wrap gap-x-4 font-mono text-steel-600">
           <span>
             <span className="text-steel-300">{totals.matchCount}</span> matches
           </span>
@@ -82,172 +94,187 @@ export default async function HomePage() {
         </span>
       </div>
 
-      {/* The lead: the most recent write-up, set as a piece of writing. */}
-      {column ? (
-        <section className="border-b border-basalt-800 py-10">
-          <p className="eyebrow">
-            Match report · {dayLabel(column.archiveDay)}
-          </p>
-          <h2 className="mt-3 max-w-4xl font-brand text-3xl leading-[1.15] text-steel-100 sm:text-4xl">
-            <Link href={`/news/${column.archiveDay}`} className="hover:text-rust-400">
-              {column.headline}
-            </Link>
-          </h2>
-          <p className="mt-4 max-w-3xl text-base leading-relaxed text-steel-300">
-            {column.body.split("\n").find(Boolean)}
-          </p>
-          <Link
-            href={`/news/${column.archiveDay}`}
-            className="mt-4 inline-block font-display text-xs font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
-          >
-            Read the full report
-          </Link>
-        </section>
-      ) : (
-        <section className="border-b border-basalt-800 py-10">
-          <h2 className="max-w-3xl font-brand text-3xl leading-[1.15] text-steel-100 sm:text-4xl">
-            Everything for Red Faction,{" "}
-            <span className="text-rust-500">in one place that stays up.</span>
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-steel-300">
-            Match results, player records and the community server. Free, no account
-            needed.
-          </p>
-        </section>
-      )}
+      <div className="grid gap-x-10 gap-y-8 py-6 lg:grid-cols-[1.55fr_1fr]">
+        {/* --- The lead story --- */}
+        <article className="min-w-0">
+          {column ? (
+            <>
+              <p className="eyebrow">Match report · {dayLabel(column.archiveDay)}</p>
+              <h2 className="mt-2 font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
+                <Link href={`/news/${column.archiveDay}`} className="hover:text-rust-400">
+                  {column.headline}
+                </Link>
+              </h2>
 
-      <div className="grid gap-10 py-10 lg:grid-cols-[1.4fr_1fr]">
-        {/* Last matches played, as results rather than cards. */}
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-sm font-bold uppercase tracking-widest text-steel-400">
-              Latest results
-            </h2>
-            <Link
-              href="/matches"
-              className="font-display text-[11px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
-            >
-              All matches
-            </Link>
-          </div>
-
-          {recent.length === 0 ? (
-            <p className="mt-4 text-sm text-steel-500">
-              Nothing recorded yet. Results appear here once a night is played.
-            </p>
-          ) : (
-            <ul className="mt-3">
-              {recent.map((match) => (
-                <li
-                  key={`${match.archiveDay}-${match.sourceMatchId}`}
-                  className="border-t border-basalt-800 first:border-t-0"
+              {/* The map the server is on, as the story's image. It is the only
+                  real picture we have, and a placeholder would be worse than
+                  none on a site that trades on not making things up. */}
+              {online?.mapInfo ? (
+                <a
+                  href={online.mapInfo.pageUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="relative mt-4 block aspect-[21/9] overflow-hidden rounded-sm border border-basalt-700"
                 >
-                  <Link
-                    href={`/matches/${match.archiveDay}/${match.sourceMatchId}`}
-                    className="group flex items-center gap-4 py-2.5"
-                  >
-                    <span className="font-mono text-lg tabular-nums">
-                      <span
-                        className={
-                          match.winner === "red" ? "text-rust-400" : "text-steel-600"
-                        }
-                      >
-                        {match.redScore}
-                      </span>
-                      <span className="mx-1 text-steel-700">-</span>
-                      <span
-                        className={
-                          match.winner === "blue" ? "text-oxide-400" : "text-steel-600"
-                        }
-                      >
-                        {match.blueScore}
-                      </span>
-                    </span>
+                  <Image
+                    src={online.mapInfo.imageUrl}
+                    alt={online.mapInfo.name}
+                    fill
+                    sizes="(min-width: 1024px) 620px, 100vw"
+                    className="object-cover"
+                    unoptimized
+                    priority
+                  />
+                  <span className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-basalt-950 to-transparent p-2 text-[11px] text-steel-300">
+                    On the server now: {online.mapInfo.name}
+                  </span>
+                </a>
+              ) : null}
 
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-steel-200 group-hover:text-rust-300">
+              <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
+                {paragraphs.map((paragraph, i) => (
+                  <p key={i}>{paragraph}</p>
+                ))}
+              </div>
+
+              <Link
+                href={`/news/${column.archiveDay}`}
+                className="mt-3 inline-block font-display text-[11px] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              >
+                Read the full report
+              </Link>
+            </>
+          ) : (
+            <>
+              <h2 className="font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
+                Everything for Red Faction,{" "}
+                <span className="text-rust-500">in one place that stays up.</span>
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-steel-300">
+                Match results, player records and the community server. Free, no
+                account needed. A write-up appears here after each match night.
+              </p>
+            </>
+          )}
+        </article>
+
+        {/* --- The rail --- */}
+        <div className="min-w-0 space-y-6">
+          <section>
+            <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
+              <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+                Latest results
+              </h2>
+              <Link
+                href="/matches"
+                className="font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              >
+                All
+              </Link>
+            </div>
+
+            {recent.length === 0 ? (
+              <p className="mt-3 text-xs text-steel-500">Nothing recorded yet.</p>
+            ) : (
+              <ul>
+                {recent.map((match) => (
+                  <li
+                    key={`${match.archiveDay}-${match.sourceMatchId}`}
+                    className="border-b border-basalt-900"
+                  >
+                    <Link
+                      href={`/matches/${match.archiveDay}/${match.sourceMatchId}`}
+                      className="group flex items-center gap-3 py-1.5"
+                    >
+                      <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">
+                        <span
+                          className={
+                            match.winner === "red" ? "text-rust-400" : "text-steel-600"
+                          }
+                        >
+                          {match.redScore}
+                        </span>
+                        <span className="mx-0.5 text-steel-700">-</span>
+                        <span
+                          className={
+                            match.winner === "blue" ? "text-oxide-400" : "text-steel-600"
+                          }
+                        >
+                          {match.blueScore}
+                        </span>
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
                         {match.mapName}
                       </span>
-                      <span className="text-[11px] text-steel-600">
-                        {dayLabel(match.archiveDay)} · {matchTime(match.startedAt)}
-                        {match.overtime ? " · overtime" : ""}
+                      <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                        {matchTime(match.startedAt)}
                       </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-        {/* Who is on form. */}
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-sm font-bold uppercase tracking-widest text-steel-400">
-              Most frags
-            </h2>
-            <Link
-              href="/players"
-              className="font-display text-[11px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
-            >
-              All players
-            </Link>
-          </div>
+          <section>
+            <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
+              <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+                Most frags
+              </h2>
+              <Link
+                href="/players"
+                className="font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              >
+                All
+              </Link>
+            </div>
 
-          {leaders.length === 0 ? (
-            <p className="mt-4 text-sm text-steel-500">Nobody on record yet.</p>
-          ) : (
-            <ol className="mt-3">
-              {leaders.map((player, index) => (
-                <li
-                  key={player.name}
-                  className="border-t border-basalt-800 first:border-t-0"
-                >
-                  <Link
-                    href={`/players/${encodeURIComponent(player.name)}`}
-                    className="group flex items-baseline gap-3 py-2.5"
-                  >
-                    <span className="w-4 shrink-0 font-display text-sm tabular-nums text-steel-700">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-steel-200 group-hover:text-rust-300">
-                      {player.name}
-                    </span>
-                    <span className="shrink-0 font-mono text-sm tabular-nums text-steel-300">
-                      {player.kills}
-                    </span>
-                    <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-steel-600">
-                      {player.caps} caps
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+            {leaders.length === 0 ? (
+              <p className="mt-3 text-xs text-steel-500">Nobody on record yet.</p>
+            ) : (
+              <ol>
+                {leaders.map((player, index) => (
+                  <li key={player.name} className="border-b border-basalt-900">
+                    <Link
+                      href={`/players/${encodeURIComponent(player.name)}`}
+                      className="group flex items-baseline gap-2.5 py-1.5"
+                    >
+                      <span className="w-3 shrink-0 font-display text-[11px] tabular-nums text-steel-700">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
+                        {player.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-steel-200">
+                        {player.kills}
+                      </span>
+                      <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-steel-600">
+                        {player.caps} caps
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
       </div>
 
-      {/* Closing line rather than a card. */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-basalt-800 pt-6">
-        <p className="max-w-xl text-sm leading-relaxed text-steel-400">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-basalt-800 pt-4 text-xs">
+        <p className="max-w-2xl leading-relaxed text-steel-500">
           Games are arranged in Discord. Everything played on the server is recorded
-          here, permanently, and you never need an account to read any of it.
+          here permanently, and you never need an account to read any of it.
+          {latest ? ` Last night archived: ${dayLabel(latest)}.` : ""}
         </p>
         <a
           href={DISCORD_INVITE}
           target="_blank"
           rel="noreferrer noopener"
-          className="shrink-0 rounded-sm bg-rust-500 px-5 py-2.5 font-display text-xs font-semibold uppercase tracking-widest text-steel-100 transition-colors hover:bg-rust-400"
+          className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[11px] font-semibold uppercase tracking-widest text-steel-100 transition-colors hover:bg-rust-400"
         >
           Join the Discord
         </a>
       </div>
-
-      {latest ? (
-        <p className="mt-6 text-[11px] text-steel-700">
-          Last night archived: {dayLabel(latest)}.
-        </p>
-      ) : null}
     </div>
   );
 }

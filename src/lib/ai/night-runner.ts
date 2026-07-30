@@ -15,10 +15,15 @@
 import { desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matches, nightColumns } from "@/lib/db/schema";
+import { matchPlayers, matches, nightColumns, playerProfiles } from "@/lib/db/schema";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { activeModel, configuredProvider } from "./generate";
 import { buildNightFacts, writeNightColumn } from "./night-column";
+import {
+  MIN_MATCHES_FOR_PROFILE,
+  buildProfileFacts,
+  writeProfile,
+} from "./player-profile";
 import { announceColumn } from "./discord";
 
 /** How long after the last match before a night counts as finished. */
@@ -165,10 +170,96 @@ export async function announcePendingColumns(): Promise<number> {
   return posted;
 }
 
+/**
+ * Rewrites player profiles that have gone out of date.
+ *
+ * A profile written after three matches is wrong once somebody has played
+ * thirty, so the stored match count is compared against the current one rather
+ * than regenerating on a timer. Two per run, same reasoning as the columns: a
+ * backlog spreads over syncs instead of timing one out.
+ */
+const MAX_PROFILES_PER_RUN = 2;
+
+export async function backfillProfiles(): Promise<number> {
+  if (!configuredProvider()) return 0;
+
+  const current = await db
+    .select({
+      nameKey: sql<string>`lower(${matchPlayers.name})`,
+      matchCount: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+    })
+    .from(matchPlayers)
+    .where(eq(matchPlayers.spectator, false))
+    .groupBy(sql`lower(${matchPlayers.name})`);
+
+  const existing = await db
+    .select({
+      nameKey: playerProfiles.nameKey,
+      matchCount: playerProfiles.matchCount,
+    })
+    .from(playerProfiles);
+
+  const written = new Map(existing.map((row) => [row.nameKey, row.matchCount]));
+
+  const pending = current
+    .filter((row) => row.matchCount >= MIN_MATCHES_FOR_PROFILE)
+    .filter((row) => written.get(row.nameKey) !== row.matchCount)
+    .slice(0, MAX_PROFILES_PER_RUN);
+
+  const model = activeModel();
+  let count = 0;
+
+  for (const player of pending) {
+    try {
+      const facts = await buildProfileFacts(player.nameKey);
+      if (!facts) continue;
+
+      const body = await writeProfile(facts);
+      if (!body) {
+        console.warn(`[ai] no profile written for ${player.nameKey}`);
+        continue;
+      }
+
+      await db
+        .insert(playerProfiles)
+        .values({
+          nameKey: facts.nameKey,
+          displayName: facts.displayName,
+          body,
+          matchCount: facts.matchCount,
+          model,
+          generatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: playerProfiles.nameKey,
+          set: {
+            displayName: facts.displayName,
+            body,
+            matchCount: facts.matchCount,
+            model,
+            generatedAt: new Date(),
+          },
+        });
+
+      count++;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[ai] profile failed for ${player.nameKey}: ${reason}`);
+    }
+  }
+
+  return count;
+}
+
 /** Guard used by the ingest route so a missing table cannot break a sync. */
-export async function runNightJobs(): Promise<{ columns: number; posted: number }> {
+export async function runNightJobs(): Promise<{
+  columns: number;
+  posted: number;
+  profiles: number;
+}> {
   let columns = 0;
   let posted = 0;
+  let profiles = 0;
 
   try {
     columns = await backfillColumns();
@@ -182,7 +273,13 @@ export async function runNightJobs(): Promise<{ columns: number; posted: number 
     console.warn("[ai] column announce threw:", error);
   }
 
-  return { columns, posted };
+  try {
+    profiles = await backfillProfiles();
+  } catch (error) {
+    console.warn("[ai] profile backfill threw:", error);
+  }
+
+  return { columns, posted, profiles };
 }
 
 /** Re-exported so callers do not need to know where the constant lives. */

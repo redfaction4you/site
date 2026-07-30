@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
-import { getPlayer, getPlayerMatches } from "@/lib/matches/queries";
+import { getPlayer, getPlayerMatches, getPlayerProfile } from "@/lib/matches/queries";
 
 type Props = { params: Promise<{ name: string }> };
 
@@ -50,9 +50,10 @@ export default async function PlayerPage({ params }: Props) {
   const { name } = await params;
   const decoded = decodeURIComponent(name);
 
-  const [player, history] = await Promise.all([
+  const [player, history, profile] = await Promise.all([
     getPlayer(decoded),
     getPlayerMatches(decoded),
+    getPlayerProfile(decoded),
   ]);
 
   if (!player) notFound();
@@ -80,7 +81,29 @@ export default async function PlayerPage({ params }: Props) {
           : ""}
       </p>
 
-      <dl className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {/* What they are like to play against, as opposed to what they scored.
+          Labelled, like every other piece of writing on the site. */}
+      {profile ? (
+        <div className="panel mt-6 p-5">
+          <div className="space-y-3 text-sm leading-relaxed text-steel-300">
+            {profile.body
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean)
+              .map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+          </div>
+          <p className="mt-3 text-[11px] text-steel-600">
+            Written automatically from this record
+            {profile.model ? ` by ${profile.model}` : ""}, after{" "}
+            {profile.matchCount} {profile.matchCount === 1 ? "match" : "matches"}. It
+            updates as more are played.
+          </p>
+        </div>
+      ) : null}
+
+      <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <Stat label="Record" value={`${wins}–${losses}`} hint="wins and losses" />
         <Stat
           label="Frags"

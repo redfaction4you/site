@@ -603,6 +603,44 @@ export const nightColumns = pgTable(
   (column) => [index("night_columns_generated_idx").on(column.generatedAt)],
 );
 
+/**
+ * A short written profile per player.
+ *
+ * The numbers say what somebody did. A profile says what they are like to play
+ * against: who grinds out frags, who lives on the objective, who dies a lot
+ * getting the flag home anyway. That is the thing people actually say about
+ * each other, and it is derivable from the record.
+ *
+ * Keyed by lowercased name, matching how every other player query groups. It
+ * inherits the same limitation: two people sharing a name become one profile.
+ */
+export const playerProfiles = pgTable(
+  "player_profiles",
+  {
+    /** lower(name). The join key everywhere players are aggregated. */
+    nameKey: text("name_key").primaryKey(),
+
+    /** As last seen, for display. Case can drift between matches. */
+    displayName: text("display_name").notNull(),
+
+    body: text("body").notNull(),
+
+    /**
+     * Matches played when this was written.
+     *
+     * A profile describing someone after three matches is stale once they have
+     * played thirty. Comparing this to the current count is how it knows.
+     */
+    matchCount: integer("match_count").notNull(),
+
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (profile) => [index("player_profiles_generated_idx").on(profile.generatedAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Relations. These add no SQL of their own; they are what lets
 // db.query.items.findMany({ with: { files: true } }) work in one round trip

@@ -11,7 +11,13 @@ import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
-import { matchCaptures, matchPlayers, matches, nightColumns } from "@/lib/db/schema";
+import {
+  matchCaptures,
+  matchPlayers,
+  matches,
+  nightColumns,
+  playerProfiles,
+} from "@/lib/db/schema";
 import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
 
 export type DaySummary = {
@@ -364,6 +370,22 @@ export const getPlayer = cache(async function getPlayer(
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
     .where(sql`lower(${matchPlayers.name}) = lower(${name})`)
     .groupBy(sql`lower(${matchPlayers.name})`)
+    .limit(1);
+
+  return row ?? null;
+});
+
+/** The written profile, if one has been generated for this player. */
+export const getPlayerProfile = cache(async function getPlayerProfile(name: string) {
+  const [row] = await db
+    .select({
+      body: playerProfiles.body,
+      model: playerProfiles.model,
+      matchCount: playerProfiles.matchCount,
+      generatedAt: playerProfiles.generatedAt,
+    })
+    .from(playerProfiles)
+    .where(eq(playerProfiles.nameKey, name.toLocaleLowerCase("en-US")))
     .limit(1);
 
   return row ?? null;
