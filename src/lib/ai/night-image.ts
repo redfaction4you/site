@@ -153,7 +153,21 @@ export async function makeColumnImage(
   facts: NightFacts,
   column: WrittenColumn,
 ): Promise<ColumnImage | null> {
-  if (!imageGenerationConfigured()) return null;
+  /*
+   * Said out loud, because this was the one path that returned null in silence.
+   *
+   * Diagnosing it from outside meant reading an `images: 0` with no log line
+   * anywhere and inferring backwards. Every other exit here explains itself and
+   * this one is the likeliest of the lot, since it is what an unconfigured
+   * deployment does.
+   */
+  if (!imageGenerationConfigured()) {
+    console.warn(
+      "[ai] no image for the column: no image provider configured. " +
+        "Set GEMINI_IMAGE_API_KEY, or CLOUDFLARE_AI_TOKEN for the no-reference path.",
+    );
+    return null;
+  }
 
   // No point spending a generation on bytes with nowhere to live. Checked before
   // the model call because image capacity is the scarcest thing in this pipeline.
@@ -163,7 +177,12 @@ export async function makeColumnImage(
   }
 
   const match = pickMatch(facts.matches);
-  if (!match) return null;
+  if (!match) {
+    console.warn(
+      `[ai] no image for ${facts.archiveDay}: none of its ${facts.matches.length} matches had a scoreboard to pick from`,
+    );
+    return null;
+  }
 
   const shots = shotsForMap(match.mapName);
   if (shots.length === 0) {
