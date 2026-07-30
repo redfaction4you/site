@@ -135,7 +135,7 @@ export default async function HomePage() {
                 model={column.imageModel}
                 headline={column.headline}
                 priority
-                className="mt-4"
+                className="mt-4 max-w-sm"
               />
 
               <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">

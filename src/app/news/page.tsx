@@ -87,7 +87,7 @@ export default async function NewsPage() {
             model={lead.imageModel}
             headline={lead.headline}
             priority
-            className="mt-4"
+            className="mt-4 max-w-sm"
           />
 
           <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
@@ -214,6 +214,7 @@ export default async function NewsPage() {
                     model={entry.imageModel}
                     headline={entry.headline}
                     className="hidden w-20 shrink-0 sm:block"
+                    compact
                   />
                   <span className="w-36 shrink-0 font-mono text-[0.6875rem] text-steel-600">
                     {dayLabel(entry.archiveDay)}

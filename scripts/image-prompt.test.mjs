@@ -60,7 +60,12 @@ function composition(overrides = {}) {
 /* --- the prompt and the references stay in step -------------------------- */
 
 test("every reference is described, in the order it is passed", () => {
-  const { prompt, references } = buildComposition(SCENE, composition(), REFS);
+  // face-off has both sides in frame, so both models are attached.
+  const { prompt, references } = buildComposition(
+    SCENE,
+    composition({ moment: "face-off", flagTeam: null }),
+    REFS,
+  );
 
   assert.deepEqual(
     references.map((r) => r.role),
@@ -118,14 +123,23 @@ test("a carry never shows a flag stand behind the runner", () => {
   assert.match(prompt, /No flag stand is visible behind them/);
 });
 
-test("a team with nobody in it contributes no character reference", () => {
-  const { references } = buildComposition(
+test("only the sides actually in frame get a character reference", () => {
+  // A solo celebration frames one player. Handing the model a blue soldier and
+  // telling it to use the references is how a blue soldier ends up in a picture
+  // whose own count line says there is not one.
+  const solo = buildComposition(
     SCENE,
-    composition({ blueCount: 0, flagTeam: null }),
+    composition({ moment: "capture-cheer", subject: "red", flagTeam: null }),
     REFS,
   );
+  assert.deepEqual(solo.references.map((r) => r.role), ["scene", "red-character"]);
 
-  assert.ok(!references.some((r) => r.role === "blue-character"));
+  const both = buildComposition(
+    SCENE,
+    composition({ moment: "face-off", subject: "red", flagTeam: null }),
+    REFS,
+  );
+  assert.ok(both.references.some((r) => r.role === "blue-character"));
 });
 
 /* --- what the picture claims --------------------------------------------- */

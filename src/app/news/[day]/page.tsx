@@ -3,8 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ColumnImage } from "@/components/column-image";
+import { MapShot } from "@/components/map-shot";
 import { dayLabel, matchTime } from "@/components/match-archive";
-import { getColumn, listMatchesForDay } from "@/lib/matches/queries";
+import {
+  getColumn,
+  listMatchesForDay,
+  nightScoreboard,
+} from "@/lib/matches/queries";
 import { isValidDay } from "@/lib/matches/sanitize";
 
 type Props = { params: Promise<{ day: string }> };
@@ -26,11 +31,26 @@ export default async function ColumnPage({ params }: Props) {
   const { day } = await params;
   if (!isValidDay(day)) notFound();
 
-  const [column, matches] = await Promise.all([getColumn(day), listMatchesForDay(day)]);
+  const [column, matches, scoreboard] = await Promise.all([
+    getColumn(day),
+    listMatchesForDay(day),
+    nightScoreboard(day),
+  ]);
   if (!column) notFound();
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      {/*
+        Two columns rather than one narrow one.
+
+        The article ran at max-w-3xl centred, which on any normal screen is a
+        skinny ribbon of text with a third of the window empty either side, and
+        it pushed the scoreboard so far down that nobody reading the claims could
+        see the figures behind them. The prose keeps a comfortable measure; the
+        space that was empty now holds the night it is describing.
+      */}
+      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <article className="min-w-0">
       <p className="eyebrow">
         <Link href="/news" className="hover:text-rust-300">
           News
@@ -48,7 +68,7 @@ export default async function ColumnPage({ params }: Props) {
         model={column.imageModel}
         headline={column.headline}
         priority
-        className="mt-5"
+        className="mt-5 max-w-md"
       />
 
       <div className="mt-6 space-y-4 text-base leading-relaxed text-steel-300">
@@ -67,50 +87,98 @@ export default async function ColumnPage({ params }: Props) {
         recorded.
       </p>
 
-      {/* The matches it is about, so the claims can be checked. */}
-      {matches.length ? (
-        <section className="mt-10 border-t border-basalt-800 pt-6">
-          <h2 className="font-display text-xs uppercase tracking-widest text-steel-500">
-            The matches
-          </h2>
-          <ul className="mt-3 space-y-2">
-            {matches.map((match) => (
-              <li key={match.id}>
-                <Link
-                  href={`/matches/${day}/${match.sourceMatchId}`}
-                  className="panel group flex items-center justify-between gap-4 p-3"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-steel-200 group-hover:text-rust-300">
+      </article>
+
+      {/* The record, beside the claims rather than a scroll below them. */}
+      <aside className="min-w-0 space-y-7">
+        {matches.length ? (
+          <section>
+            <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+              The matches
+            </h2>
+            <ul>
+              {matches.map((match) => (
+                <li key={match.id} className="border-b border-basalt-900">
+                  <Link
+                    href={`/matches/${day}/${match.sourceMatchId}`}
+                    className="group flex items-center gap-2.5 py-1.5"
+                  >
+                    <span className="w-4 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
+                      {match.number}
+                    </span>
+                    <span className="w-11 shrink-0 text-right font-mono text-sm tabular-nums">
+                      <span
+                        className={
+                          match.winner === "red" ? "text-rust-400" : "text-steel-600"
+                        }
+                      >
+                        {match.redScore}
+                      </span>
+                      <span className="mx-0.5 text-steel-700">-</span>
+                      <span
+                        className={
+                          match.winner === "blue" ? "text-oxide-400" : "text-steel-600"
+                        }
+                      >
+                        {match.blueScore}
+                      </span>
+                    </span>
+                    <MapShot
+                      mapName={match.mapName}
+                      className="hidden w-12 shrink-0 sm:block"
+                      sizes="48px"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
                       {match.mapName}
                     </span>
-                    <span className="text-xs text-steel-500">
-                      {match.mode} · {matchTime(match.startedAt)}
+                    <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
+                      {matchTime(match.startedAt)}
                     </span>
-                  </span>
-                  <span className="shrink-0 font-mono tabular-nums">
-                    <span
-                      className={
-                        match.winner === "red" ? "text-rust-400" : "text-steel-500"
-                      }
-                    >
-                      {match.redScore}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href={`/matches/${day}`}
+              className="mt-2 inline-block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+            >
+              The full night
+            </Link>
+          </section>
+        ) : null}
+
+        {scoreboard.length ? (
+          <section>
+            <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+              Who played
+            </h2>
+            <ol>
+              {scoreboard.map((player, index) => (
+                <li key={player.name} className="border-b border-basalt-900">
+                  <Link
+                    href={`/players/${encodeURIComponent(player.name)}`}
+                    className="group flex items-baseline gap-2 py-1.5"
+                  >
+                    <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
+                      {index + 1}
                     </span>
-                    <span className="mx-1 text-steel-600">-</span>
-                    <span
-                      className={
-                        match.winner === "blue" ? "text-oxide-400" : "text-steel-500"
-                      }
-                    >
-                      {match.blueScore}
+                    <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
+                      {player.name}
                     </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                      {player.kills}
+                    </span>
+                    <span className="w-11 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
+                      {player.caps} caps
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+      </aside>
+      </div>
     </div>
   );
 }

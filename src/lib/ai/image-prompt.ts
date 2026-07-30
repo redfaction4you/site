@@ -442,10 +442,29 @@ export function buildComposition(
   const references: Reference[] = [];
 
   if (scene.shotKey) references.push({ role: "scene", key: scene.shotKey });
-  if (available.redCharacter && figures(composition.redCount) > 0) {
+
+  /*
+   * Only the sides actually in frame.
+   *
+   * This used to attach both character models whenever both teams had played,
+   * which is true of every match and beside the point: a solo celebration frames
+   * one player. An unused reference is not free. The model has been handed a blue
+   * soldier and told to use the references, so it puts a blue soldier in, and the
+   * count line then contradicts the picture.
+   */
+  const opponentInFrame =
+    composition.moment === "face-off" || composition.moment === "point-out";
+  const subjectIsRed = composition.subject === "red";
+
+  const redInFrame =
+    (subjectIsRed || opponentInFrame) && figures(composition.redCount) > 0;
+  const blueInFrame =
+    (!subjectIsRed || opponentInFrame) && figures(composition.blueCount) > 0;
+
+  if (available.redCharacter && redInFrame) {
     references.push({ role: "red-character", key: available.redCharacter });
   }
-  if (available.blueCharacter && figures(composition.blueCount) > 0) {
+  if (available.blueCharacter && blueInFrame) {
     references.push({ role: "blue-character", key: available.blueCharacter });
   }
   if (MOMENTS[composition.moment].carriesFlag && composition.flagTeam && available.flag) {

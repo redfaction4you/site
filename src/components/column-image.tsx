@@ -6,6 +6,11 @@ import { publicUrl } from "@/lib/storage";
 /**
  * The generated illustration beside a night's column.
  *
+ * Sized by the caller, and deliberately never large. These are synthetic, and a
+ * fabricated photograph running at full width asserts more than it has earned:
+ * it should sit beside the writing the way a wire photo does, not lead the page.
+ * Callers pass a max width.
+ *
  * The only way this image is rendered anywhere on the site, which is deliberate.
  * Every other piece of generated content here says so, and a picture has to say
  * it more loudly than prose does: the whole value of this archive is that its
@@ -23,6 +28,7 @@ export function ColumnImage({
   headline,
   priority = false,
   className = "",
+  compact = false,
 }: {
   imageKey: string | null;
   model: string | null;
@@ -30,6 +36,11 @@ export function ColumnImage({
   headline: string;
   priority?: boolean;
   className?: string;
+  /**
+   * A thumbnail in a list, where the full sentence would be taller than the
+   * picture. The label still appears, shortened: it is not optional anywhere.
+   */
+  compact?: boolean;
 }) {
   const src = imageKey ? publicUrl(imageKey) : null;
   if (!src) return null;
@@ -46,9 +57,23 @@ export function ColumnImage({
           className="object-cover"
         />
       </div>
-      <figcaption className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-widest text-steel-600">
-        {IMAGE_CAPTION}
-        {model ? ` by ${model}` : ""}. Not a photograph of the match.
+      <figcaption
+        className={
+          compact
+            ? "mt-1 font-mono text-[0.5625rem] uppercase tracking-wider text-steel-700"
+            : "mt-1.5 font-mono text-[0.625rem] uppercase tracking-widest text-steel-600"
+        }
+      >
+        {compact ? (
+          // Short enough to sit under a thumbnail instead of wrapping into a
+          // column taller than the image it labels.
+          IMAGE_CAPTION
+        ) : (
+          <>
+            {IMAGE_CAPTION}
+            {model ? ` by ${model}` : ""}. Not a photograph of the match.
+          </>
+        )}
       </figcaption>
     </figure>
   );

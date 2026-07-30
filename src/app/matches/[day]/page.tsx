@@ -90,7 +90,7 @@ export default async function MatchDayPage({ params }: Props) {
             imageKey={column.imageKey}
             model={column.imageModel}
             headline={column.headline}
-            className="w-full self-start"
+            className="w-full max-w-[15rem] self-start"
           />
 
           <Link href={`/news/${day}`} className="group min-w-0">
