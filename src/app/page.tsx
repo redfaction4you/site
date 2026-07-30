@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
@@ -115,31 +114,16 @@ export default async function HomePage() {
                 </Link>
               </h2>
 
-              {/* The map the server is on, as the story's image. It is the only
-                  real picture we have, and a placeholder would be worse than
-                  none on a site that trades on not making things up. */}
-              {online?.mapInfo ? (
-                <a
-                  href={online.mapInfo.pageUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="relative mt-4 block aspect-[21/9] overflow-hidden rounded-sm border border-basalt-700"
-                >
-                  <Image
-                    src={online.mapInfo.imageUrl}
-                    alt={online.mapInfo.name}
-                    fill
-                    sizes="(min-width: 1024px) 620px, 100vw"
-                    className="object-cover"
-                    unoptimized
-                    priority
-                  />
-                  <span className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-basalt-950 to-transparent p-2 text-[11px] text-steel-300">
-                    On the server now: {online.mapInfo.name}
-                  </span>
-                </a>
-              ) : null}
+              {/*
+                No image here on purpose, for now.
 
+                This slot used to show whatever map the server happened to be
+                on, which meant the picture beside a fixed article changed every
+                few minutes. An illustration should belong to the piece it sits
+                with, or a reader cannot form a memory of it. A per-article
+                image, generated once when the report is written and stored with
+                it, is designed in docs/HANDOVER.md and belongs there instead.
+              */}
               <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
                 {paragraphs.map((paragraph, i) => (
                   <p key={i}>{paragraph}</p>
