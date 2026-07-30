@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="panel p-4">
-      <dt className="font-display text-[11px] uppercase tracking-widest text-steel-500">
+      <dt className="font-display text-[0.6875rem] uppercase tracking-widest text-steel-500">
         {label}
       </dt>
       <dd className="mt-1 font-mono text-2xl tabular-nums text-steel-100">{value}</dd>
@@ -94,7 +94,7 @@ export default async function PlayerPage({ params }: Props) {
                 <p key={i}>{paragraph}</p>
               ))}
           </div>
-          <p className="mt-3 text-[11px] text-steel-600">
+          <p className="mt-3 text-[0.6875rem] text-steel-600">
             Written automatically from this record
             {profile.model ? ` by ${profile.model}` : ""}, after{" "}
             {profile.matchCount} {profile.matchCount === 1 ? "match" : "matches"}. It
@@ -169,7 +169,7 @@ export default async function PlayerPage({ params }: Props) {
                     <th
                       key={h}
                       className={
-                        "px-3 py-2 font-display text-[11px] uppercase tracking-widest text-steel-500 " +
+                        "px-3 py-2 font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 " +
                         (i < 2 ? "text-left" : "text-right")
                       }
                     >

@@ -17,8 +17,10 @@ import { desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matchPlayers, matches, nightColumns, playerProfiles } from "@/lib/db/schema";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
+import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
 import { buildNightFacts, writeNightColumn } from "./night-column";
+import { makeColumnImage } from "./night-image";
 import {
   MIN_MATCHES_FOR_PROFILE,
   buildProfileFacts,
@@ -69,10 +71,14 @@ export async function backfillColumns(): Promise<number> {
     .select({
       archiveDay: nightColumns.archiveDay,
       matchCount: nightColumns.matchCount,
+      imageKey: nightColumns.imageKey,
     })
     .from(nightColumns);
 
   const written = new Map(existing.map((row) => [row.archiveDay, row.matchCount]));
+  const illustrated = new Set(
+    existing.filter((row) => row.imageKey).map((row) => row.archiveDay),
+  );
 
   // Nights with no column, or whose match count has grown since it was written.
   const pending = finished
@@ -101,6 +107,21 @@ export async function backfillColumns(): Promise<number> {
         continue;
       }
 
+      /*
+       * The picture, made from the column that was just written rather than
+       * from the numbers it came from. That ordering is the point: the
+       * illustration has to belong to the story that actually got told.
+       *
+       * A night that already has one keeps it. Regenerating would spend a
+       * scarce image request to replace a picture nobody complained about, and
+       * a column that is rewritten because two more matches arrived is the same
+       * evening with a longer account of it. The image is a mood, not a claim
+       * about the score, so it survives the rewrite.
+       */
+      const image = illustrated.has(night.archiveDay)
+        ? null
+        : await makeColumnImage(facts, column);
+
       await db
         .insert(nightColumns)
         .values({
@@ -110,6 +131,9 @@ export async function backfillColumns(): Promise<number> {
           matchCount: facts.matchCount,
           model,
           generatedAt: new Date(),
+          imageKey: image?.imageKey ?? null,
+          imagePrompt: image?.imagePrompt ?? null,
+          imageModel: image?.imageModel ?? null,
         })
         .onConflictDoUpdate({
           target: nightColumns.archiveDay,
@@ -119,6 +143,15 @@ export async function backfillColumns(): Promise<number> {
             matchCount: facts.matchCount,
             model,
             generatedAt: new Date(),
+            // The image columns are named only when there is a new image, so a
+            // rewrite cannot blank a picture that already exists.
+            ...(image
+              ? {
+                  imageKey: image.imageKey,
+                  imagePrompt: image.imagePrompt,
+                  imageModel: image.imageModel,
+                }
+              : {}),
             // A rewritten column is worth announcing again only if it was never
             // announced. Reposting an updated piece would spam the channel.
           },
@@ -135,6 +168,63 @@ export async function backfillColumns(): Promise<number> {
 }
 
 /**
+ * Gives an existing column its illustration, without touching the writing.
+ *
+ * `backfillColumns` only attempts an image for a column it is writing, so
+ * anything already published when image generation was unavailable would stay
+ * unillustrated forever. That is most of the archive, and it will be all of the
+ * archive until the Gemini key has image quota at all.
+ *
+ * Deliberately separate from the writing pass rather than folded into its pending
+ * filter. Revisiting a night there would regenerate prose that was fine to get at
+ * a missing picture, which spends the scarcer of the two budgets to save the
+ * other. Here the stored headline and body are used exactly as they are, so this
+ * costs one image request and no text request.
+ *
+ * One per run, same reasoning as everything else here: a backlog fills in over
+ * successive syncs rather than timing one out.
+ */
+export async function backfillColumnImages(): Promise<number> {
+  const [pending] = await db
+    .select({
+      archiveDay: nightColumns.archiveDay,
+      headline: nightColumns.headline,
+      body: nightColumns.body,
+    })
+    .from(nightColumns)
+    .where(isNull(nightColumns.imageKey))
+    .orderBy(desc(nightColumns.archiveDay))
+    .limit(1);
+
+  if (!pending) return 0;
+
+  // Only for the facts the picture needs. No model call, and the column's own
+  // text is what actually gets illustrated.
+  const facts = await buildNightFacts(pending.archiveDay);
+  if (!facts) return 0;
+
+  const image = await makeColumnImage(facts, {
+    headline: pending.headline,
+    body: pending.body,
+  });
+  if (!image) return 0;
+
+  await db
+    .update(nightColumns)
+    .set({
+      imageKey: image.imageKey,
+      imagePrompt: image.imagePrompt,
+      imageModel: image.imageModel,
+      // generatedAt is left alone. The writing did not change, and moving it
+      // would make the column look freshly rewritten on every page that shows
+      // when it was written.
+    })
+    .where(eq(nightColumns.archiveDay, pending.archiveDay));
+
+  return 1;
+}
+
+/**
  * Posts any column that has not been announced yet.
  *
  * Separate from writing so a Discord outage cannot cost us the column, and so
@@ -147,6 +237,7 @@ export async function announcePendingColumns(): Promise<number> {
       headline: nightColumns.headline,
       body: nightColumns.body,
       matchCount: nightColumns.matchCount,
+      imageKey: nightColumns.imageKey,
     })
     .from(nightColumns)
     .where(isNull(nightColumns.postedAt))
@@ -156,7 +247,12 @@ export async function announcePendingColumns(): Promise<number> {
   let posted = 0;
 
   for (const column of pending) {
-    const ok = await announceColumn(column);
+    // Writing happens in a separate pass from announcing, so by the time we get
+    // here the image either exists or was never going to.
+    const ok = await announceColumn({
+      ...column,
+      imageUrl: column.imageKey ? publicUrl(column.imageKey) : null,
+    });
     if (!ok) continue;
 
     await db
@@ -179,6 +275,19 @@ export async function announcePendingColumns(): Promise<number> {
  * backlog spreads over syncs instead of timing one out.
  */
 const MAX_PROFILES_PER_RUN = 2;
+
+/**
+ * How many new matches it takes before a profile is worth rewriting.
+ *
+ * This used to rewrite on any change at all, which sounds right and is not.
+ * Everybody who plays a night has their match count go up, so a six player
+ * evening meant six rewrites, every evening, for profiles that would read almost
+ * identically. Meanwhile the free tier allows twenty model requests per day per
+ * key, so those rewrites were spending the same budget the match reports need,
+ * and the reports are the thing readers actually notice missing. A profile after
+ * seven matches and the same profile after eight is not new information.
+ */
+const PROFILE_REWRITE_STEP = 3;
 
 export async function backfillProfiles(): Promise<number> {
   if (!configuredProvider()) return 0;
@@ -203,8 +312,21 @@ export async function backfillProfiles(): Promise<number> {
 
   const pending = current
     .filter((row) => row.matchCount >= MIN_MATCHES_FOR_PROFILE)
-    .filter((row) => written.get(row.nameKey) !== row.matchCount)
+    .filter((row) => {
+      const already = written.get(row.nameKey);
+      // Never written: always worth doing.
+      if (already === undefined) return true;
+      // Written before: only once enough has happened to change the account.
+      return row.matchCount - already >= PROFILE_REWRITE_STEP;
+    })
+    // Whoever is furthest out of date goes first, so nobody's profile is
+    // starved by a busier player's.
+    .sort((a, b) => staleness(b) - staleness(a))
     .slice(0, MAX_PROFILES_PER_RUN);
+
+  function staleness(row: { nameKey: string; matchCount: number }): number {
+    return row.matchCount - (written.get(row.nameKey) ?? 0);
+  }
 
   console.log(
     `[ai] profiles: ${current.length} players, ${existing.length} written, ${pending.length} pending this run`,
@@ -258,10 +380,12 @@ export async function backfillProfiles(): Promise<number> {
 /** Guard used by the ingest route so a missing table cannot break a sync. */
 export async function runNightJobs(): Promise<{
   columns: number;
+  images: number;
   posted: number;
   profiles: number;
 }> {
   let columns = 0;
+  let images = 0;
   let posted = 0;
   let profiles = 0;
 
@@ -269,6 +393,14 @@ export async function runNightJobs(): Promise<{
     columns = await backfillColumns();
   } catch (error) {
     console.warn("[ai] column backfill threw:", error);
+  }
+
+  // Before announcing, so a column waiting to be posted gets its picture into
+  // the embed rather than being announced bare and illustrated a minute later.
+  try {
+    images = await backfillColumnImages();
+  } catch (error) {
+    console.warn("[ai] column image backfill threw:", error);
   }
 
   try {
@@ -283,7 +415,7 @@ export async function runNightJobs(): Promise<{
     console.warn("[ai] profile backfill threw:", error);
   }
 
-  return { columns, posted, profiles };
+  return { columns, images, posted, profiles };
 }
 
 /** Re-exported so callers do not need to know where the constant lives. */

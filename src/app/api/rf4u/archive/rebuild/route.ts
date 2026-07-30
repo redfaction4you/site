@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     ok: true,
     reports,
     columns: night.columns,
+    images: night.images,
     announced: night.posted,
     profiles: night.profiles,
   });

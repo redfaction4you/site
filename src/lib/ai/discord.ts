@@ -39,6 +39,8 @@ export type ColumnToAnnounce = {
   headline: string;
   body: string;
   matchCount: number;
+  /** The generated illustration, if there is one. Null is normal. */
+  imageUrl?: string | null;
 };
 
 /** Returns true only if Discord accepted the post. */
@@ -59,8 +61,17 @@ export async function announceColumn(column: ColumnToAnnounce): Promise<boolean>
             url: link,
             description: truncate(column.body, EMBED_LIMIT),
             color: 0xe0301e,
+            // Discord fetches this itself, which is another reason the bucket
+            // URL has to be public and permanent rather than signed.
+            ...(column.imageUrl ? { image: { url: column.imageUrl } } : {}),
             footer: {
-              text: `${column.matchCount} ${column.matchCount === 1 ? "match" : "matches"} · written automatically from the match data`,
+              // The illustration is labelled here for the same reason it is
+              // labelled on the site. A synthetic photograph passed off as a
+              // record of the evening is the single most misleading thing this
+              // project could publish, and an embed travels further than a page.
+              text:
+                `${column.matchCount} ${column.matchCount === 1 ? "match" : "matches"} · written automatically from the match data` +
+                (column.imageUrl ? " · picture generated, not a photograph" : ""),
             },
             timestamp: new Date().toISOString(),
           },

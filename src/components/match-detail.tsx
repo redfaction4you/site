@@ -8,6 +8,7 @@ import type {
   PublicScoreRow,
 } from "@/lib/matches/queries";
 import { dayLabel, duration, matchTime } from "@/components/match-archive";
+import { MapShot } from "@/components/map-shot";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -128,13 +129,13 @@ function Scoreboard({
         </caption>
         <thead>
           <tr>
-            <th className="px-3 py-1.5 text-left font-display text-[10px] uppercase tracking-widest text-steel-500">
+            <th className="px-3 py-1.5 text-left font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
               Player
             </th>
             {shown.map((column) => (
               <th
                 key={String(column.key)}
-                className="px-2 py-1.5 text-right font-display text-[10px] uppercase tracking-widest text-steel-500"
+                className="px-2 py-1.5 text-right font-display text-[0.625rem] uppercase tracking-widest text-steel-500"
               >
                 {column.label}
               </th>
@@ -400,8 +401,25 @@ export function MatchDetailView({
         </Link>
       </p>
 
+      {/*
+        The map, beside its own name.
+
+        A name is enough to look a level up and not enough to recognise it, and
+        these maps look nothing like one another. Kept to a thumbnail rather than
+        a banner: it should say where without pushing the scoreboard down the
+        page. Dropped entirely on narrow screens, where that trade goes the other
+        way.
+      */}
+      <div className="mt-1 flex items-start gap-4">
+        <MapShot
+          mapName={match.mapName}
+          className="hidden w-28 shrink-0 sm:block"
+          sizes="112px"
+        />
+
+        <div className="min-w-0 flex-1">
       {/* Title, score and the whole summary on one line each. */}
-      <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
         <h1 className="font-display text-2xl font-bold text-steel-100">
           {/* The night's running order, so the sequence is obvious from the
               title rather than only from the strip below it. */}
@@ -428,6 +446,8 @@ export function MatchDetailView({
           {match.status !== "final" ? ` · ${match.status}` : ""}
         </span>
       </div>
+        </div>
+      </div>
 
       <MatchNav
         days={days}
@@ -451,7 +471,7 @@ export function MatchDetailView({
                 <p key={i}>{paragraph}</p>
               ))}
           </div>
-          <p className="mt-3 text-[11px] text-steel-600">
+          <p className="mt-3 text-[0.6875rem] text-steel-600">
             Written automatically from the scoreboard and event log
             {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
             figures recorded on this page.
@@ -539,7 +559,7 @@ export function MatchDetailView({
           */}
           {active.some((p) => p.weaponStats.length > 0) ? (
             <div>
-              <h3 className="mb-2 font-display text-[10px] uppercase tracking-widest text-steel-500">
+              <h3 className="mb-2 font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
                 Weapons
               </h3>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -555,7 +575,7 @@ export function MatchDetailView({
                               <th
                                 key={h}
                                 className={
-                                  "py-0.5 font-display text-[9px] uppercase tracking-widest text-steel-600 " +
+                                  "py-0.5 font-display text-[0.5625rem] uppercase tracking-widest text-steel-600 " +
                                   (i === 0 ? "text-left" : "text-right")
                                 }
                               >
@@ -590,10 +610,10 @@ export function MatchDetailView({
             </div>
           ) : weaponsByPlayer.size > 0 ? (
             <div>
-              <h3 className="mb-2 font-display text-[10px] uppercase tracking-widest text-steel-500">
+              <h3 className="mb-2 font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
                 Frags by weapon
               </h3>
-              <p className="mb-2 text-[11px] text-steel-600">
+              <p className="mb-2 text-[0.6875rem] text-steel-600">
                 Counted from the frag log. This match predates per weapon shot
                 tracking, so accuracy per weapon is not available for it.
               </p>
@@ -631,7 +651,7 @@ export function MatchDetailView({
                   </span>
                   <span
                     className={
-                      "font-display text-[10px] font-semibold uppercase tracking-wider " +
+                      "font-display text-[0.625rem] font-semibold uppercase tracking-wider " +
                       (TEAM_TEXT[capture.team] ?? "text-steel-300")
                     }
                   >

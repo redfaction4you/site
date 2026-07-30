@@ -44,7 +44,7 @@ export function CompatBadge({ playsOn, confidence, verbose, rflVersion }: Props)
               key={client}
               title={`${CLIENT_LABELS[client]}: ${works ? "loads this" : "cannot load this"}`}
               className={
-                "rounded-sm border px-2 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider " +
+                "rounded-sm border px-2 py-0.5 font-display text-[0.6875rem] font-semibold uppercase tracking-wider " +
                 (works
                   ? "border-signal-green/40 bg-signal-green/10 text-signal-green"
                   : "border-basalt-700 bg-basalt-850 text-steel-500 line-through decoration-steel-600")
@@ -56,7 +56,7 @@ export function CompatBadge({ playsOn, confidence, verbose, rflVersion }: Props)
         })}
 
         {unknown ? (
-          <li className="rounded-sm border border-oxide-400/40 bg-oxide-400/10 px-2 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-oxide-400">
+          <li className="rounded-sm border border-oxide-400/40 bg-oxide-400/10 px-2 py-0.5 font-display text-[0.6875rem] font-semibold uppercase tracking-wider text-oxide-400">
             Unverified
           </li>
         ) : null}

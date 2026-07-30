@@ -8,7 +8,7 @@ import { CompatBadge } from "@/components/compat-badge";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-display text-[11px] uppercase tracking-widest text-steel-500">
+      <dt className="font-display text-[0.6875rem] uppercase tracking-widest text-steel-500">
         {label}
       </dt>
       <dd className="mt-1 text-sm text-steel-200">{children}</dd>
@@ -126,7 +126,7 @@ export function ItemDetail({ item, meta }: { item: CatalogueItem; meta: KindMeta
 
           {compat?.warnings?.length ? (
             <div className="panel mt-4 border-oxide-400/30 p-4">
-              <p className="font-display text-[11px] uppercase tracking-widest text-oxide-400">
+              <p className="font-display text-[0.6875rem] uppercase tracking-widest text-oxide-400">
                 Noted at upload
               </p>
               <ul className="mt-2 space-y-1 text-sm text-steel-400">

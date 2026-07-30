@@ -18,8 +18,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "node scripts/check-db.mjs",
+    "ai:quota": "node scripts/ai-quota.mjs",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "refs:push": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-push.mjs",
+    "refs:label": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-label.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.10.0",

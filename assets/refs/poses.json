@@ -1,0 +1,170 @@
+{
+  "Blue_Character/Blue_holding_weapon_stance_Front.png": {
+    "pose": "stance",
+    "facing": "angle"
+  },
+  "Blue_Character/Blue_holding_weapon_stance_different.png": {
+    "pose": "stance",
+    "facing": "front"
+  },
+  "Blue_Character/Blue_holding_weapon_stance_side.png": {
+    "pose": "aim",
+    "facing": "side"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011310.png": {
+    "pose": "stance",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011318.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011324.png": {
+    "pose": "jump",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011327.png": {
+    "pose": "crouch",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011333.png": {
+    "pose": "run",
+    "facing": "side"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011339.png": {
+    "pose": "walk",
+    "facing": "side"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011343.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011352.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011358.png": {
+    "pose": "jump",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011425.png": {
+    "pose": "crouch",
+    "facing": "front"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011436.png": {
+    "pose": "death",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011447.png": {
+    "pose": "death",
+    "facing": "angle"
+  },
+  "Blue_Character/Screenshot 2026-07-30 011452.png": {
+    "pose": "death",
+    "facing": "side"
+  },
+  "Blue_Character/blue_t_pose_angle.png": {
+    "pose": "tpose",
+    "facing": "angle"
+  },
+  "Blue_Character/blue_t_pose_backward.png": {
+    "pose": "tpose",
+    "facing": "back"
+  },
+  "Blue_Character/blue_t_pose_forward.png": {
+    "pose": "tpose",
+    "facing": "front"
+  },
+  "Blue_Character/blue_t_pose_sideways.png": {
+    "pose": "tpose",
+    "facing": "side"
+  },
+  "Red_Character/Screenshot 2026-07-30 011611.png": {
+    "pose": "crouch",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011620.png": {
+    "pose": "stance",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011627.png": {
+    "pose": "stance",
+    "facing": "front"
+  },
+  "Red_Character/Screenshot 2026-07-30 011634.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011638.png": {
+    "pose": "run",
+    "facing": "side"
+  },
+  "Red_Character/Screenshot 2026-07-30 011647.png": {
+    "pose": "crouch",
+    "facing": "side"
+  },
+  "Red_Character/Screenshot 2026-07-30 011650.png": {
+    "pose": "crouch",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011700.png": {
+    "pose": "walk",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011707.png": {
+    "pose": "crouch",
+    "facing": "front"
+  },
+  "Red_Character/Screenshot 2026-07-30 011714.png": {
+    "pose": "walk",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011717.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011720.png": {
+    "pose": "run",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011734.png": {
+    "pose": "death",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011737.png": {
+    "pose": "death",
+    "facing": "side"
+  },
+  "Red_Character/Screenshot 2026-07-30 011742.png": {
+    "pose": "death",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011755.png": {
+    "pose": "death",
+    "facing": "angle"
+  },
+  "Red_Character/Screenshot 2026-07-30 011758.png": {
+    "pose": "death",
+    "facing": "back"
+  },
+  "Red_Character/Screenshot 2026-07-30 011833.png": {
+    "pose": "stance",
+    "facing": "angle"
+  },
+  "Red_Character/red_tpose_angle.png": {
+    "pose": "tpose",
+    "facing": "angle"
+  },
+  "Red_Character/red_tpose_back.png": {
+    "pose": "tpose",
+    "facing": "back"
+  },
+  "Red_Character/red_tpose_front.png": {
+    "pose": "tpose",
+    "facing": "front"
+  },
+  "Red_Character/red_tpose_side.png": {
+    "pose": "tpose",
+    "facing": "side"
+  }
+}

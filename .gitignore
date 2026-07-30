@@ -5,9 +5,13 @@ build/
 .DS_Store
 
 # env
-.env
-.env.local
-.env*.local
+#
+# Deliberately broad. `.env*.local` only matches names ENDING in .local, so a
+# `.env.local.bak` written by an editor, a script, or a careful person about to
+# change something was committable, and it holds every key the project has. One
+# rule that covers every variant, with the template explicitly exempted.
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -20,3 +24,16 @@ next-env.d.ts
 npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Reference images for the column illustration.
+#
+# Staged here, pushed to R2, and served from there. Deliberately not committed:
+# they are binaries that would bloat every clone forever, and the bucket is
+# already the place this project serves images from. The manifest that names them
+# IS committed, in src/lib/ai/image-refs.ts, so the repo still records what the
+# set is meant to contain even though it does not carry the bytes.
+assets/refs/**
+!assets/refs/README.md
+# The pose labels are text, cost a vision request each to work out, and are the
+# record of which render is a run and which is a crouch. Worth keeping.
+!assets/refs/poses.json

@@ -13,8 +13,10 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matchPlayers, matches } from "@/lib/db/schema";
+import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
+import type { PickableMatch, Team } from "./match-pick";
 
 const SYSTEM = `You are a sports columnist covering a Red Faction capture-the-flag league.
 
@@ -34,6 +36,11 @@ Hard rules:
   community.
 - Never invent history, rivalries, past seasons, records, nicknames or motives.
 - Never state a number that is not in the data.
+- Only call something a high, a best, a most, a lead or a session high if the
+  "who led what" list says so. Do not work it out yourself by comparing rows.
+- If you describe what a player did and they have any captures, say how many.
+  Listing one player's captures while leaving out another's reads as though the
+  second player did not score, which is worse than mentioning neither.
 - Never guess a player's gender. Use they and them for everyone, without
   exception, however the name reads to you. Never write he, she, his or her
   about a player.
@@ -45,7 +52,12 @@ Hard rules:
   the clock reading. A goal at 3:51 is not an early lead.
 
 First line of your reply must be a headline on its own, under 70 characters,
-with no quotes and no trailing full stop. Then a blank line. Then the column.`;
+with no quotes and no trailing full stop. Then a blank line. Then the column.
+
+The headline must not contain a date in any form. The facts below open with the
+date and a model given them will copy it in, which produces headlines like "Red
+dominated early on 2026-07-29". Every page that shows a headline shows the date
+beside it already, so it is wasted characters and it reads like a filename.`;
 
 function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -55,6 +67,19 @@ export type NightFacts = {
   archiveDay: string;
   matchCount: number;
   prompt: string;
+
+  /**
+   * The shape of the night, separately from the prose prompt.
+   *
+   * The illustration needs the same facts but not the same wall of text, and
+   * pulling them out here means it does not re-query a night that has just been
+   * read in full. `matches` is what `match-pick.ts` reads to choose which match
+   * and which moment the picture is about.
+   */
+  maps: string[];
+  redWins: number;
+  blueWins: number;
+  matches: PickableMatch[];
 };
 
 /**
@@ -105,6 +130,50 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 
+  /*
+   * Squad sizes and capture order per match, for the illustration.
+   *
+   * Read here rather than in the image code so a night is queried once. Both are
+   * facts the picture depends on being right: the number of figures a side, and
+   * whose flag was moving.
+   */
+  const squadRows = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      team: matchPlayers.team,
+      count: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
+    .groupBy(matchPlayers.matchId, matchPlayers.team);
+
+  const squads = new Map<string, { red: number; blue: number }>();
+  for (const row of squadRows) {
+    const entry = squads.get(row.matchId) ?? { red: 0, blue: 0 };
+    if (row.team === "red") entry.red = row.count;
+    else if (row.team === "blue") entry.blue = row.count;
+    squads.set(row.matchId, entry);
+  }
+
+  const captureList = await db
+    .select({
+      matchId: matchCaptures.matchId,
+      team: matchCaptures.team,
+      elapsedSeconds: matchCaptures.elapsedSeconds,
+    })
+    .from(matchCaptures)
+    .innerJoin(matches, eq(matches.id, matchCaptures.matchId))
+    .where(eq(matches.archiveDay, archiveDay))
+    .orderBy(asc(matchCaptures.elapsedSeconds));
+
+  const captureRows = new Map<string, typeof captureList>();
+  for (const row of captureList) {
+    const list = captureRows.get(row.matchId) ?? [];
+    list.push(row);
+    captureRows.set(row.matchId, list);
+  }
+
   const lines: string[] = [];
   lines.push(`Match night of ${archiveDay}.`);
   lines.push(`${rows.length} matches were played, in this order:`);
@@ -135,6 +204,51 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     );
   }
 
+  /*
+   * Who actually led what, worked out here rather than left to the model.
+   *
+   * Reading down a table to find the largest number is the thing models get
+   * wrong, and they get it wrong confidently. A column once called 19.2 percent
+   * the session high while another player sat on 19.4, from a prompt that listed
+   * both. The arithmetic is trivial for us and unreliable for them, so we do it
+   * and hand over the answer, exactly as `phase()` does for match timings in
+   * match-report.ts.
+   */
+  const leaderOf = (
+    label: string,
+    value: (row: (typeof totals)[number]) => number,
+    format: (row: (typeof totals)[number]) => string,
+  ) => {
+    const best = totals.reduce((a, b) => (value(b) > value(a) ? b : a));
+    // A tie is not a lead. Saying one of two equal players "led" is false, and it
+    // is the kind of false that reads as authoritative.
+    const tied = totals.filter((row) => value(row) === value(best));
+    return tied.length > 1
+      ? `  ${label}: tied between ${tied.map((row) => row.name).join(" and ")} on ${format(best)}`
+      : `  ${label}: ${best.name} with ${format(best)}`;
+  };
+
+  if (totals.length > 0) {
+    lines.push("");
+    lines.push(
+      "Who led what tonight. These are the only superlatives you may use. Do not",
+      "call anything a high, a best, a most or a lead unless it appears here:",
+    );
+    lines.push(leaderOf("most frags", (p) => p.kills, (p) => `${p.kills}`));
+    lines.push(leaderOf("highest total score", (p) => p.score, (p) => `${p.score}`));
+    lines.push(leaderOf("most captures", (p) => p.caps, (p) => `${p.caps}`));
+    lines.push(leaderOf("longest streak", (p) => p.bestStreak, (p) => `${p.bestStreak}`));
+    lines.push(leaderOf("most deaths", (p) => p.deaths, (p) => `${p.deaths}`));
+    lines.push(leaderOf("most flag returns", (p) => p.returns, (p) => `${p.returns}`));
+    lines.push(
+      leaderOf(
+        "best accuracy",
+        (p) => (p.fired > 0 ? p.hit / p.fired : 0),
+        (p) => (p.fired > 0 ? `${((p.hit / p.fired) * 100).toFixed(1)}%` : "n/a"),
+      ),
+    );
+  }
+
   const first = rows[0]?.startedAt;
   const last = rows[rows.length - 1]?.endedAt ?? rows[rows.length - 1]?.startedAt;
   if (first && last) {
@@ -143,19 +257,36 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     lines.push(`The session ran about ${minutes} minutes from first to last match.`);
   }
 
-  return { archiveDay, matchCount: rows.length, prompt: lines.join("\n") };
+  return {
+    archiveDay,
+    matchCount: rows.length,
+    prompt: lines.join("\n"),
+    // Duplicate map names are kept out: a night that ran Huna twice is one
+    // visual hook, not two.
+    maps: [...new Set(rows.map((match) => match.mapName))],
+    redWins: rows.filter((match) => match.winner === "red").length,
+    blueWins: rows.filter((match) => match.winner === "blue").length,
+    matches: rows.map((match) => ({
+      sourceMatchId: match.sourceMatchId,
+      mapName: match.mapName,
+      redScore: match.redScore,
+      blueScore: match.blueScore,
+      winner: match.winner === "red" || match.winner === "blue" ? match.winner : null,
+      overtime: Boolean(match.overtime),
+      redPlayers: squads.get(match.id)?.red ?? 0,
+      bluePlayers: squads.get(match.id)?.blue ?? 0,
+      captures: (captureRows.get(match.id) ?? []).map((capture) => ({
+        team: capture.team as Team,
+        elapsedSeconds: capture.elapsedSeconds,
+      })),
+    })),
+  };
 }
 
 export type WrittenColumn = { headline: string; body: string };
 
-/** Writes the column, or returns null if generation is off or failed. */
-export async function writeNightColumn(
-  facts: NightFacts,
-): Promise<WrittenColumn | null> {
-  const text = await generate(SYSTEM, facts.prompt);
-  if (!text) return null;
-
-  // First line is the headline, the rest is the column.
+/** Splits the reply into a headline and a body, or null if it ignored the shape. */
+function parseColumn(text: string): WrittenColumn | null {
   const [first, ...rest] = text.split("\n");
   const headline = first.replace(/^#+\s*/, "").replace(/^["']|["'.]$/g, "").trim();
   const body = rest.join("\n").trim();
@@ -164,6 +295,54 @@ export async function writeNightColumn(
   if (!headline || headline.length > 120 || !body) return null;
 
   return { headline, body };
+}
+
+/**
+ * Writes the column, or returns null if generation is off or failed.
+ *
+ * Written, then checked against the same facts, then rewritten once if the check
+ * found anything. A column that is still wrong after the repair is discarded
+ * rather than published: the next sync tries again, and a night with no write-up
+ * is a page with one less article, while a night with a wrong write-up is a
+ * broken promise about what this archive is for.
+ */
+export async function writeNightColumn(
+  facts: NightFacts,
+): Promise<WrittenColumn | null> {
+  const text = await generate(SYSTEM, facts.prompt);
+  if (!text) return null;
+
+  const draft = parseColumn(text);
+  if (!draft) return null;
+
+  const check = await checkClaims(facts.prompt, `${draft.headline}\n\n${draft.body}`);
+  if (check.ok) return draft;
+
+  console.warn(
+    `[ai] column for ${facts.archiveDay} failed the fact check, rewriting: ` +
+      check.problems.map((p) => p.problem).join(" | ").slice(0, 300),
+  );
+
+  const repaired = await generate(
+    SYSTEM,
+    `${facts.prompt}\n\n${repairNote(check.problems)}`,
+  );
+  if (!repaired) return null;
+
+  const second = parseColumn(repaired);
+  if (!second) return null;
+
+  const recheck = await checkClaims(
+    facts.prompt,
+    `${second.headline}\n\n${second.body}`,
+  );
+  if (recheck.ok) return second;
+
+  console.warn(
+    `[ai] column for ${facts.archiveDay} still wrong after a rewrite, discarding: ` +
+      recheck.problems.map((p) => p.problem).join(" | ").slice(0, 300),
+  );
+  return null;
 }
 
 /** Exported for the column page, which shows the clock alongside captures. */

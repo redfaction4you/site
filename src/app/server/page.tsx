@@ -48,7 +48,7 @@ function clock(seconds: number): string {
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="font-display text-[10px] uppercase tracking-widest text-steel-500">
+      <dt className="font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
         {label}
       </dt>
       <dd className="mt-0.5 truncate text-sm text-steel-200">{children}</dd>
@@ -195,7 +195,7 @@ export default async function ServerPage() {
               {online.rules.map((rule) => (
                 <li
                   key={rule}
-                  className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-0.5 font-display text-[10px] uppercase tracking-wider text-steel-400"
+                  className="rounded-sm border border-basalt-700 bg-basalt-850 px-2 py-0.5 font-display text-[0.625rem] uppercase tracking-wider text-steel-400"
                 >
                   {rule}
                 </li>

@@ -116,7 +116,7 @@ export function MatchTimes({ startedAt }: { startedAt: string[] }) {
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-steel-600">
+      <div className="mt-1 flex justify-between text-[0.625rem] text-steel-600">
         <span>midnight</span>
         <span>midday</span>
         <span>midnight</span>

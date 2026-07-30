@@ -11,6 +11,7 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
+import { MIN_MEANINGFUL_CAPTURE_MS } from "@/lib/matches/queries";
 
 export type TickerItem = {
   /** Short label, shown in the accent colour. */
@@ -99,17 +100,8 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     });
   }
 
-  /**
-   * A floor, because the raw record is meaningless.
-   *
-   * The quickest capture on file is 184 milliseconds, which is not a fast flag
-   * run: it is someone touching a flag that was already sitting at the capture
-   * point. Headlining that as a record celebrates the tap-in, which is the
-   * exact contribution this archive otherwise takes care not to over-credit.
-   * Two seconds is the point below which the number stops describing a run.
-   */
-  const MIN_MEANINGFUL_CAPTURE_MS = 2000;
-
+  // The floor, shared with the stat boards so the two cannot disagree about the
+  // record. See MIN_MEANINGFUL_CAPTURE_MS for why a raw minimum is wrong.
   const quickest = best
     .filter((row) => (row.fastestCaptureMs ?? 0) >= MIN_MEANINGFUL_CAPTURE_MS)
     .reduce<(typeof best)[number] | null>(

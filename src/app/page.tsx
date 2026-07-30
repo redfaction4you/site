@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ColumnImage } from "@/components/column-image";
 import { dayLabel, matchTime } from "@/components/match-archive";
 import {
   archiveTotals,
@@ -115,15 +116,22 @@ export default async function HomePage() {
               </h2>
 
               {/*
-                No image here on purpose, for now.
-
-                This slot used to show whatever map the server happened to be
-                on, which meant the picture beside a fixed article changed every
-                few minutes. An illustration should belong to the piece it sits
-                with, or a reader cannot form a memory of it. A per-article
-                image, generated once when the report is written and stored with
-                it, is designed in docs/HANDOVER.md and belongs there instead.
+                The illustration belongs to this article rather than to the
+                moment. This slot used to show whatever map the server happened
+                to be on, which changed every few minutes, so the picture beside
+                a fixed piece of writing never stayed still long enough for a
+                reader to remember it. Now it is generated once from the finished
+                column and stored with it. Renders nothing when there is no
+                image, which is common.
               */}
+              <ColumnImage
+                imageKey={column.imageKey}
+                model={column.imageModel}
+                headline={column.headline}
+                priority
+                className="mt-4"
+              />
+
               <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
                 {paragraphs.map((paragraph, i) => (
                   <p key={i}>{paragraph}</p>
@@ -132,7 +140,7 @@ export default async function HomePage() {
 
               <Link
                 href={`/news/${column.archiveDay}`}
-                className="mt-3 inline-block font-display text-[11px] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                className="mt-3 inline-block font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
               >
                 Read the full report
               </Link>
@@ -155,12 +163,12 @@ export default async function HomePage() {
         <div className="min-w-0 space-y-6">
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
-              <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+              <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
                 Latest results
               </h2>
               <Link
                 href="/matches"
-                className="font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
               >
                 All
               </Link>
@@ -199,7 +207,7 @@ export default async function HomePage() {
                       <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
                         {match.mapName}
                       </span>
-                      <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                      <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
                         {matchTime(match.startedAt)}
                       </span>
                     </Link>
@@ -211,12 +219,12 @@ export default async function HomePage() {
 
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
-              <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+              <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
                 Most frags
               </h2>
               <Link
                 href="/players"
-                className="font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
               >
                 All
               </Link>
@@ -232,7 +240,7 @@ export default async function HomePage() {
                       href={`/players/${encodeURIComponent(player.name)}`}
                       className="group flex items-baseline gap-2.5 py-1.5"
                     >
-                      <span className="w-3 shrink-0 font-display text-[11px] tabular-nums text-steel-700">
+                      <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
                         {index + 1}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
@@ -241,7 +249,7 @@ export default async function HomePage() {
                       <span className="shrink-0 font-mono text-xs tabular-nums text-steel-200">
                         {player.kills}
                       </span>
-                      <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-steel-600">
+                      <span className="w-12 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
                         {player.caps} caps
                       </span>
                     </Link>
@@ -263,7 +271,7 @@ export default async function HomePage() {
           href={DISCORD_INVITE}
           target="_blank"
           rel="noreferrer noopener"
-          className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[11px] font-semibold uppercase tracking-widest text-steel-100 transition-colors hover:bg-rust-400"
+          className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-steel-100 transition-colors hover:bg-rust-400"
         >
           Join the Discord
         </a>

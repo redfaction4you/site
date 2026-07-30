@@ -122,7 +122,7 @@ export default function WhichClientGuide() {
                 </h3>
                 <span
                   className={
-                    "rounded-sm border px-2 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider " +
+                    "rounded-sm border px-2 py-0.5 font-display text-[0.6875rem] font-semibold uppercase tracking-wider " +
                     VERDICT_STYLE[client.verdict]
                   }
                 >

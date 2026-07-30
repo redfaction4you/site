@@ -68,7 +68,7 @@ export default async function PlayersPage() {
                       <th
                         key={h}
                         className={
-                          "px-3 py-2 font-display text-[11px] uppercase tracking-widest text-steel-500 " +
+                          "px-3 py-2 font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 " +
                           (i === 0 ? "text-left" : "text-right")
                         }
                       >

@@ -50,6 +50,7 @@ npm run db:generate  # drizzle-kit generate → ./drizzle/*.sql
 npm run db:migrate   # apply to Neon
 npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
 npm run db:studio
+npm run ai:quota     # what each Gemini key can do today; -- --images too
 ```
 
 ## Stack
@@ -78,6 +79,43 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   from `src/lib/auth.ts`; keep that guard.
 - **Neon connection strings**: pooled (`-pooler` in host) for the app, direct for
   migrations. Neon's pooler rejects the statements drizzle-kit issues.
+- **The free Gemini tier is twenty requests per day, per model, per project.**
+  Not per key: a second key in the same Google Cloud project shares the first
+  one's twenty. This is the binding constraint on everything in `src/lib/ai/`, and
+  when it runs out generation returns null and the missing text is retried on the
+  next sync. Capacity appears to free up on a rolling basis rather than at a fixed
+  daily boundary: two exhausted keys were serving again fifty minutes later, well
+  before midnight in any timezone. Do not rely on a reset time.
+  `npm run ai:quota` reports where each key stands right now, which is the only
+  reliable answer.
+- **A missing article is not necessarily quota.** Three separate bugs produced the
+  identical symptom, an article that simply never appears, and each was mistaken
+  for quota first:
+  - Gemini answers 503 "currently experiencing high demand" readily, and
+    `shouldTryNextKey` treating that as a malformed request cost a whole night's
+    column while the first key still had quota. 5xx now falls through.
+  - The text timeout was 30 seconds. The output budget covers the model's
+    thinking, so a column that reasons for twenty seconds before writing a word
+    times out. Now 60, against a route budget of 300.
+  - The vision timeout was 45 seconds against a payload that is the whole image,
+    a couple of megabytes and a third larger again as base64. Four of five keys
+    timed out on the first real check. Now 120. That gate fails closed, so a
+    timeout there silently rejects a perfectly good picture.
+
+  Read the status before assuming. `docs/HANDOVER.md` has the diagnosis.
+- **Local development shares the production database.** There is one Neon
+  instance. A row edited locally is edited on the live site, and the VPS syncs
+  every fifteen minutes, so production will happily act on it: marking a column
+  stale locally had the deployed code rewrite it first, with none of the fixes
+  that were being tested. Anything that touches `night_columns` or `matches` from
+  a local run is a production change.
+- **The models endpoint lists models the key cannot call.** Every image model is
+  listed and every one answers 429 with no free tier allocation. A 429 whose
+  detail carries no quota number means "not included", not "ran out".
+- **`DISCORD_NEWS_WEBHOOK` is unset everywhere**, local and production, so columns
+  are written and published on the site but announced nowhere. Once it is set,
+  calling `/api/rf4u/archive/rebuild` against a *local* server will post to the
+  real channel, because there is only one webhook. Blank it for that run.
 
 ## Compatibility detection (`src/lib/rfl/`)
 
@@ -151,6 +189,43 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 - **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
   to that evening even though it is the next day in UTC. Timestamps stay UTC;
   only the grouping is local.
+- **The nightly column carries a generated illustration, composed from reference
+  images** rather than imagined: a screenshot of the map that was actually played,
+  the actual player models in red and blue, and the real number of figures a side.
+  - **Almost nothing is a model's decision.** `match-pick.ts` reads which match was
+    the most interesting, which moment to depict, the squad sizes and whose flag was
+    moving straight off the record. A text model contributes one short mood phrase
+    and nothing else. The prompt is assembled by code in `image-prompt.ts`.
+  - **The style block describes treatment only, never a setting.** It once said
+    "industrial Mars mining colony", which is wrong: the screenshot is the location,
+    and most CTF maps are not Martian anyway. Ankh is an Egyptian tomb; only the
+    Warlords maps are mining bases. Anything about architecture or materials belongs
+    in the screenshot.
+  - **Prohibitions belong in the gate, not the prompt.** Listing "no text, no
+    signage, no numbers" put an illuminated sign reading 22 in the first image
+    generated. Diffusion models condition on the tokens they are given.
+  - **The vision gate fails closed.** No key, a timeout, an unparseable answer are
+    all rejections. An unchecked synthetic photograph must never reach a reader.
+  - **References are Gemini only, measured not assumed.** Cloudflare's FLUX.2
+    accepts a multipart upload, returns 200, and ignores it: a reference that was
+    20% vivid marker pixels produced outputs containing 0.00%. Cloudflare is used
+    only when there are no references.
+  - A map with no screenshots is skipped rather than invented. `MAP_ALIASES` in
+    `image-refs.ts` maps server map names onto folders; `npm run refs:push`
+    regenerates that file and syncs `assets/refs` to R2.
+  - `src/components/column-image.tsx` is the only thing that renders it and the
+    caption lives inside that component, so the picture cannot be shown unlabelled.
+    There is deliberately no OpenGraph image: a link preview is the one place the
+    label could not follow it.
+- **Generated writing is fact checked before it is stored.** `fact-check.ts` sends
+  every draft column and match report back with the facts and asks what the data
+  does not support; a failure is rewritten once, then discarded. It exists because a
+  column claimed a "session-high 19.2 percent accuracy" when another player shot
+  19.4, and omitted a player's capture while listing everyone else's. Superlatives
+  are now also computed in code and handed over, because reading down a table for
+  the largest number is what models get wrong. Unlike the image gate this **fails
+  open**: withholding every article whenever the checker is rate limited would be a
+  worse trade than a rare small error.
 - Stored in Postgres rather than the day-sized documents the handoff package
   used, because player statistics need to query across matches and a per-day
   document cannot answer that without reading all of them.

@@ -80,7 +80,7 @@ export default async function MatchDayPage({ params }: Props) {
           session it describes, not only on a separate news page. */}
       {column ? (
         <Link href={`/news/${day}`} className="panel group mt-6 block p-5">
-          <p className="font-display text-[10px] uppercase tracking-widest text-rust-500">
+          <p className="font-display text-[0.625rem] uppercase tracking-widest text-rust-500">
             The write-up
           </p>
           <h2 className="mt-1 font-display text-xl font-bold text-steel-100 transition-colors group-hover:text-rust-300">
@@ -109,7 +109,7 @@ export default async function MatchDayPage({ params }: Props) {
                   className="panel group flex h-full flex-col p-4"
                 >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-display text-[10px] uppercase tracking-widest text-rust-500">
+                    <span className="font-display text-[0.625rem] uppercase tracking-widest text-rust-500">
                       Match {match.number}
                     </span>
                     <span className="font-mono text-lg tabular-nums">

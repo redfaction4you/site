@@ -40,6 +40,9 @@ export const NAV: NavItem[] = [
   { href: "/news", label: "News" },
   { href: "/matches", label: "Matches" },
   { href: "/players", label: "Players" },
+  // Sits next to Players deliberately: that page is who has played, this one is
+  // what they are each good at.
+  { href: "/stats", label: "Stats" },
   { href: "/server", label: "Server" },
   { href: "/events", label: "Events" },
 ];

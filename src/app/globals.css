@@ -57,6 +57,21 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+
+    /*
+     * The density knob for the whole site, and the only one worth having.
+     *
+     * Every size here is in rem, including Tailwind's spacing scale, so this one
+     * number scales type, padding, margins and gaps together. Tightening the
+     * layout by editing individual classes means touching every component and
+     * getting the proportions subtly wrong; moving the root keeps the design and
+     * just fits more of it on a screen.
+     *
+     * 15px is 94% of the browser default. Below about 14 the body copy starts to
+     * cost people something to read, which is a bad trade on a page whose whole
+     * job is being read.
+     */
+    font-size: 15px;
   }
 
   body {

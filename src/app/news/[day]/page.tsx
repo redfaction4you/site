@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ColumnImage } from "@/components/column-image";
 import { dayLabel, matchTime } from "@/components/match-archive";
 import { getColumn, listMatchesForDay } from "@/lib/matches/queries";
 import { isValidDay } from "@/lib/matches/sanitize";
@@ -42,6 +43,14 @@ export default async function ColumnPage({ params }: Props) {
         {column.headline}
       </h1>
 
+      <ColumnImage
+        imageKey={column.imageKey}
+        model={column.imageModel}
+        headline={column.headline}
+        priority
+        className="mt-5"
+      />
+
       <div className="mt-6 space-y-4 text-base leading-relaxed text-steel-300">
         {column.body
           .split(/\n{2,}/)
@@ -52,7 +61,7 @@ export default async function ColumnPage({ params }: Props) {
           ))}
       </div>
 
-      <p className="mt-6 text-[11px] text-steel-600">
+      <p className="mt-6 text-[0.6875rem] text-steel-600">
         Written automatically from the match data
         {column.model ? ` by ${column.model}` : ""}. It can only use figures the server
         recorded.

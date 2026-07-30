@@ -25,7 +25,7 @@ export function Ticker({ items }: { items: TickerItem[] }) {
       >
         {items.map((item) => (
           <li key={`${item.label}-${item.text}`} className="shrink-0">
-            <Link href={item.href} className="group flex items-baseline gap-2 text-[11px]">
+            <Link href={item.href} className="group flex items-baseline gap-2 text-[0.6875rem]">
               <span className="font-display uppercase tracking-widest text-rust-500">
                 {item.label}
               </span>

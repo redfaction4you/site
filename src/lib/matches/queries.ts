@@ -318,6 +318,20 @@ export type PlayerTotals = {
   lastSeen: string | null;
 };
 
+/**
+ * Below this, a capture time stops describing a flag run.
+ *
+ * The quickest on file is 184 milliseconds: somebody touching a flag that was
+ * already at the capture point. Presenting that as a record celebrates the
+ * tap-in, which is the exact contribution this archive otherwise takes care not
+ * to over-credit. Two seconds is where the number starts meaning something.
+ *
+ * Lives here rather than in one of its callers because both the ticker and the
+ * stat boards need it and they must agree: two places on the site disagreeing
+ * about the record is worse than either answer alone.
+ */
+export const MIN_MEANINGFUL_CAPTURE_MS = 2000;
+
 const playerTotalColumns = {
   name: sql<string>`min(${matchPlayers.name})`,
   matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
@@ -332,9 +346,21 @@ const playerTotalColumns = {
   flagHoldMs: sql<number>`coalesce(sum(${matchPlayers.flagHoldMs}), 0)::int`,
   flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
   bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
-  fastestCaptureMs: sql<
-    number | null
-  >`min(nullif(${matchPlayers.fastestCaptureMs}, 0))::int`,
+  /**
+   * The quickest capture that was actually a run.
+   *
+   * Floored rather than simply non-zero. The quickest on file is 184
+   * milliseconds, which is not a fast flag run: it is somebody touching a flag
+   * already sitting on the capture point. Taking the raw minimum means a player
+   * with one tap-in and several genuinely quick runs is represented by the
+   * tap-in, which both flatters them and hides their real best.
+   *
+   * The same floor the ticker uses, and for the same reason. See
+   * `MIN_MEANINGFUL_CAPTURE_MS`.
+   */
+  fastestCaptureMs: sql<number | null>`min(${matchPlayers.fastestCaptureMs}) filter (
+    where ${matchPlayers.fastestCaptureMs} >= ${MIN_MEANINGFUL_CAPTURE_MS}
+  )::int`,
   soloCaps: sql<number>`coalesce(sum(${matchPlayers.soloCaps}), 0)::int`,
   relayCaps: sql<number>`coalesce(sum(${matchPlayers.relayCaps}), 0)::int`,
   leadCarries: sql<number>`coalesce(sum(${matchPlayers.leadCarries}), 0)::int`,
@@ -666,6 +692,8 @@ export const listColumns = cache(async function listColumns() {
       body: nightColumns.body,
       matchCount: nightColumns.matchCount,
       generatedAt: nightColumns.generatedAt,
+      imageKey: nightColumns.imageKey,
+      imageModel: nightColumns.imageModel,
     })
     .from(nightColumns)
     .orderBy(desc(nightColumns.archiveDay))
@@ -681,6 +709,10 @@ export const getColumn = cache(async function getColumn(archiveDay: string) {
       matchCount: nightColumns.matchCount,
       model: nightColumns.model,
       generatedAt: nightColumns.generatedAt,
+      imageKey: nightColumns.imageKey,
+      imageModel: nightColumns.imageModel,
+      // The prompt is stored but not selected. It is a maintenance record, not
+      // something a reader needs, and it would be a long string on every page.
     })
     .from(nightColumns)
     .where(eq(nightColumns.archiveDay, archiveDay))

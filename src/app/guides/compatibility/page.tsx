@@ -102,13 +102,13 @@ export default function CompatibilityGuide() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left">
-                <th className="px-3 py-3 font-display text-[11px] uppercase tracking-widest text-steel-500">
+                <th className="px-3 py-3 font-display text-[0.6875rem] uppercase tracking-widest text-steel-500">
                   Format version
                 </th>
                 {ALL_CLIENTS.map((client) => (
                   <th
                     key={client}
-                    className="px-3 py-3 text-center font-display text-[11px] uppercase tracking-widest text-steel-500"
+                    className="px-3 py-3 text-center font-display text-[0.6875rem] uppercase tracking-widest text-steel-500"
                   >
                     {CLIENT_LABELS[client]}
                   </th>

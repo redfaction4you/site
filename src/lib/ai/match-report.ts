@@ -18,6 +18,7 @@
  * Generated once and stored. It is not regenerated on every view: it would cost
  * money for no benefit and would say something slightly different each time.
  */
+import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
 import type { MatchDetail } from "@/lib/matches/queries";
 
@@ -172,10 +173,40 @@ function buildPrompt(match: MatchDetail): string {
   return lines.join("\n");
 }
 
-/** Returns the report, or null if generation is unconfigured or failed. */
+/**
+ * Returns the report, or null if generation is unconfigured or failed.
+ *
+ * Checked against the same facts before it is returned, and rewritten once if the
+ * check finds a claim the scoreboard does not support. Same reasoning as the
+ * nightly column: a report that states a number nobody scored is worse than a
+ * match page with no report on it. See `fact-check.ts` for what went wrong.
+ */
 export async function writeMatchReport(match: MatchDetail): Promise<string | null> {
   // Nothing to write about. A match with no scoreboard is not a story.
   if (match.players.length === 0) return null;
 
-  return generate(SYSTEM, buildPrompt(match));
+  const facts = buildPrompt(match);
+
+  const draft = await generate(SYSTEM, facts);
+  if (!draft) return null;
+
+  const check = await checkClaims(facts, draft);
+  if (check.ok) return draft;
+
+  console.warn(
+    `[ai] report for ${match.mapName} failed the fact check, rewriting: ` +
+      check.problems.map((p) => p.problem).join(" | ").slice(0, 240),
+  );
+
+  const repaired = await generate(SYSTEM, `${facts}\n\n${repairNote(check.problems)}`);
+  if (!repaired) return null;
+
+  const recheck = await checkClaims(facts, repaired);
+  if (recheck.ok) return repaired;
+
+  console.warn(
+    `[ai] report for ${match.mapName} still wrong after a rewrite, discarding: ` +
+      recheck.problems.map((p) => p.problem).join(" | ").slice(0, 240),
+  );
+  return null;
 }

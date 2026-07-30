@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ColumnImage } from "@/components/column-image";
 import { dayLabel, matchTime } from "@/components/match-archive";
 import { archiveTotals, listColumns, listMatchesForDay } from "@/lib/matches/queries";
 
@@ -74,6 +75,14 @@ export default async function NewsPage() {
             </Link>
           </h1>
 
+          <ColumnImage
+            imageKey={lead.imageKey}
+            model={lead.imageModel}
+            headline={lead.headline}
+            priority
+            className="mt-4"
+          />
+
           <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
             {paragraphs.slice(0, 3).map((paragraph, i) => (
               <p key={i}>{paragraph}</p>
@@ -83,7 +92,7 @@ export default async function NewsPage() {
           {paragraphs.length > 3 ? (
             <Link
               href={`/news/${lead.archiveDay}`}
-              className="mt-3 inline-block font-display text-[11px] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              className="mt-3 inline-block font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
             >
               Read the rest
             </Link>
@@ -92,7 +101,7 @@ export default async function NewsPage() {
 
         {/* The scores it is describing, so the claims sit next to the record. */}
         <aside className="min-w-0">
-          <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+          <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
             That night
           </h2>
           <ul>
@@ -102,7 +111,7 @@ export default async function NewsPage() {
                   href={`/matches/${lead.archiveDay}/${match.sourceMatchId}`}
                   className="group flex items-center gap-3 py-1.5"
                 >
-                  <span className="w-4 shrink-0 font-display text-[11px] tabular-nums text-steel-700">
+                  <span className="w-4 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
                     {match.number}
                   </span>
                   <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">
@@ -125,7 +134,7 @@ export default async function NewsPage() {
                   <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
                     {match.mapName}
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                  <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
                     {matchTime(match.startedAt)}
                   </span>
                 </Link>
@@ -135,7 +144,7 @@ export default async function NewsPage() {
 
           <Link
             href={`/matches/${lead.archiveDay}`}
-            className="mt-2 inline-block font-display text-[10px] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+            className="mt-2 inline-block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
           >
             The full night
           </Link>
@@ -144,7 +153,7 @@ export default async function NewsPage() {
 
       {earlier.length ? (
         <section className="border-t border-basalt-800 pt-5">
-          <h2 className="font-display text-[11px] font-bold uppercase tracking-widest text-steel-400">
+          <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
             Earlier reports
           </h2>
           <ul className="mt-2">
@@ -154,13 +163,13 @@ export default async function NewsPage() {
                   href={`/news/${entry.archiveDay}`}
                   className="group flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2"
                 >
-                  <span className="w-36 shrink-0 font-mono text-[11px] text-steel-600">
+                  <span className="w-36 shrink-0 font-mono text-[0.6875rem] text-steel-600">
                     {dayLabel(entry.archiveDay)}
                   </span>
                   <span className="min-w-0 flex-1 text-sm text-steel-200 group-hover:text-rust-300">
                     {entry.headline}
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] text-steel-600">
+                  <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
                     {entry.matchCount} {entry.matchCount === 1 ? "match" : "matches"}
                   </span>
                 </Link>

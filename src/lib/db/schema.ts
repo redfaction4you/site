@@ -597,6 +597,22 @@ export const nightColumns = pgTable(
       .defaultNow()
       .notNull(),
 
+    /**
+     * The illustration, generated once from the finished column.
+     *
+     * An R2 key rather than a URL, for the same reason files are: the public
+     * URL is a function of the key, so the bucket can move without rewriting
+     * rows. Null is normal and means no picture was made, which is what happens
+     * whenever generation is unconfigured, out of quota, or simply failed.
+     *
+     * The prompt is kept because it is the only record of why a given picture
+     * exists. Without it a regeneration is a guess and an odd image is
+     * undiagnosable.
+     */
+    imageKey: text("image_key"),
+    imagePrompt: text("image_prompt"),
+    imageModel: text("image_model"),
+
     /** Set once it has been announced, so it is never posted twice. */
     postedAt: timestamp("posted_at", { withTimezone: true }),
   },

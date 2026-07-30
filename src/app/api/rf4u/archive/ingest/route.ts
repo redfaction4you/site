@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       captures: result.capturesWritten,
       reports,
       columns: night.columns,
+      images: night.images,
       announced: night.posted,
     });
   } catch (error) {
