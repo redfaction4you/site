@@ -600,6 +600,26 @@ export const getMatchStartTimes = cache(async function getMatchStartTimes(
     .filter((value): value is string => Boolean(value));
 });
 
+/** The most recently played matches, across nights. For the front page. */
+export const recentMatches = cache(async function recentMatches(limit = 5) {
+  return db
+    .select({
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      mode: matches.mode,
+      startedAt: matches.startedAt,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      winner: matches.winner,
+      overtime: matches.overtime,
+    })
+    .from(matches)
+    .where(eq(matches.status, "final"))
+    .orderBy(desc(matches.startedAt))
+    .limit(limit);
+});
+
 /** Headline figures for one night, for the session page. */
 export const nightTotals = cache(async function nightTotals(archiveDay: string) {
   const [row] = await db
