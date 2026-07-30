@@ -16,6 +16,8 @@ import { timingSafeEqual } from "node:crypto";
 import { backfillReports } from "@/lib/ai/backfill";
 import { runNightJobs } from "@/lib/ai/night-runner";
 import { storeDay } from "@/lib/matches/ingest";
+import { nightForVetting } from "@/lib/matches/queries";
+import { summarise, vetNight } from "@/lib/matches/vet";
 import { sanitizeDay } from "@/lib/matches/sanitize";
 
 export const runtime = "nodejs";
@@ -80,6 +82,31 @@ export async function POST(request: Request) {
       console.warn("[archive-ingest] report backfill threw:", error);
     }
 
+    /*
+     * Vet what just landed, before anything is written from it.
+     *
+     * Deliberately before the writing jobs rather than after. Everything wrong
+     * that has been found on this site was found by somebody reading a finished
+     * page, which catches one thing and leaves the next to luck. The archive
+     * holds most facts twice over, so a disagreement between the scoreboard and
+     * the event log can be reported without knowing which is right.
+     *
+     * Never throws and never rejects the day. A flawed record of an evening is
+     * worth more than no record, and an ingest that a surprising number can break
+     * is a worse problem than the number.
+     */
+    let vetted = "not run";
+    try {
+      const anomalies = vetNight(result.archiveDay, await nightForVetting(result.archiveDay));
+      vetted = summarise(anomalies);
+      for (const anomaly of anomalies) {
+        const how = anomaly.severity === "error" ? console.error : console.warn;
+        how(`[vet] ${anomaly.check}: ${anomaly.detail}`);
+      }
+    } catch (error) {
+      console.warn("[vet] threw, continuing:", error);
+    }
+
     // Writes the nightly column once a night has gone quiet, and announces any
     // column that has not been posted yet. Both already swallow their failures.
     const night = await runNightJobs();
@@ -90,6 +117,7 @@ export async function POST(request: Request) {
       matches: result.matchesWritten,
       players: result.playersWritten,
       captures: result.capturesWritten,
+      vetted,
       reports,
       columns: night.columns,
       images: night.images,

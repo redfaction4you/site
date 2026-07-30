@@ -20,6 +20,7 @@ import {
 } from "@/lib/db/schema";
 import { type PickableMatch, pickMatch } from "@/lib/ai/match-pick";
 import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
+import type { VettableMatch } from "@/lib/matches/vet";
 
 export type DaySummary = {
   archiveDay: string;
@@ -947,4 +948,69 @@ export const otherColumns = cache(async function otherColumns(
     .where(ne(nightColumns.archiveDay, archiveDay))
     .orderBy(desc(nightColumns.archiveDay))
     .limit(limit);
+});
+
+/**
+ * Everything the ingest vet needs for one night, in one read.
+ *
+ * Separate from `getMatch` because that returns a whole match for a page and
+ * this wants a narrow slice of every match at once. Names its columns, and does
+ * not name `identity_key`.
+ */
+export const nightForVetting = cache(async function nightForVetting(
+  archiveDay: string,
+): Promise<VettableMatch[]> {
+  const rows = await db
+    .select({
+      id: matches.id,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      winner: matches.winner,
+    })
+    .from(matches)
+    .where(and(eq(matches.archiveDay, archiveDay), eq(matches.status, "final")))
+    .orderBy(asc(matches.startedAt));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((row) => row.id);
+
+  const players = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      name: matchPlayers.name,
+      team: matchPlayers.team,
+      spectator: matchPlayers.spectator,
+      kills: matchPlayers.kills,
+      deaths: matchPlayers.deaths,
+      caps: matchPlayers.caps,
+      shotsHit: matchPlayers.shotsHit,
+      shotsFired: matchPlayers.shotsFired,
+      fastestCaptureMs: matchPlayers.fastestCaptureMs,
+      soloCaps: matchPlayers.soloCaps,
+      relayCaps: matchPlayers.relayCaps,
+    })
+    .from(matchPlayers)
+    .where(inArray(matchPlayers.matchId, ids));
+
+  const captures = await db
+    .select({
+      matchId: matchCaptures.matchId,
+      team: matchCaptures.team,
+      playerName: matchCaptures.playerName,
+    })
+    .from(matchCaptures)
+    .where(inArray(matchCaptures.matchId, ids));
+
+  return rows.map((row) => ({
+    sourceMatchId: row.sourceMatchId,
+    mapName: row.mapName,
+    redScore: row.redScore,
+    blueScore: row.blueScore,
+    winner: row.winner,
+    players: players.filter((p) => p.matchId === row.id),
+    captures: captures.filter((c) => c.matchId === row.id),
+  }));
 });

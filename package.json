@@ -22,7 +22,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "refs:push": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-push.mjs",
-    "refs:label": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-label.mjs"
+    "refs:label": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-label.mjs",
+    "vet": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-archive.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.10.0",

@@ -45,6 +45,11 @@ Hard rules:
   exception, however the name reads to you. Never write he, she, his or her
   about a player.
 - Refer to players exactly by the names given, including odd capitalisation.
+- Write about people, not colours. Red and blue are shirt colours that get
+  reshuffled between matches, so "red pushed hard" says almost nothing while
+  "Romek and ED ASSMASTER pushed hard" says who did it. Name the players who did
+  a thing wherever the data lets you, and check the "who the sides were" list
+  before calling either colour a team at all.
 - Do not use em dashes.
 - No headings, no bullet points, no markdown. Plain paragraphs.
 - Four to six paragraphs. Stop when you have said what there is to say.
@@ -142,17 +147,31 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
       matchId: matchPlayers.matchId,
       team: matchPlayers.team,
       count: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+      names: sql<string[]>`array_agg(distinct ${matchPlayers.name} order by ${matchPlayers.name})`,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
     .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
     .groupBy(matchPlayers.matchId, matchPlayers.team);
 
-  const squads = new Map<string, { red: number; blue: number }>();
+  const squads = new Map<
+    string,
+    { red: number; blue: number; redNames: string[]; blueNames: string[] }
+  >();
   for (const row of squadRows) {
-    const entry = squads.get(row.matchId) ?? { red: 0, blue: 0 };
-    if (row.team === "red") entry.red = row.count;
-    else if (row.team === "blue") entry.blue = row.count;
+    const entry = squads.get(row.matchId) ?? {
+      red: 0,
+      blue: 0,
+      redNames: [],
+      blueNames: [],
+    };
+    if (row.team === "red") {
+      entry.red = row.count;
+      entry.redNames = row.names ?? [];
+    } else if (row.team === "blue") {
+      entry.blue = row.count;
+      entry.blueNames = row.names ?? [];
+    }
     squads.set(row.matchId, entry);
   }
 
@@ -188,11 +207,58 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
         ` ${(match.kills as unknown[]).length} frags in the match.`,
     );
     // The per match report, where one exists, carries the narrative detail.
+    // Who was actually on each side. Red and blue are shirt colours here, not
+    // teams, and the line-ups say so match by match.
+    const squad = squads.get(match.id);
+    if (squad) {
+      lines.push(
+        `  Red: ${squad.redNames.join(", ") || "nobody recorded"}. ` +
+          `Blue: ${squad.blueNames.join(", ") || "nobody recorded"}.`,
+      );
+    }
     if (match.report) {
       lines.push(`  What happened: ${match.report.replace(/\s+/g, " ").trim()}`);
     }
     lines.push("");
   }
+
+  /*
+   * Whether each side stayed the same, which changes what can honestly be said.
+   *
+   * Players mix around between matches, and the two sides do not necessarily mix
+   * to the same degree. On one night red was the same pair from first match to
+   * last while blue rotated through three different pairings, so "red set the
+   * pace" was fair and "blue found their footing" described a group that never
+   * existed. An all or nothing flag would have lost that, so each side is
+   * reported separately and by name.
+   */
+  const rosterOf = (names: string[]) =>
+    [...names].map((name) => name.toLowerCase()).sort().join("|");
+
+  const squadList = rows
+    .map((match) => squads.get(match.id))
+    .filter((squad): squad is NonNullable<typeof squad> => Boolean(squad));
+
+  const redStable = new Set(squadList.map((s) => rosterOf(s.redNames))).size === 1;
+  const blueStable = new Set(squadList.map((s) => rosterOf(s.blueNames))).size === 1;
+
+  lines.push("");
+  lines.push("Who the sides were:");
+
+  for (const [colour, stable, names] of [
+    ["Red", redStable, squadList[0]?.redNames ?? []],
+    ["Blue", blueStable, squadList[0]?.blueNames ?? []],
+  ] as const) {
+    lines.push(
+      stable
+        ? `  ${colour} was the same players in every match: ${names.join(", ")}. ` +
+            `You may talk about ${colour.toLowerCase()} as a team.`
+        : `  ${colour} was not the same players from match to match. Do not talk ` +
+            `about ${colour.toLowerCase()} as a team with a run of form, and do not ` +
+            `total up its wins as though one group won them. Name the people instead.`,
+    );
+  }
+  lines.push("");
 
   lines.push("Player totals across the whole night:");
   for (const p of totals) {
