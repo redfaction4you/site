@@ -18,6 +18,7 @@ import {
   nightColumns,
   playerProfiles,
 } from "@/lib/db/schema";
+import { type PickableMatch, pickMatch } from "@/lib/ai/match-pick";
 import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
 
 export type DaySummary = {
@@ -731,4 +732,106 @@ export const archiveTotals = cache(async function archiveTotals() {
     .from(matches);
 
   return row ?? { matchCount: 0, dayCount: 0 };
+});
+
+/**
+ * The match of the night: the one worth reading about on its own.
+ *
+ * A night is several matches and the column covers all of them at a level that
+ * suits none in particular. One game is usually the one people would actually
+ * talk about, and it already has a written report, so surfacing it costs a query
+ * and no generation at all.
+ *
+ * Uses the same `matchInterest` the illustration uses to choose its subject, and
+ * that sharing is the point: the picture and the featured match agreeing is the
+ * difference between a front page that looks composed and one that looks like two
+ * systems ran independently.
+ */
+export const matchOfTheNight = cache(async function matchOfTheNight(
+  archiveDay: string,
+): Promise<(MatchSummary & { report: string | null }) | null> {
+  const rows = await db
+    .select({
+      id: matches.id,
+      sourceMatchId: matches.sourceMatchId,
+      server: matches.server,
+      status: matches.status,
+      mapName: matches.mapName,
+      mode: matches.mode,
+      startedAt: matches.startedAt,
+      endedAt: matches.endedAt,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      overtime: matches.overtime,
+      winner: matches.winner,
+      report: matches.report,
+    })
+    .from(matches)
+    .where(and(eq(matches.archiveDay, archiveDay), eq(matches.status, "final")))
+    .orderBy(asc(matches.startedAt), asc(matches.sourceMatchId));
+
+  if (rows.length === 0) return null;
+
+  const ids = rows.map((row) => row.id);
+
+  const squads = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      team: matchPlayers.team,
+      count: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+    })
+    .from(matchPlayers)
+    .where(and(inArray(matchPlayers.matchId, ids), eq(matchPlayers.spectator, false)))
+    .groupBy(matchPlayers.matchId, matchPlayers.team);
+
+  const captureCounts = await db
+    .select({
+      matchId: matchCaptures.matchId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(matchCaptures)
+    .where(inArray(matchCaptures.matchId, ids))
+    .groupBy(matchCaptures.matchId);
+
+  const bySquad = new Map<string, { red: number; blue: number }>();
+  for (const row of squads) {
+    const entry = bySquad.get(row.matchId) ?? { red: 0, blue: 0 };
+    if (row.team === "red") entry.red = row.count;
+    else if (row.team === "blue") entry.blue = row.count;
+    bySquad.set(row.matchId, entry);
+  }
+
+  const byCaptures = new Map(captureCounts.map((row) => [row.matchId, row.count]));
+
+  const pickable: PickableMatch[] = rows.map((row) => ({
+    sourceMatchId: row.sourceMatchId,
+    mapName: row.mapName,
+    redScore: row.redScore,
+    blueScore: row.blueScore,
+    winner: row.winner === "red" || row.winner === "blue" ? row.winner : null,
+    overtime: Boolean(row.overtime),
+    redPlayers: bySquad.get(row.id)?.red ?? 0,
+    bluePlayers: bySquad.get(row.id)?.blue ?? 0,
+    // Only the count matters to the score, so the entries are placeholders
+    // rather than a third query for data nothing here reads.
+    captures: Array.from({ length: byCaptures.get(row.id) ?? 0 }, () => ({
+      team: "red" as const,
+      elapsedSeconds: 0,
+    })),
+  }));
+
+  const chosen = pickMatch(pickable);
+  if (!chosen) return null;
+
+  const row = rows.find((candidate) => candidate.sourceMatchId === chosen.sourceMatchId);
+  if (!row) return null;
+
+  const squad = bySquad.get(row.id) ?? { red: 0, blue: 0 };
+
+  return {
+    ...row,
+    // Position in the night, so the article can say which game it was.
+    number: rows.findIndex((candidate) => candidate.id === row.id) + 1,
+    playerCount: squad.red + squad.blue,
+  };
 });

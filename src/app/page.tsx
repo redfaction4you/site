@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
+import { MatchOfTheNight } from "@/components/match-of-the-night";
 import { dayLabel, matchTime } from "@/components/match-archive";
 import {
   archiveTotals,
   latestDay,
   listColumns,
   listPlayers,
+  matchOfTheNight,
   recentMatches,
 } from "@/lib/matches/queries";
 import { Ticker } from "@/components/ticker";
@@ -39,6 +41,10 @@ export default async function HomePage() {
   const online = status.state === "online" ? status : null;
   const busy = online && online.players > 0;
   const column = columns[0] ?? null;
+
+  // The featured match belongs to the night the column is about, so it is only
+  // fetched once there is a column to hang it beside.
+  const featured = column ? await matchOfTheNight(column.archiveDay) : null;
 
   // Three paragraphs is most of a column and still fits beside the rail.
   const paragraphs = column
@@ -161,6 +167,12 @@ export default async function HomePage() {
 
         {/* --- The rail --- */}
         <div className="min-w-0 space-y-6">
+          {/* Above the results list deliberately: it is the one result worth
+              reading rather than one of several worth scanning. */}
+          {column && featured ? (
+            <MatchOfTheNight match={featured} archiveDay={column.archiveDay} />
+          ) : null}
+
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
               <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
