@@ -112,6 +112,16 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
 - **The models endpoint lists models the key cannot call.** Every image model is
   listed and every one answers 429 with no free tier allocation. A 429 whose
   detail carries no quota number means "not included", not "ran out".
+- **Vercel environment variables need a fresh build, not a redeploy.** Adding a
+  variable and hitting redeploy reuses the previous build and the function keeps
+  the old environment. `vercel --prod` builds again and picks it up. Half an hour
+  went into diagnosing an image pipeline that was correct and simply had no key.
+  `vercel env ls production` is the fast way to see what production actually has,
+  and `.env.local` is not it: the two stores are unrelated.
+- **Never run `npm run build` while `next dev` is running.** The build overwrites
+  `.next` underneath the dev server and it starts answering 500 with
+  `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or
+  delete `.next` afterwards and restart it.
 - **`DISCORD_NEWS_WEBHOOK` is unset everywhere**, local and production, so columns
   are written and published on the site but announced nowhere. Once it is set,
   calling `/api/rf4u/archive/rebuild` against a *local* server will post to the
