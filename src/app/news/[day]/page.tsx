@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 
 import { ColumnImage } from "@/components/column-image";
 import { MatchFootageList } from "@/components/match-footage";
+import { OrionPiece } from "@/components/orion-piece";
 import { footageForNight } from "@/lib/match-videos";
 import { dayLabel } from "@/components/match-archive";
 import { NightMatches } from "@/components/night-matches";
 import {
   adjacentColumns,
   getColumn,
+  getOpinion,
   listMatchesForDay,
   nightScoreboard,
   otherColumns,
@@ -35,12 +37,13 @@ export default async function ColumnPage({ params }: Props) {
   const { day } = await params;
   if (!isValidDay(day)) notFound();
 
-  const [column, matches, scoreboard, adjacent, others] = await Promise.all([
+  const [column, matches, scoreboard, adjacent, others, opinion] = await Promise.all([
     getColumn(day),
     listMatchesForDay(day),
     nightScoreboard(day),
     adjacentColumns(day),
     otherColumns(day),
+    getOpinion(day),
   ]);
   if (!column) notFound();
 
@@ -133,6 +136,15 @@ export default async function ColumnPage({ params }: Props) {
             ) : null}
           </nav>
         ) : null}
+        {/*
+          Orion, under the report and visually apart from it.
+
+          The column above reports and is fact checked against the night. This
+          has a view, which cannot be checked the same way, so the two must not
+          read as one continuous piece.
+        */}
+        <OrionPiece piece={opinion} className="mt-10" />
+
         {/* Anything anybody filmed of this night, under the writing about it. */}
         <MatchFootageList
           footage={footageForNight(day)}

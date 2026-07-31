@@ -638,6 +638,44 @@ export const nightColumns = pgTable(
 );
 
 /**
+ * Orion: one opinion piece per night, about who plays with whom.
+ *
+ * Its own table rather than more columns on `night_columns`, because it is a
+ * different kind of writing with a different guard. The column reports and is
+ * fact checked against the night; Orion has a view, and a view cannot be fact
+ * checked the way a report can. Keeping them apart means a page can never
+ * accidentally present one as the other.
+ *
+ * Keyed by the night it follows. A night gets at most one, and it is rewritten
+ * only if it was never written, since an opinion does not go stale the way a
+ * summary of an unfinished evening does.
+ */
+export const opinionPieces = pgTable(
+  "opinion_pieces",
+  {
+    archiveDay: date("archive_day").primaryKey(),
+
+    headline: text("headline").notNull(),
+    body: text("body").notNull(),
+
+    /**
+     * Matches on record when this was written.
+     *
+     * Not a staleness check, unlike the one on `night_columns`. It is here so a
+     * reader can see how much the archive held when the opinion was formed,
+     * which is the main thing that qualifies it.
+     */
+    matchCount: integer("match_count").notNull(),
+
+    model: text("model"),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (piece) => [index("opinion_pieces_generated_idx").on(piece.generatedAt)],
+);
+
+/**
  * A short written profile per player.
  *
  * The numbers say what somebody did. A profile says what they are like to play

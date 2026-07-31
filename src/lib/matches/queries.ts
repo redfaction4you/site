@@ -16,6 +16,7 @@ import {
   matchPlayers,
   matches,
   nightColumns,
+  opinionPieces,
   playerProfiles,
 } from "@/lib/db/schema";
 import { type PickableMatch, pickMatch } from "@/lib/ai/match-pick";
@@ -510,6 +511,30 @@ export const getPlayer = cache(async function getPlayer(
     // disagreed about the same person.
     .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART))
     .groupBy(sql`lower(${matchPlayers.name})`)
+    .limit(1);
+
+  return row ?? null;
+});
+
+/**
+ * Orion's opinion piece for a night, if one was written.
+ *
+ * Deliberately a separate read from `getColumn`. The two are different kinds of
+ * writing with different guards, and a caller that fetched them together would
+ * be one refactor away from rendering them in the same box.
+ */
+export const getOpinion = cache(async function getOpinion(archiveDay: string) {
+  const [row] = await db
+    .select({
+      archiveDay: opinionPieces.archiveDay,
+      headline: opinionPieces.headline,
+      body: opinionPieces.body,
+      matchCount: opinionPieces.matchCount,
+      model: opinionPieces.model,
+      generatedAt: opinionPieces.generatedAt,
+    })
+    .from(opinionPieces)
+    .where(eq(opinionPieces.archiveDay, archiveDay))
     .limit(1);
 
   return row ?? null;

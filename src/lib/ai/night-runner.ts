@@ -15,12 +15,19 @@
 import { desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matchPlayers, matches, nightColumns, playerProfiles } from "@/lib/db/schema";
+import {
+  matchPlayers,
+  matches,
+  nightColumns,
+  opinionPieces,
+  playerProfiles,
+} from "@/lib/db/schema";
 import { TOOK_PART } from "@/lib/matches/queries";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
 import { buildNightFacts, writeNightColumn } from "./night-column";
+import { buildOrionFacts, writeOrion } from "./orion";
 import { makeColumnImage } from "./night-image";
 import {
   MIN_MATCHES_FOR_PROFILE,
@@ -379,16 +386,66 @@ export async function backfillProfiles(): Promise<number> {
 }
 
 /** Guard used by the ingest route so a missing table cannot break a sync. */
+/**
+ * Writes Orion's opinion piece for any night that has a column and no piece.
+ *
+ * Runs last on purpose. It is the one thing here that is decoration rather than
+ * record, so it should only ever spend quota the reports, the column, the
+ * picture and the profiles did not want. A night without one is a night where
+ * something more important used the allowance, which is the right trade.
+ *
+ * Never rewrites. An opinion does not go stale the way a summary of a
+ * half-finished evening does, and rewriting one would mean the piece a reader
+ * saw yesterday is not the piece they find today.
+ */
+async function backfillOpinions(): Promise<number> {
+  const nights = await db
+    .select({ archiveDay: nightColumns.archiveDay })
+    .from(nightColumns)
+    .leftJoin(opinionPieces, eq(opinionPieces.archiveDay, nightColumns.archiveDay))
+    .where(isNull(opinionPieces.archiveDay))
+    .orderBy(desc(nightColumns.archiveDay))
+    .limit(1);
+
+  if (nights.length === 0) return 0;
+
+  let written = 0;
+  for (const night of nights) {
+    const facts = await buildOrionFacts(night.archiveDay);
+    if (!facts) continue;
+
+    const piece = await writeOrion(facts);
+    if (!piece) continue;
+
+    await db
+      .insert(opinionPieces)
+      .values({
+        archiveDay: night.archiveDay,
+        headline: piece.headline,
+        body: piece.body,
+        matchCount: facts.matchCount,
+        model: activeModel(),
+      })
+      .onConflictDoNothing();
+
+    written++;
+  }
+
+  return written;
+}
+
 export async function runNightJobs(): Promise<{
   columns: number;
   images: number;
   posted: number;
   profiles: number;
+  opinions: number;
 }> {
   let columns = 0;
   let images = 0;
   let posted = 0;
   let profiles = 0;
+  let opinions = 0;
 
   try {
     columns = await backfillColumns();
@@ -416,7 +473,14 @@ export async function runNightJobs(): Promise<{
     console.warn("[ai] profile backfill threw:", error);
   }
 
-  return { columns, images, posted, profiles };
+  // Last, so it only ever uses quota nothing else wanted.
+  try {
+    opinions = await backfillOpinions();
+  } catch (error) {
+    console.warn("[ai] opinion backfill threw:", error);
+  }
+
+  return { columns, images, posted, profiles, opinions };
 }
 
 /** Re-exported so callers do not need to know where the constant lives. */
