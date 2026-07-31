@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { auth, discordConfigured } from "@/lib/auth";
 import { VISIBLE_NAV } from "@/lib/nav";
@@ -50,6 +51,7 @@ export async function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          <ThemeToggle />
           <UserMenu session={session} />
         </div>
       </div>

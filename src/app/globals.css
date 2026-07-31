@@ -35,10 +35,81 @@
   --color-steel-300: #b9b6ad;
   --color-steel-400: #8b887f;
   --color-steel-500: #6f6d66;
+  /*
+   * These two were used 74 times across the components and never defined, so
+   * Tailwind generated no utility for them and every `text-steel-600` simply
+   * inherited whatever colour its parent had. Every footnote and caption meant
+   * to recede was quietly rendering at full strength.
+   */
+  --color-steel-600: #6a6760;
+  --color-steel-700: #64615a;
 
   --color-signal-green: #57b36a;
 
   --radius-panel: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   Light mode.
+
+   Not a second set of class names: the same tokens, given different values. Every
+   `bg-basalt-850` and `text-steel-300` in the codebase compiles to
+   `var(--color-basalt-850)`, so redefining the variables here flips the whole
+   site without touching one of the 763 colour classes across 37 components.
+
+   The scales keep their DIRECTION rather than their meaning. In dark mode
+   `basalt-950` is the deepest background and `steel-100` the brightest text; in
+   light mode `basalt-950` is the palest paper and `steel-100` the darkest ink.
+   So "a lower basalt number is a raised surface" and "a higher steel number is
+   quieter text" stay true in both, which is the only property the components
+   actually rely on.
+
+   That does make the token names even more historical than they already were.
+   `basalt` meaning white is odd, and it is still cheaper than renaming 763
+   usages to find out.
+
+   Red and gold barely move. They are the brand, and a red that reads on black
+   only needs darkening enough to hold contrast on white.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  /* Surfaces, palest first, matching how the dark scale runs deepest first. */
+  --color-basalt-950: #f4f2ee;
+  --color-basalt-900: #eceae5;
+  --color-basalt-850: #ffffff;
+  --color-basalt-800: #dedbd3;
+  --color-basalt-700: #cfccc3;
+  --color-basalt-600: #bcb8ad;
+  --color-basalt-500: #a9a498;
+
+  /* Ink, darkest first. */
+  --color-steel-100: #16161a;
+  --color-steel-200: #26262c;
+  --color-steel-300: #3d3d45;
+  --color-steel-400: #55545c;
+  /*
+   * The quiet end compresses rather than continuing to fade. On paper there is
+   * a floor below which small grey text stops being readable, and captions at
+   * 0.625rem are exactly the text that cannot afford to sit under it. Measured:
+   * the first attempt put these at 2.98:1 and 2.21:1 against the page, well
+   * under the 4.5:1 body text needs.
+   */
+  --color-steel-500: #5c5b63;
+  --color-steel-600: #66656d;
+  --color-steel-700: #6f6e76;
+
+  /* Darkened just enough to hold their contrast against paper. */
+  --color-rust-200: #7d1a10;
+  --color-rust-300: #a3200f;
+  --color-rust-400: #c22a17;
+  --color-rust-500: #c0271a;
+  --color-rust-600: #9d2013;
+  --color-rust-700: #d8bdb6;
+
+  --color-oxide-300: #7a5c12;
+  --color-oxide-400: #8a6a18;
+  --color-oxide-500: #a07d22;
+
+  --color-signal-green: #2f7a42;
 }
 
 /* Bind the next/font variables into Tailwind's font scale.
@@ -77,15 +148,26 @@
   body {
     color: var(--color-steel-200);
     background-color: var(--color-basalt-950);
+    /* The red wash at the top of the page. Set as a variable so light mode can
+       soften it: at full strength on paper it reads as a printing fault. */
     background-image:
-      radial-gradient(
-        900px 420px at 50% -80px,
-        rgba(224, 48, 30, 0.1),
-        transparent 65%
-      ),
+      radial-gradient(900px 420px at 50% -80px, var(--rf-wash), transparent 65%),
       linear-gradient(var(--color-basalt-900), var(--color-basalt-950));
     background-repeat: no-repeat;
     background-attachment: fixed;
+  }
+
+  :root {
+    --rf-wash: rgba(224, 48, 30, 0.1);
+    /* The dark half of the hazard stripe. Near black on dark, ink on paper. */
+    --rf-hazard-dark: #141414;
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] {
+    --rf-wash: rgba(224, 48, 30, 0.05);
+    --rf-hazard-dark: #2a2724;
+    color-scheme: light;
   }
 
   h1,
@@ -139,7 +221,7 @@
     background: repeating-linear-gradient(
       -45deg,
       var(--color-rust-500) 0 14px,
-      #141414 14px 28px
+      var(--rf-hazard-dark) 14px 28px
     );
   }
 }

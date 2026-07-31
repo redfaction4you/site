@@ -56,15 +56,37 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0c0c10",
-  colorScheme: "dark",
+  // Both, so the browser chrome follows whichever theme is in use rather than
+  // framing a light page in a dark bar.
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c10" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f2ee" },
+  ],
+  colorScheme: "dark light",
 };
+
+/**
+ * Applies the stored theme before the first paint.
+ *
+ * Has to be inline and blocking. Doing it in a component means React runs after
+ * the browser has already painted, so anyone who chose light mode would watch
+ * the site load dark and then flip, on every single navigation. Small enough to
+ * cost nothing, and it fails silently to dark, which is the default anyway.
+ */
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("rf4u-theme");if(!t){t=window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}})()`;
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${chakra.variable} ${blackOps.variable}`}>
+    <html
+      lang="en"
+      className={`${chakra.variable} ${blackOps.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-dvh flex-col font-sans antialiased">
         <a
           href="#main"
