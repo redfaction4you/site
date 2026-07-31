@@ -93,6 +93,12 @@ export const MATCH_VIDEOS: MatchVideo[] = [
     covers: [{ archiveDay: "2026-07-30", sourceMatchId: 15 }],
   },
   {
+    youtubeId: "2JiRI6hVgGo",
+    perspective: "player",
+    recordedBy: "Romek",
+    covers: [{ archiveDay: "2026-07-29", sourceMatchId: 6 }],
+  },
+  {
     youtubeId: "f2ZZT_ZbHOY",
     perspective: "player",
     recordedBy: "Romek",
