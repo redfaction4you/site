@@ -6,7 +6,7 @@
  * apart and the drift shows up as a missing picture weeks later.
  *
  * The images themselves are not in the repo; this is the record of what they are.
- * Set fingerprint ba9af99f16da.
+ * Set fingerprint 19c5a957a7fb.
  *
  * `MAP_ALIASES` is the one part worth editing by hand: it maps the map names the
  * server actually reports onto the folders here, so variants that share their
@@ -117,18 +117,26 @@ export const MAP_SHOTS: Record<string, MapShot[]> = {
     { area: "blue-flagroom", key: "refs/maps/dark-warlords/blue-flagroom-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/dark-warlords/red-flagroom-01.jpg" },
     { area: "mid-alt", key: "refs/maps/dark-warlords/mid-alt-01.jpg" },
+    { area: "overview", key: "refs/maps/dark-warlords/overview-01.jpg" },
   ],
   "huna-b8": [
+    { area: "overview", key: "refs/maps/huna-b8/overview-01.jpg" },
     { area: "blue-flagroom", key: "refs/maps/huna-b8/blue-flagroom-01.jpg" },
     { area: "mid", key: "refs/maps/huna-b8/mid-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/huna-b8/red-flagroom-01.jpg" },
   ],
+  "rail-fight": [
+    { area: "blue-flagroom", key: "refs/maps/rail-fight/blue-flagroom-01.jpg" },
+    { area: "red-flagroom", key: "refs/maps/rail-fight/red-flagroom-01.jpg" },
+  ],
   "relic-seeker": [
+    { area: "overview", key: "refs/maps/relic-seeker/overview-01.jpg" },
     { area: "blue-flagroom", key: "refs/maps/relic-seeker/blue-flagroom-01.jpg" },
     { area: "mid", key: "refs/maps/relic-seeker/mid-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/relic-seeker/red-flagroom-01.jpg" },
   ],
   "warlords-pro": [
+    { area: "overview", key: "refs/maps/warlords-pro/overview-01.jpg" },
     { area: "blue-flagroom", key: "refs/maps/warlords-pro/blue-flagroom-01.jpg" },
     { area: "mid", key: "refs/maps/warlords-pro/mid-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/warlords-pro/red-flagroom-01.jpg" },
@@ -148,6 +156,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "relic seeker": "relic-seeker",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",
+  "rail fight": "rail-fight",
 };
 
 /** Looks up a map's screenshots by the name the server reported. */

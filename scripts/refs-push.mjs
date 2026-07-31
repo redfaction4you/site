@@ -404,6 +404,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "relic seeker": "relic-seeker",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",
+  "rail fight": "rail-fight",
 };
 
 /** Looks up a map's screenshots by the name the server reported. */
