@@ -370,33 +370,19 @@ export type PlayerTotals = {
   lastSeen: string | null;
 };
 
-/**
- * A backstop, not the rule. See below for the rule.
+/*
+ * `MIN_MEANINGFUL_CAPTURE_MS` and `UNRELAYED` lived here and are gone.
  *
- * Kept only to catch a nonsense value from some future bug. Real filtering is
- * done on whether the capture was a relay, which is a fact rather than a guess
- * at one.
+ * Both were attempts to rescue the server's `fastest_capture_ms`, a scalar per
+ * player per match that could not be tied to a capture. A two second floor was
+ * the first try and was guessing at the wrong thing; requiring `relay_caps = 0`
+ * was better and still let a 2.7 second capture lead the board, because that
+ * player really did have one unrelayed capture and the number simply was not the
+ * length of a run.
+ *
+ * Neither is needed now the figure is measured rather than reported. See
+ * `fastest_solo_capture_ms` in schema.ts.
  */
-export const MIN_MEANINGFUL_CAPTURE_MS = 2000;
-
-/**
- * Why a fastest capture only counts when nothing was relayed.
- *
- * `fastest_capture_ms` is how long **that player** held the flag, not how long
- * the flag took to get home. On a relay the last carrier takes a hand-off beside
- * their own stand and steps onto it, so the number they get is the length of the
- * final pace or two. Every impossible value on record is one of these: 184ms,
- * 201ms, 384ms, 653ms and 2203ms, all of them relay captures, against a fastest
- * unrelayed run of eleven seconds.
- *
- * A time floor was the first attempt and it was guessing at the wrong thing. Two
- * seconds let 2.2 through, and any floor high enough to exclude it would be a
- * number picked to fit the data rather than derived from what the data means.
- * Requiring `relay_caps = 0` is the actual distinction: it restricts the stat to
- * players who carried the whole way in that match, which is the only case where
- * their possession time and the flag's journey are the same thing.
- */
-const UNRELAYED = sql`${matchPlayers.relayCaps} = 0`;
 
 /**
  * Matches whose shooting counters agree with themselves.
@@ -405,7 +391,7 @@ const UNRELAYED = sql`${matchPlayers.relayCaps} = 0`;
  * ten. Summing those into a career total is worse than showing one bad match,
  * because it silently corrupts a figure that looks fine: a player with one rail
  * match and thirty sound ones ends up with an accuracy nobody can trace back to
- * anything. Totalled here from the sound matches only, and the count of what was
+ * anything. Totalled from the sound matches only, and the count of what was
  * left out is returned alongside so a page can say so rather than quietly
  * showing less than it claims.
  *
@@ -431,15 +417,20 @@ const playerTotalColumns = {
   flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
   bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
   /**
-   * The quickest capture that was actually a run they made themselves.
+   * The quickest flag journey they completed alone.
    *
-   * Unrelayed only. See `UNRELAYED`: a relay hands the flag over beside the
-   * stand, so the last carrier's time is the length of a step and not of a run.
+   * Measured rather than reported. See the column comment on
+   * `fastest_solo_capture_ms`: the server's own figure could not be tied to a
+   * capture, so what it measured was uncheckable, and filtering it on
+   * `relay_caps = 0` still left a 2.7 second capture leading the board. This is
+   * the flag's journey from its stand to being touched down, on drives one
+   * person carried the whole way, which is the only case where that time belongs
+   * to anybody.
+   *
+   * No floor and no `UNRELAYED` filter, because neither is needed once the
+   * number means what it says.
    */
-  fastestCaptureMs: sql<number | null>`min(${matchPlayers.fastestCaptureMs}) filter (
-    where ${matchPlayers.fastestCaptureMs} >= ${MIN_MEANINGFUL_CAPTURE_MS}
-      and ${UNRELAYED}
-  )::int`,
+  fastestCaptureMs: sql<number | null>`min(${matchPlayers.fastestSoloCaptureMs})::int`,
   soloCaps: sql<number>`coalesce(sum(${matchPlayers.soloCaps}), 0)::int`,
   relayCaps: sql<number>`coalesce(sum(${matchPlayers.relayCaps}), 0)::int`,
   leadCarries: sql<number>`coalesce(sum(${matchPlayers.leadCarries}), 0)::int`,

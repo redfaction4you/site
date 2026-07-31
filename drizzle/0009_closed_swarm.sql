@@ -1,0 +1,1 @@
+ALTER TABLE "match_players" ADD COLUMN "fastest_solo_capture_ms" integer;

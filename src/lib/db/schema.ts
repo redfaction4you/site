@@ -505,6 +505,24 @@ export const matchPlayers = pgTable(
       .default([])
       .notNull(),
 
+    /**
+     * The quickest flag journey this player completed alone, stand to capture.
+     *
+     * Distinct from `fastest_capture_ms` above, which is the server's own figure
+     * and is kept because it is what arrived. That one is a scalar per player
+     * per match with no link to a particular capture, so what it measured could
+     * never be checked, and it put a 2.7 second capture at the top of a board.
+     *
+     * This is computed at ingest by `drives.ts` from the flag event log: the
+     * time from the flag leaving its stand to being touched down, on drives one
+     * person carried the whole way. Those are the only captures where the flag's
+     * journey and a player's possession are the same thing.
+     *
+     * Null where no solo capture was made, or where the log lost the pickup and
+     * the journey cannot be measured.
+     */
+    fastestSoloCaptureMs: integer("fastest_solo_capture_ms"),
+
     soloCaps: integer("solo_caps").default(0).notNull(),
     relayCaps: integer("relay_caps").default(0).notNull(),
     leadCarries: integer("lead_carries").default(0).notNull(),

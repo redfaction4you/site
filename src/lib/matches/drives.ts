@@ -252,6 +252,23 @@ export type DriveCredit = {
   leadCarries: number;
   /** Total time carrying on drives that ended in a capture. */
   winningCarryMs: number;
+  /**
+   * The quickest flag journey this player completed alone, or null.
+   *
+   * The replacement for the server's `fastest_capture_ms`, which could not be
+   * used honestly. That field is one scalar per player per match with no link to
+   * any particular capture, so there was no way to check what it had measured,
+   * and it produced a board led by a 2.7 second capture. Filtering on
+   * `relay_caps = 0` removed most of the impossible values and could not remove
+   * that one, because the player genuinely had a single unrelayed capture: the
+   * number simply was not the length of a run.
+   *
+   * This is the flag's own journey, stand to capture, on drives one person
+   * carried the whole way. Those are the only captures where the flag's time and
+   * a player's time are the same thing, which is the entire reason the stat can
+   * be attributed to anybody.
+   */
+  fastestSoloCaptureMs: number | null;
 };
 
 /** Per player credit for a match, keyed by lowercased name. */
@@ -262,7 +279,13 @@ export function creditDrives(drives: Drive[]): Map<string, DriveCredit> {
     const key = name.toLocaleLowerCase("en-US");
     const found = credit.get(key);
     if (found) return found;
-    const fresh = { soloCaps: 0, relayCaps: 0, leadCarries: 0, winningCarryMs: 0 };
+    const fresh = {
+      soloCaps: 0,
+      relayCaps: 0,
+      leadCarries: 0,
+      winningCarryMs: 0,
+      fastestSoloCaptureMs: null as number | null,
+    };
     credit.set(key, fresh);
     return fresh;
   };
@@ -270,8 +293,16 @@ export function creditDrives(drives: Drive[]): Map<string, DriveCredit> {
   for (const drive of drives) {
     if (drive.capper) {
       const capper = entry(drive.capper);
-      if (drive.solo) capper.soloCaps++;
-      else capper.relayCaps++;
+      if (drive.solo) {
+        capper.soloCaps++;
+        // A journey of zero means the log lost the pickup, not an instant run.
+        if (drive.journeyMs > 0) {
+          capper.fastestSoloCaptureMs =
+            capper.fastestSoloCaptureMs === null
+              ? drive.journeyMs
+              : Math.min(capper.fastestSoloCaptureMs, drive.journeyMs);
+        }
+      } else capper.relayCaps++;
     }
 
     // Lead carrier only counts when somebody else finished it. On a solo cap

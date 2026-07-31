@@ -317,3 +317,98 @@ test("carry times are whole milliseconds, because the column is an integer", () 
     }
   }
 });
+
+/* --- the flag's journey, which is the only measurable capture time --------- */
+
+/*
+ * The board led with a 2.7 second capture. The server's `fastest_capture_ms` is
+ * one scalar per player per match with no link to a particular capture, so what
+ * it measured could never be checked, and filtering on `relay_caps = 0` could
+ * not save it: that player really did have a single unrelayed capture.
+ *
+ * What is measurable is the flag's own journey, from leaving its stand to being
+ * touched down, on drives one person carried the whole way. A return resets a
+ * drive, which is what guarantees it starts from home.
+ */
+
+test("a solo drive measures from the stand to the capture", () => {
+  const drives = reconstructDrives(
+    [pickup(10, "Skuldug", "blue")],
+    [capture(40, "red", "Skuldug")],
+  );
+
+  assert.equal(drives[0].journeyMs, 30_000);
+  assert.equal(creditDrives(drives).get("skuldug").fastestSoloCaptureMs, 30_000);
+});
+
+test("the journey includes time the flag spent on the floor", () => {
+  // One carrier, dropped and retaken by the same player. Their possession is
+  // twenty seconds; the flag took forty to get home, and the flag is the thing
+  // being timed.
+  const drives = reconstructDrives(
+    [
+      pickup(10, "Skuldug", "blue"),
+      drop(20, "Skuldug", "blue", 10_000),
+      pickup(40, "Skuldug", "blue"),
+    ],
+    [capture(50, "red", "Skuldug")],
+  );
+
+  assert.equal(drives[0].solo, true);
+  assert.equal(drives[0].journeyMs, 40_000);
+});
+
+test("a relay credits nobody a solo time", () => {
+  const drives = reconstructDrives(
+    [
+      pickup(10, "Romek", "blue"),
+      drop(30, "Romek", "blue", 20_000),
+      pickup(31, "SiD", "blue"),
+    ],
+    [capture(35, "red", "SiD")],
+  );
+
+  assert.equal(drives[0].solo, false);
+  const credit = creditDrives(drives);
+  assert.equal(credit.get("sid").fastestSoloCaptureMs, null);
+  assert.equal(credit.get("romek").fastestSoloCaptureMs, null);
+});
+
+test("a return resets the journey, so the next run starts from the stand", () => {
+  // The failure this guards: without the reset a capture would be timed from a
+  // pickup that happened before the flag went home, inflating the journey.
+  const drives = reconstructDrives(
+    [
+      pickup(10, "Skuldug", "blue"),
+      drop(20, "Skuldug", "blue", 10_000),
+      returned(25, "blue"),
+      pickup(100, "Skuldug", "blue"),
+    ],
+    [capture(112, "red", "Skuldug")],
+  );
+
+  assert.equal(drives.length, 1);
+  assert.equal(drives[0].journeyMs, 12_000);
+});
+
+test("the fastest of several solo runs is the one kept", () => {
+  const drives = reconstructDrives(
+    [
+      pickup(10, "Skuldug", "blue"),
+      returned(60, "blue"),
+      pickup(100, "Skuldug", "blue"),
+    ],
+    [capture(50, "red", "Skuldug"), capture(115, "red", "Skuldug")],
+  );
+
+  assert.equal(creditDrives(drives).get("skuldug").fastestSoloCaptureMs, 15_000);
+});
+
+test("a lost pickup yields no time rather than an instant capture", () => {
+  // The capper is added to a drive even when the log missed their pickup, which
+  // would otherwise read as a zero second run and top the board forever.
+  const drives = reconstructDrives([], [capture(30, "red", "SiD")]);
+
+  assert.equal(drives[0].journeyMs, 0);
+  assert.equal(creditDrives(drives).get("sid").fastestSoloCaptureMs, null);
+});

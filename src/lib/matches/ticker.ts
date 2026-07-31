@@ -11,7 +11,7 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
-import { MIN_MEANINGFUL_CAPTURE_MS, TOOK_PART } from "@/lib/matches/queries";
+import { TOOK_PART } from "@/lib/matches/queries";
 
 export type TickerItem = {
   /** Short label, shown in the accent colour. */
@@ -42,8 +42,7 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
       maxStreak: matchPlayers.maxStreak,
       accuracy: matchPlayers.accuracy,
       shotsFired: matchPlayers.shotsFired,
-      fastestCaptureMs: matchPlayers.fastestCaptureMs,
-      relayCaps: matchPlayers.relayCaps,
+      fastestCaptureMs: matchPlayers.fastestSoloCaptureMs,
       leadCarries: matchPlayers.leadCarries,
       archiveDay: matches.archiveDay,
       sourceMatchId: matches.sourceMatchId,
@@ -102,16 +101,16 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
   }
 
   /*
-   * Unrelayed runs only, matching the stat boards so the two cannot disagree
-   * about the record.
+   * The measured flag journey, matching the stat boards so the two cannot
+   * disagree about the record.
    *
-   * A relay hands the flag over next to the stand, so the last carrier's time is
-   * a pace or two rather than a run. Every impossible figure on record is one of
-   * those. The floor is only a backstop now.
+   * No filters left to apply. This reads `fastest_solo_capture_ms`, which is
+   * only ever set for a drive one person carried from the stand, so the
+   * unrelayed test and the time floor that used to guard the server's own figure
+   * are both answered by the column itself.
    */
   const quickest = best
-    .filter((row) => row.relayCaps === 0)
-    .filter((row) => (row.fastestCaptureMs ?? 0) >= MIN_MEANINGFUL_CAPTURE_MS)
+    .filter((row) => (row.fastestCaptureMs ?? 0) > 0)
     .reduce<(typeof best)[number] | null>(
       (a, b) => (!a || (b.fastestCaptureMs ?? 0) < (a.fastestCaptureMs ?? 0) ? b : a),
       null,

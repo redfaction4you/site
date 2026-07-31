@@ -114,6 +114,7 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
             relayCaps: 0,
             leadCarries: 0,
             winningCarryMs: 0,
+            fastestSoloCaptureMs: null,
           }),
         })),
       );
