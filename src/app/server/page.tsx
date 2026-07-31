@@ -4,7 +4,14 @@ import Link from "next/link";
 
 import { dayLabel } from "@/components/match-archive";
 import { MatchTimes } from "@/components/match-times";
-import { archiveTotals, getMatchStartTimes, latestDay } from "@/lib/matches/queries";
+import {
+  archiveTotals,
+  getMatchStartTimes,
+  latestDay,
+  mapRotation,
+  nightShape,
+  serverRecords,
+} from "@/lib/matches/queries";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { getServerStatus, type ServerStatus } from "@/lib/server-status";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
@@ -117,13 +124,19 @@ function StatusBadge({ status }: { status: ServerStatus }) {
 }
 
 export default async function ServerPage() {
-  const [totals, latest, status, startTimes, lastSync] = await Promise.all([
-    archiveTotals(),
-    latestDay(),
-    getServerStatus(),
-    getMatchStartTimes(),
-    lastSyncAt(),
-  ]);
+  const [totals, latest, status, startTimes, lastSync, rotation, shape, records] =
+    await Promise.all([
+      archiveTotals(),
+      latestDay(),
+      getServerStatus(),
+      getMatchStartTimes(),
+      lastSyncAt(),
+      mapRotation(),
+      nightShape(),
+      serverRecords(),
+    ]);
+
+  const mostPlayed = rotation[0]?.played ?? 0;
 
   const syncMinutesAgo = lastSync
     ? Math.round((Date.now() - lastSync.getTime()) / 60_000)
@@ -294,6 +307,151 @@ export default async function ServerPage() {
             </a>
           </div>
         </div>
+      </div>
+
+      {/*
+        What actually happens here, which the page never said.
+
+        It described the server as a machine: an address, a slot count and a
+        client version. Whether it is worth turning up to went unanswered, and
+        the archive already knows. Everything below counts something recorded.
+      */}
+      {rotation.length > 0 ? (
+        <section className="mt-10">
+          <h2 className="rule-heading">What gets played</h2>
+          <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-steel-500">
+            Every map in the archive, most played first. Deliberately no win rate
+            per map: across {totals.matchCount} matches that would be noise dressed
+            up as a spawn advantage.
+          </p>
+
+          <ul className="mt-4 space-y-1.5">
+            {rotation.map((row) => (
+              <li key={row.mapName} className="flex items-center gap-3">
+                <span className="w-40 shrink-0 truncate text-sm text-steel-200 sm:w-48">
+                  {row.mapName}
+                </span>
+                {/* A bar, because seven counts in a column is a table nobody
+                    reads and a shape anybody takes in at a glance. */}
+                <span className="h-2.5 min-w-0 flex-1 rounded-sm bg-basalt-800">
+                  <span
+                    className="block h-full rounded-sm bg-rust-500/70"
+                    style={{
+                      width: `${mostPlayed > 0 ? (row.played / mostPlayed) * 100 : 0}%`,
+                    }}
+                  />
+                </span>
+                <span className="w-20 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                  {row.played}
+                </span>
+                <span className="hidden w-14 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600 sm:block">
+                  {row.overtimes > 0 ? `${row.overtimes} OT` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <div className="mt-8 grid gap-4 md:grid-cols-2">
+        {shape.nights > 0 ? (
+          <section className="plate p-5">
+            <h2 className="rule-heading">A normal night</h2>
+            {/*
+              A range rather than an average. Three nights is not enough for a
+              mean to mean anything, and "4.7 matches" would imply a precision
+              that is not there.
+            */}
+            <dl className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <dt className="figure-label">Matches</dt>
+                <dd className="figure-value mt-0.5 font-mono text-xl">
+                  {shape.minMatches === shape.maxMatches
+                    ? shape.minMatches
+                    : `${shape.minMatches}–${shape.maxMatches}`}
+                </dd>
+              </div>
+              <div>
+                <dt className="figure-label">Players</dt>
+                <dd className="figure-value mt-0.5 font-mono text-xl">
+                  {shape.minPlayers === shape.maxPlayers
+                    ? shape.minPlayers
+                    : `${shape.minPlayers}–${shape.maxPlayers}`}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-xs leading-relaxed text-steel-500">
+              Across {shape.nights} {shape.nights === 1 ? "night" : "nights"} on
+              record. A range rather than an average, because that is what this
+              much data supports.
+            </p>
+          </section>
+        ) : null}
+
+        {records.mostCaps || records.bestStreak || records.biggestWin ? (
+          <section className="plate p-5">
+            <h2 className="rule-heading">Records</h2>
+            {/*
+              Single match superlatives only. The most captures anybody managed in
+              one match is a fact about one match however few there are; anything
+              averaged over this many would not be.
+            */}
+            <dl className="mt-3 space-y-2 text-sm">
+              {records.mostCaps && records.mostCaps.caps > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Most caps, one match</dt>
+                  <dd className="min-w-0 truncate text-right text-steel-300">
+                    <span className="font-mono tabular-nums text-steel-100">
+                      {records.mostCaps.caps}
+                    </span>{" "}
+                    {records.mostCaps.name}{" "}
+                    <Link
+                      href={`/matches/${records.mostCaps.archiveDay}/${records.mostCaps.sourceMatchId}`}
+                      className="text-steel-500 hover:text-rust-300"
+                    >
+                      {records.mostCaps.mapName}
+                    </Link>
+                  </dd>
+                </div>
+              ) : null}
+              {records.bestStreak && records.bestStreak.streak > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Longest streak</dt>
+                  <dd className="min-w-0 truncate text-right text-steel-300">
+                    <span className="font-mono tabular-nums text-steel-100">
+                      {records.bestStreak.streak}
+                    </span>{" "}
+                    {records.bestStreak.name}{" "}
+                    <Link
+                      href={`/matches/${records.bestStreak.archiveDay}/${records.bestStreak.sourceMatchId}`}
+                      className="text-steel-500 hover:text-rust-300"
+                    >
+                      {records.bestStreak.mapName}
+                    </Link>
+                  </dd>
+                </div>
+              ) : null}
+              {records.biggestWin ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Widest margin</dt>
+                  <dd className="min-w-0 truncate text-right text-steel-300">
+                    <span className="font-mono tabular-nums text-steel-100">
+                      {records.biggestWin.redScore}
+                      {"–"}
+                      {records.biggestWin.blueScore}
+                    </span>{" "}
+                    <Link
+                      href={`/matches/${records.biggestWin.archiveDay}/${records.biggestWin.sourceMatchId}`}
+                      className="text-steel-500 hover:text-rust-300"
+                    >
+                      {records.biggestWin.mapName}
+                    </Link>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+        ) : null}
       </div>
     </div>
   );

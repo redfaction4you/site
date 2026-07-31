@@ -854,6 +854,120 @@ export const getColumn = cache(async function getColumn(archiveDay: string) {
   return row ?? null;
 });
 
+/**
+ * What actually gets played here, and how often.
+ *
+ * The server page said what the server is and nothing about what happens on it.
+ * Every figure below is a count of something recorded, not an inference: with
+ * fourteen matches on record a per-map win rate would be noise dressed as a
+ * spawn advantage, so this reports how often a map comes up and when it was last
+ * seen, and stops there.
+ */
+export const mapRotation = cache(async function mapRotation() {
+  return db
+    .select({
+      mapName: matches.mapName,
+      played: sql<number>`count(*)::int`,
+      lastPlayed: sql<string>`max(${matches.archiveDay})::text`,
+      overtimes: sql<number>`count(*) filter (where ${matches.overtime})::int`,
+    })
+    .from(matches)
+    .where(eq(matches.status, "final"))
+    .groupBy(matches.mapName)
+    .orderBy(sql`count(*) desc`, matches.mapName);
+});
+
+/**
+ * The shape of a normal night, as a range rather than an average.
+ *
+ * Three nights is not enough for a mean to mean anything, and "4.7 matches"
+ * would imply a precision that is not there. A range is what the record
+ * actually supports and is what somebody deciding whether to turn up wants.
+ */
+export const nightShape = cache(async function nightShape() {
+  // Counted per night and reduced here rather than in a subquery. `TOOK_PART`
+  // renders the real table name, so wrapping it in an aliased subselect
+  // silently stops matching. Three nights is nothing to reduce in memory.
+  const rows = await db
+    .select({
+      archiveDay: matches.archiveDay,
+      matchCount: sql<number>`count(distinct ${matches.id})::int`,
+      playerCount: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+    })
+    .from(matches)
+    .innerJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
+    .where(and(eq(matches.status, "final"), TOOK_PART))
+    .groupBy(matches.archiveDay);
+
+  if (rows.length === 0) {
+    return { nights: 0, minMatches: 0, maxMatches: 0, minPlayers: 0, maxPlayers: 0 };
+  }
+
+  const matchCounts = rows.map((row) => row.matchCount);
+  const playerCounts = rows.map((row) => row.playerCount);
+
+  return {
+    nights: rows.length,
+    minMatches: Math.min(...matchCounts),
+    maxMatches: Math.max(...matchCounts),
+    minPlayers: Math.min(...playerCounts),
+    maxPlayers: Math.max(...playerCounts),
+  };
+});
+
+/**
+ * Single match superlatives.
+ *
+ * Safe at this sample size in a way that rates are not: "the most captures
+ * anybody has managed in one match" is a fact about one match however few there
+ * are, where "this map favours red" needs dozens.
+ */
+export const serverRecords = cache(async function serverRecords() {
+  const [biggestWin] = await db
+    .select({
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      margin: sql<number>`abs(${matches.redScore} - ${matches.blueScore})::int`,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+    })
+    .from(matches)
+    .where(eq(matches.status, "final"))
+    .orderBy(sql`abs(${matches.redScore} - ${matches.blueScore}) desc`)
+    .limit(1);
+
+  const [mostCaps] = await db
+    .select({
+      name: matchPlayers.name,
+      caps: matchPlayers.caps,
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(TOOK_PART)
+    .orderBy(desc(matchPlayers.caps))
+    .limit(1);
+
+  const [bestStreak] = await db
+    .select({
+      name: matchPlayers.name,
+      streak: matchPlayers.maxStreak,
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(TOOK_PART)
+    .orderBy(desc(matchPlayers.maxStreak))
+    .limit(1);
+
+  return { biggestWin: biggestWin ?? null, mostCaps: mostCaps ?? null, bestStreak: bestStreak ?? null };
+});
+
 /** Totals for the front page and the archive header. */
 export const archiveTotals = cache(async function archiveTotals() {
   const [row] = await db
