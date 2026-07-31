@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ColumnImage } from "@/components/column-image";
+import { MatchFootageList } from "@/components/match-footage";
+import { footageForNight } from "@/lib/match-videos";
 import { dayLabel } from "@/components/match-archive";
 import { NightMatches } from "@/components/night-matches";
 import {
@@ -131,6 +133,12 @@ export default async function ColumnPage({ params }: Props) {
             ) : null}
           </nav>
         ) : null}
+        {/* Anything anybody filmed of this night, under the writing about it. */}
+        <MatchFootageList
+          footage={footageForNight(day)}
+          heading="Footage from this night"
+          className="mt-10 border-t border-basalt-800 pt-6"
+        />
       </article>
 
       {/* The record, beside the claims rather than a scroll below them. */}

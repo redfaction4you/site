@@ -15,6 +15,8 @@ import {
   shootingIsSound,
 } from "@/lib/matches/accuracy";
 import { tookPart } from "@/lib/matches/participation";
+import { MatchFootageList } from "@/components/match-footage";
+import { footageForMatch } from "@/lib/match-videos";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -500,6 +502,13 @@ export function MatchDetailView({
           </p>
         </div>
       ) : null}
+
+      {/* Footage of this match, where somebody recorded it. */}
+      <MatchFootageList
+        footage={footageForMatch(match.archiveDay, match.sourceMatchId)}
+        heading="Watch this match"
+        className="mt-6"
+      />
 
       {/* Summary as a single line of figures. */}
       <div className="panel mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 p-4 text-sm">
