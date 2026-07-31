@@ -51,19 +51,17 @@ export type RankablePlayer = {
  * shape of the other. Twelve boards in one flat grid weighted accuracy the same
  * as fastest capture and left a reader to work out which were even comparable.
  */
-export const BOARD_GROUPS = ["fighting", "flag", "shooting"] as const;
+export const BOARD_GROUPS = ["fighting", "flag"] as const;
 export type BoardGroup = (typeof BOARD_GROUPS)[number];
 
 export const BOARD_GROUP_LABEL: Record<BoardGroup, string> = {
   fighting: "Fighting",
   flag: "The flag",
-  shooting: "Shooting",
 };
 
 export const BOARD_GROUP_BLURB: Record<BoardGroup, string> = {
-  fighting: "Frags, and what they cost.",
+  fighting: "Frags, accuracy, and what they cost.",
   flag: "The objective, which is the only thing that wins a match.",
-  shooting: "How much of what they fire actually lands.",
 };
 
 export type Board = {
@@ -142,7 +140,7 @@ export const BOARDS: Board[] = [
   },
   {
     key: "accuracy",
-    group: "shooting",
+    group: "fighting",
     label: "Accuracy",
     blurb: "Shots that hit, as a share of shots fired.",
     // Withheld rather than clamped when the counters contradict each other. A

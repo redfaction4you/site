@@ -87,83 +87,69 @@ export default async function StatsPage() {
         </p>
       ) : (
         <>
-          <p className="max-w-2xl py-4 text-sm leading-relaxed text-steel-400">
-            Every statistic ranked on its own. Being good at this game is not one
-            thing, and somebody who never tops the frag count can still be the
-            person you want carrying the flag.
-          </p>
-
           {/*
-            Said plainly rather than left for a reader to work out.
+            One line rather than two paragraphs.
 
-            People play different numbers of matches, so a total is partly a
-            measure of who turned up. The per match boards exist for exactly that
-            reason and a reader deserves to be told which is which.
+            The page opened with a hundred pixels of explanation before a single
+            number, and the second paragraph made a point the per match boards
+            already make by existing and being labelled as such.
           */}
-          <p className="max-w-2xl pb-4 text-xs leading-relaxed text-steel-600">
-            Totals reward playing often as well as playing well, because not
-            everyone plays the same number of matches. The per match and per death
-            boards do not.
+          <p className="max-w-3xl py-3 text-sm leading-relaxed text-steel-400">
+            Every statistic ranked on its own, because being good at this game is
+            not one thing. Totals reward playing often as well as playing well;
+            the per match and per death boards do not.
           </p>
 
-          <div className="space-y-10 pb-6">
+          <div className="space-y-7 pb-6">
             {groups.map(({ group, boards: inGroup }) => (
               <section key={group}>
-                <h2 className="rule-heading">{BOARD_GROUP_LABEL[group]}</h2>
-                <p className="mt-1.5 text-xs text-steel-500">
-                  {BOARD_GROUP_BLURB[group]}
-                </p>
+                <h2 className="rule-heading" title={BOARD_GROUP_BLURB[group]}>
+                  {BOARD_GROUP_LABEL[group]}
+                </h2>
 
-                <div className="mt-4 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-3 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                   {inGroup.map(({ board, entries }) => (
 
               <section key={board.key} className="min-w-0">
-                <h3 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-300">
+                {/* The blurb moves onto the heading. It explained each board in
+                    a line nobody rereads, and twelve of them was a screen. */}
+                <h3
+                  title={board.blurb}
+                  className="border-b border-basalt-700 pb-1 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-300"
+                >
                   {board.label}
                 </h3>
-                <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
-                  {board.blurb}
-                </p>
 
-                <ol className="mt-1.5">
+                <ol className="mt-1">
                   {entries.slice(0, SHOWN).map((entry) => (
-                    <li
-                      key={entry.player.name}
-                      className="border-b border-basalt-900"
-                    >
+                    <li key={entry.player.name}>
                       <Link
                         href={`/players/${encodeURIComponent(entry.player.name)}`}
-                        className="group block py-1.5"
+                        className="group relative flex items-baseline gap-2.5 overflow-hidden px-1 py-1"
                       >
-                        <span className="flex items-baseline gap-2.5">
-                          <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
-                            {/* A tie repeats the rank rather than inventing an order. */}
-                            {entry.tied ? "" : entry.rank}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
-                            {entry.player.name}
-                          </span>
-                          <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
-                            {entry.display}
-                          </span>
-                        </span>
-
                         {/*
-                          The gap, which the numbers alone never showed.
-                          A board reading 721, 550, 409 is three numbers; a bar
-                          says at a glance that first is half again as good as
-                          second, which is the thing a league table is for.
+                          The gap, as a fill behind the row rather than a bar
+                          under it. A bar under each entry read the same and cost
+                          a second line every time, which turned twelve boards
+                          into three screens of scrolling.
                         */}
-                        <span className="mt-1 ml-[1.375rem] block h-1 rounded-sm bg-basalt-800">
-                          <span
-                            className={
-                              "block h-full rounded-sm " +
-                              (entry.rank === 1
-                                ? "bg-rust-500/80"
-                                : "bg-steel-500/50")
-                            }
-                            style={{ width: `${share(entry, entries)}%` }}
-                          />
+                        <span
+                          aria-hidden="true"
+                          className={
+                            "absolute inset-y-0 left-0 " +
+                            (entry.rank === 1 ? "bg-rust-500/15" : "bg-steel-500/10")
+                          }
+                          style={{ width: `${share(entry, entries)}%` }}
+                        />
+                        <span className="relative w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-600">
+                          {/* A tie repeats the rank rather than inventing an order. */}
+                          {entry.tied ? "" : entry.rank}
+                        </span>
+                        <span className="relative min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
+                          {entry.player.name}
+                        </span>
+                        <span className="relative shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                          {entry.display}
                         </span>
                       </Link>
                     </li>

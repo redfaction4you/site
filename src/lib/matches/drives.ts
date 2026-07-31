@@ -32,6 +32,17 @@ export type Drive = {
   leadCarrier: string | null;
   /** True when one person carried it the whole way. */
   solo: boolean;
+  /**
+   * How long the flag took to get home, from leaving its stand to the capture.
+   *
+   * The flag's journey rather than anybody's possession, and the difference
+   * matters: a drive can include time on the floor between a drop and the next
+   * pickup, which belongs to the journey and to nobody's carry.
+   *
+   * A drive always begins from the stand, because a return resets it. That is
+   * what makes this measurable at all.
+   */
+  journeyMs: number;
 };
 
 type CaptureLike = {
@@ -153,6 +164,9 @@ export function reconstructDrives(
     let holder: string | null = null;
     let heldSince = 0;
     let segments: DriveCarrier[] = [];
+    // When the flag left its stand. A return resets it, which is what makes the
+    // journey measurable: a drive always starts from home.
+    let leftStandAt: number | null = null;
 
     const closeSegment = (at: number, carryMs?: number) => {
       if (!holder) return;
@@ -181,6 +195,7 @@ export function reconstructDrives(
         // A pickup while somebody already holds it means we missed a drop.
         // Close what we have rather than losing the time.
         if (holder) closeSegment(step.at);
+        if (leftStandAt === null) leftStandAt = step.at;
         holder = step.player;
         heldSince = step.at;
       } else if (step.kind === "drop") {
@@ -189,6 +204,7 @@ export function reconstructDrives(
         // The flag went home. Nobody scored, so there is nothing to credit.
         holder = null;
         segments = [];
+        leftStandAt = null;
       } else {
         closeSegment(step.at);
 
@@ -208,6 +224,10 @@ export function reconstructDrives(
           .sort((a, b) => b.carryMs - a.carryMs);
 
         drives.push({
+          journeyMs:
+            leftStandAt === null
+              ? 0
+              : Math.max(0, Math.round((step.at - leftStandAt) * 1000)),
           flagOwner,
           capturedAt: step.at,
           capper: step.player,
@@ -217,6 +237,7 @@ export function reconstructDrives(
         });
 
         segments = [];
+        leftStandAt = null;
       }
     }
   }
