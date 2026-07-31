@@ -1,5 +1,5 @@
 /**
- * Orion: a short opinion piece about who plays with whom.
+ * Mr. Mesh: a short opinion piece about who plays with whom.
  *
  * Every other piece of writing here reports. This one has a view, and that is
  * the point: with a handful of nights on record there is very little that can
@@ -9,7 +9,7 @@
  *
  * **The whole guard is the line between a preference and a finding.**
  *
- *   "Orion would like to see Medeo paired with Romek"  is fine. A stated
+ *   "Mr. Mesh would like to see Medeo paired with Romek"  is fine. A stated
  *   preference makes no claim about what the record shows.
  *
  *   "Medeo and Romek are the strongest pairing"  is not, on three matches. That
@@ -17,14 +17,14 @@
  *
  * The fact checker cannot catch the second kind on its own: every number in it
  * may be true while the sentence is still asserting something the sample cannot
- * support. So the defence is mostly upstream. Orion is handed rates only where
+ * support. So the defence is mostly upstream. Mr. Mesh is handed rates only where
  * the pairing has cleared the bar in `pairings.ts`, and below it never sees a
  * percentage at all rather than being asked not to use one. A model given a
  * tempting number and told to ignore it will use the number.
  *
  * The byline says it is machine written. That was decided before this existed
  * and is recorded in the handover: a human sounding name is the one thing that
- * quietly undoes the labelling everything else on the site carries. Orion is a
+ * quietly undoes the labelling everything else on the site carries. Mr. Mesh is a
  * column, not a person, and the page says so.
  */
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -36,10 +36,17 @@ import { TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
 
-/** How this piece is signed, everywhere it appears. */
-export const ORION_BYLINE = "Orion";
-export const ORION_NOTE =
-  "Orion is a machine written opinion column, not a person. It reads the same " +
+/**
+ * How this piece is signed, everywhere it appears.
+ *
+ * In one place so renaming the columnist is one line rather than a search. The
+ * name is doing quiet work: a mesh is a 3D model, so it says rendered thing
+ * without the reader having to be told, which is the opposite of what a human
+ * sounding byline would do to a machine written column.
+ */
+export const COLUMNIST_NAME = "Mr. Mesh";
+export const COLUMNIST_NOTE =
+  "Mr. Mesh is a machine written opinion column, not a person. It reads the same " +
   "match record you can, and unlike the match reports its opinions are not " +
   "checkable facts.";
 
@@ -50,12 +57,12 @@ export const ORION_NOTE =
  * four people produces a piece that is all hedging and no content, which is
  * worse than no piece.
  */
-export const MIN_MATCHES_FOR_ORION = 12;
+export const MIN_MATCHES_FOR_OPINION = 12;
 
 /** And enough people that a pairing is a choice rather than the only option. */
-export const MIN_PLAYERS_FOR_ORION = 5;
+export const MIN_PLAYERS_FOR_OPINION = 5;
 
-const SYSTEM = `You are Orion, an opinion columnist for a Red Faction
+const SYSTEM = `You are ${COLUMNIST_NAME}, an opinion columnist for a Red Faction
 capture-the-flag archive. You write a short piece about who plays alongside whom.
 
 Everything else on this site reports what happened. You are the one part that is
@@ -101,7 +108,7 @@ Hard rules:
 First line of your reply must be a headline on its own, under 70 characters, no
 quotes, no trailing full stop, and no date in any form.`;
 
-export type OrionFacts = {
+export type OpinionFacts = {
   archiveDay: string;
   matchCount: number;
   prompt: string;
@@ -113,7 +120,7 @@ export type OrionFacts = {
  * Rates arrive already computed or already withheld. See the module note: a
  * model handed a percentage and told not to lean on it leans on it.
  */
-export async function buildOrionFacts(archiveDay: string): Promise<OrionFacts | null> {
+export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFacts | null> {
   const [totals] = await db
     .select({
       matchCount: sql<number>`count(distinct ${matches.id})::int`,
@@ -125,8 +132,8 @@ export async function buildOrionFacts(archiveDay: string): Promise<OrionFacts | 
 
   if (
     !totals ||
-    totals.matchCount < MIN_MATCHES_FOR_ORION ||
-    totals.playerCount < MIN_PLAYERS_FOR_ORION
+    totals.matchCount < MIN_MATCHES_FOR_OPINION ||
+    totals.playerCount < MIN_PLAYERS_FOR_OPINION
   ) {
     return null;
   }
@@ -206,9 +213,9 @@ export async function buildOrionFacts(archiveDay: string): Promise<OrionFacts | 
   return { archiveDay, matchCount: totals.matchCount, prompt: lines.join("\n") };
 }
 
-export type OrionPiece = { headline: string; body: string };
+export type OpinionColumn = { headline: string; body: string };
 
-function split(text: string): OrionPiece | null {
+function split(text: string): OpinionColumn | null {
   const trimmed = text.trim();
   const breakAt = trimmed.indexOf("\n");
   if (breakAt === -1) return null;
@@ -229,7 +236,7 @@ function split(text: string): OrionPiece | null {
  * numbers, which leaves the preference-versus-finding rule resting on the prompt
  * and on the facts withholding what should not be leaned on.
  */
-export async function writeOrion(facts: OrionFacts): Promise<OrionPiece | null> {
+export async function writeOpinion(facts: OpinionFacts): Promise<OpinionColumn | null> {
   const first = await generate(SYSTEM, facts.prompt);
   if (!first) return null;
 

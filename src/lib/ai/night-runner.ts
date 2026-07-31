@@ -27,7 +27,7 @@ import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
 import { buildNightFacts, writeNightColumn } from "./night-column";
-import { buildOrionFacts, writeOrion } from "./orion";
+import { buildOpinionFacts, writeOpinion } from "./opinion";
 import { makeColumnImage } from "./night-image";
 import {
   MIN_MATCHES_FOR_PROFILE,
@@ -387,7 +387,7 @@ export async function backfillProfiles(): Promise<number> {
 
 /** Guard used by the ingest route so a missing table cannot break a sync. */
 /**
- * Writes Orion's opinion piece for any night that has a column and no piece.
+ * Writes Mr. Mesh's opinion piece for any night that has a column and no piece.
  *
  * Runs last on purpose. It is the one thing here that is decoration rather than
  * record, so it should only ever spend quota the reports, the column, the
@@ -411,10 +411,10 @@ async function backfillOpinions(): Promise<number> {
 
   let written = 0;
   for (const night of nights) {
-    const facts = await buildOrionFacts(night.archiveDay);
+    const facts = await buildOpinionFacts(night.archiveDay);
     if (!facts) continue;
 
-    const piece = await writeOrion(facts);
+    const piece = await writeOpinion(facts);
     if (!piece) continue;
 
     await db
