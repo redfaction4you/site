@@ -278,3 +278,42 @@ test("a partly timestamped match falls back rather than mixing two clocks", () =
   assert.equal(drives[0].capper, "Skuldug");
   assert.equal(drives[1].capper, "Medeo");
 });
+
+test("carry times are whole milliseconds, because the column is an integer", () => {
+  /*
+   * A regression that took ingest down. Re-timing onto observed_at made the
+   * clock fractional, so carry arithmetic produced 27113.999999999975 and
+   * every insert failed on `winning_carry_ms`, which is a Postgres integer.
+   *
+   * The timestamps below are deliberately not whole seconds apart.
+   */
+  const odd = (ms) => new Date(Date.UTC(2026, 6, 30, 20, 0, 0, ms)).toISOString();
+
+  const drives = reconstructDrives(
+    [
+      { ...pickup(0, "SiD", "blue"), observedAt: odd(1) },
+      { ...pickup(1, "Romek", "blue"), observedAt: odd(14781) },
+    ],
+    [
+      { elapsedSeconds: 2, team: "red", playerName: "Romek", observedAt: odd(27114) },
+    ],
+  );
+
+  const credit = creditDrives(drives);
+
+  for (const [name, entry] of credit) {
+    assert.ok(
+      Number.isInteger(entry.winningCarryMs),
+      `${name} carried a fractional ${entry.winningCarryMs}ms`,
+    );
+  }
+
+  for (const drive of drives) {
+    for (const carrier of drive.carriers) {
+      assert.ok(
+        Number.isInteger(carrier.carryMs),
+        `${carrier.name} has a fractional carry of ${carrier.carryMs}ms`,
+      );
+    }
+  }
+});

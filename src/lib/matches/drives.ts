@@ -158,9 +158,20 @@ export function reconstructDrives(
       if (!holder) return;
       segments.push({
         name: holder,
-        // The event's own figure when it has one, since it is the server's
-        // measurement rather than our arithmetic on whole seconds.
-        carryMs: carryMs && carryMs > 0 ? carryMs : Math.max(0, (at - heldSince) * 1000),
+        /*
+         * The event's own figure when it has one, since it is the server's
+         * measurement rather than our arithmetic.
+         *
+         * Rounded, and that is load bearing rather than tidiness. Re-timing onto
+         * `observed_at` made the clock fractional, so this arithmetic started
+         * producing values like 27113.999999999975, and `winning_carry_ms` is a
+         * Postgres integer. Every ingest failed with a type error until this was
+         * rounded, which took the archive offline for a sync cycle.
+         */
+        carryMs:
+          carryMs && carryMs > 0
+            ? Math.round(carryMs)
+            : Math.max(0, Math.round((at - heldSince) * 1000)),
       });
       holder = null;
     };
@@ -256,6 +267,13 @@ export function creditDrives(drives: Drive[]): Map<string, DriveCredit> {
     for (const carrier of drive.carriers) {
       entry(carrier.name).winningCarryMs += carrier.carryMs;
     }
+  }
+
+  // Belt and braces on the same problem. `winning_carry_ms` is an integer column
+  // and a float reaching it fails the whole insert, taking the night's ingest
+  // with it, so the value is rounded where it is produced and again here.
+  for (const value of credit.values()) {
+    value.winningCarryMs = Math.round(value.winningCarryMs);
   }
 
   return credit;
