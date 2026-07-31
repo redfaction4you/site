@@ -21,8 +21,6 @@ import assert from "node:assert/strict";
 
 import {
   MATCH_VIDEOS,
-  PERSPECTIVE_LABEL,
-  PERSPECTIVE_NOTE,
   footageForMatch,
   footageForNight,
   hasFootage,
@@ -42,13 +40,12 @@ test("every recording has a plausible YouTube id", () => {
   }
 });
 
-test("every recording says whose view it is", () => {
+test("no recording claims whose view it is", () => {
+  // Player screen or spectator camera cannot be told from outside the video, so
+  // the site does not assert it. Asserting it here stops it creeping back.
   for (const video of MATCH_VIDEOS) {
-    assert.ok(
-      video.perspective === "player" || video.perspective === "spectator",
-      `${video.youtubeId} has no usable perspective`,
-    );
-    assert.ok(video.recordedBy.length > 0, `${video.youtubeId} has no recorder`);
+    assert.equal(video.perspective, undefined, `${video.youtubeId} claims a view`);
+    assert.equal(video.recordedBy, undefined, `${video.youtubeId} names a recorder`);
   }
 });
 
@@ -114,8 +111,6 @@ test("a recording spanning several matches points a night at the earliest", () =
   // Constructed rather than taken from the list, since nothing spans yet.
   const spanning = {
     youtubeId: "aaaaaaaaaaa",
-    perspective: "spectator",
-    recordedBy: "Nobody",
     covers: [
       { archiveDay: "2026-07-30", sourceMatchId: 15, startsAt: 1800 },
       { archiveDay: "2026-07-30", sourceMatchId: 12, startsAt: 0 },
@@ -155,16 +150,6 @@ test("thumbnails come from YouTube, needing no key", () => {
 });
 
 /* --- the labelling -------------------------------------------------------- */
-
-test("both perspectives are labelled and explained", () => {
-  for (const kind of ["player", "spectator"]) {
-    assert.ok(PERSPECTIVE_LABEL[kind]?.length > 0);
-    assert.ok(PERSPECTIVE_NOTE[kind]?.length > 0);
-  }
-  // The player note has to say it is not the whole match, which is the only
-  // thing a viewer could otherwise get wrong.
-  assert.match(PERSPECTIVE_NOTE.player, /rather than the whole match/i);
-});
 
 test("hasFootage reflects the list", () => {
   assert.equal(hasFootage(), MATCH_VIDEOS.length > 0);

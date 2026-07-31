@@ -16,34 +16,16 @@
  * `nav.ts`: a list this size is one pull request to change and needs no upload
  * form. Move it to Postgres when hand editing starts to hurt, not before.
  *
- * **Say whose view it is.** A recording made from one player's screen is not a
- * record of the match, it is a record of one person's part in it: they were
- * looking the wrong way for half the captures and the camera cannot show what
- * they did not see. Spectator footage follows whoever is fragging and is much
- * closer to a record of the game. Both are worth having and a viewer should be
- * told which they are about to watch, for the same reason every other piece of
- * this site says where its information came from.
+ * **Nothing is claimed about whose view it is.** These are recorded either from a
+ * player's own screen or from the spectator camera that follows whoever is in
+ * the action, and which one a given upload is cannot reliably be said from
+ * outside it. An earlier version labelled every recording "player view" and
+ * named the recorder, which would have been a confident guess sitting on a site
+ * whose whole argument is that it does not make those. A viewer can see which it
+ * is within seconds of pressing play; the site does not need to assert it.
+ *
+ * `note` is there for anything genuinely known and worth saying.
  */
-
-/**
- * `player` is somebody's own screen. `spectator` is the following camera, which
- * jumps to whoever is in the action.
- */
-export type Perspective = "player" | "spectator";
-
-export const PERSPECTIVE_LABEL: Record<Perspective, string> = {
-  player: "Player view",
-  spectator: "Spectator camera",
-};
-
-export const PERSPECTIVE_NOTE: Record<Perspective, string> = {
-  player:
-    "Recorded from one player's screen, so it shows their game rather than the " +
-    "whole match.",
-  spectator:
-    "The spectator camera, which follows whoever is in the action, so it covers " +
-    "the match rather than any one player.",
-};
 
 /** One match inside a recording. */
 export type Coverage = {
@@ -64,11 +46,8 @@ export type Coverage = {
 export type MatchVideo = {
   /** The YouTube video ID. See the note above. */
   youtubeId: string;
-  perspective: Perspective;
-  /** Who recorded it. For `player`, whose view it is. */
-  recordedBy: string;
   covers: Coverage[];
-  /** Optional: one line on what is worth seeing. */
+  /** Optional: one line on what is worth seeing, when there is something to say. */
   note?: string;
 };
 
@@ -82,26 +61,18 @@ export type MatchVideo = {
 export const MATCH_VIDEOS: MatchVideo[] = [
   {
     youtubeId: "M4v5bEhI95Y",
-    perspective: "player",
-    recordedBy: "Romek",
     covers: [{ archiveDay: "2026-07-30", sourceMatchId: 12 }],
   },
   {
     youtubeId: "quBSd4uSbr8",
-    perspective: "player",
-    recordedBy: "Romek",
     covers: [{ archiveDay: "2026-07-30", sourceMatchId: 15 }],
   },
   {
     youtubeId: "2JiRI6hVgGo",
-    perspective: "player",
-    recordedBy: "Romek",
     covers: [{ archiveDay: "2026-07-29", sourceMatchId: 6 }],
   },
   {
     youtubeId: "f2ZZT_ZbHOY",
-    perspective: "player",
-    recordedBy: "Romek",
     covers: [{ archiveDay: "2026-07-29", sourceMatchId: 9 }],
   },
 ];

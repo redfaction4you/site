@@ -137,6 +137,11 @@ export default async function ColumnPage({ params }: Props) {
         <MatchFootageList
           footage={footageForNight(day)}
           heading="Footage from this night"
+          // Which match each recording is, since "watch" three times over says
+          // nothing about which is which.
+          labelFor={(coverage) =>
+            matches.find((m) => m.sourceMatchId === coverage.sourceMatchId)?.mapName
+          }
           className="mt-10 border-t border-basalt-800 pt-6"
         />
       </article>
