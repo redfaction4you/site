@@ -190,6 +190,10 @@ export default async function PlayerPage({ params }: Props) {
   const wins = history.filter((m) => m.won === true).length;
   const losses = history.filter((m) => m.won === false).length;
 
+  // History is newest first; form reads left to right ending on the most recent,
+  // which is how a run of results is written everywhere else.
+  const form = history.slice(0, 10).reverse();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <p className="eyebrow">
@@ -216,14 +220,53 @@ export default async function PlayerPage({ params }: Props) {
           </p>
         </div>
 
-        <p className="flex items-baseline gap-2 whitespace-nowrap">
-          <span className="font-mono text-3xl tabular-nums text-steel-100">
-            {wins}
-            <span className="text-steel-600">&ndash;</span>
-            {losses}
-          </span>
-          <span className="figure-label">won &amp; lost</span>
-        </p>
+        <div className="flex items-end gap-6">
+          {/*
+            Recent form, which is the first thing anybody looks for on a player
+            page and the one thing this page made you work for. The record says
+            what they have done ever; this says whether they are playing well
+            now, and it was previously only recoverable by reading down a twelve
+            row table and keeping score in your head.
+
+            Newest on the right, the way a run of results reads everywhere else.
+          */}
+          {form.length > 0 ? (
+            <div className="hidden sm:block">
+              <p className="figure-label mb-1.5">Recent form</p>
+              <ol className="flex gap-1">
+                {form.map((row) => (
+                  <li key={`${row.archiveDay}-${row.sourceMatchId}`}>
+                    <Link
+                      href={`/matches/${row.archiveDay}/${row.sourceMatchId}`}
+                      title={`${row.mapName}, ${dayLabel(row.archiveDay)}: ${
+                        row.won === null ? "no result" : row.won ? "won" : "lost"
+                      } ${row.redScore}-${row.blueScore}`}
+                      className={
+                        "flex h-6 w-6 items-center justify-center rounded-sm border font-display text-[0.625rem] font-bold uppercase transition-transform hover:-translate-y-0.5 " +
+                        (row.won === null
+                          ? "border-basalt-600 bg-basalt-800 text-steel-500"
+                          : row.won
+                            ? "border-signal-green/50 bg-signal-green/20 text-signal-green"
+                            : "border-rust-700 bg-rust-500/10 text-rust-300")
+                      }
+                    >
+                      {row.won === null ? "–" : row.won ? "W" : "L"}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+
+          <p className="flex items-baseline gap-2 whitespace-nowrap">
+            <span className="font-mono text-3xl tabular-nums text-steel-100">
+              {wins}
+              <span className="text-steel-600">&ndash;</span>
+              {losses}
+            </span>
+            <span className="figure-label">won &amp; lost</span>
+          </p>
+        </div>
       </div>
 
       {/* What they are like to play against, as opposed to what they scored.

@@ -22,6 +22,33 @@ export const dynamic = "force-dynamic";
 const SHOWN = 5;
 
 /**
+ * How long a bar should be, as a share of the best on its board.
+ *
+ * Scaled against the leader rather than against zero, because every board here
+ * has a different unit and the question is always the same: how far off the top
+ * is this. Fastest capture is inverted, since it is the one board where a
+ * smaller number is the better performance and a shorter bar would say the
+ * opposite of what happened.
+ */
+function share(
+  entry: { value: number },
+  entries: { value: number }[],
+): number {
+  const values = entries.map((row) => row.value).filter((v) => Number.isFinite(v));
+  if (values.length === 0) return 0;
+
+  const best = Math.max(...values);
+  const lowest = Math.min(...values);
+  if (best <= 0) return 0;
+
+  // A low board's leader holds the smallest value, so measure from the top down.
+  const inverted = entries[0]?.value === lowest && lowest !== best;
+  const raw = inverted ? lowest / entry.value : entry.value / best;
+
+  return Math.max(4, Math.min(100, raw * 100));
+}
+
+/**
  * One board per thing a player can be good at.
  *
  * A single ranking would answer a question nobody asked. Somebody whose aim is
@@ -106,17 +133,37 @@ export default async function StatsPage() {
                     >
                       <Link
                         href={`/players/${encodeURIComponent(entry.player.name)}`}
-                        className="group flex items-baseline gap-2.5 py-1.5"
+                        className="group block py-1.5"
                       >
-                        <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
-                          {/* A tie repeats the rank rather than inventing an order. */}
-                          {entry.tied ? "" : entry.rank}
+                        <span className="flex items-baseline gap-2.5">
+                          <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-700">
+                            {/* A tie repeats the rank rather than inventing an order. */}
+                            {entry.tied ? "" : entry.rank}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
+                            {entry.player.name}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                            {entry.display}
+                          </span>
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
-                          {entry.player.name}
-                        </span>
-                        <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
-                          {entry.display}
+
+                        {/*
+                          The gap, which the numbers alone never showed.
+                          A board reading 721, 550, 409 is three numbers; a bar
+                          says at a glance that first is half again as good as
+                          second, which is the thing a league table is for.
+                        */}
+                        <span className="mt-1 ml-[1.375rem] block h-1 rounded-sm bg-basalt-800">
+                          <span
+                            className={
+                              "block h-full rounded-sm " +
+                              (entry.rank === 1
+                                ? "bg-rust-500/80"
+                                : "bg-steel-500/50")
+                            }
+                            style={{ width: `${share(entry, entries)}%` }}
+                          />
                         </span>
                       </Link>
                     </li>

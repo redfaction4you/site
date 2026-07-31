@@ -18,6 +18,7 @@ import { tookPart } from "@/lib/matches/participation";
 import { MatchFootageList } from "@/components/match-footage";
 import { footageForMatch } from "@/lib/match-videos";
 import { FootageMark } from "@/components/footage-mark";
+import { CaptureTrack } from "@/components/capture-track";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -457,34 +458,77 @@ export function MatchDetailView({
         />
 
         <div className="min-w-0 flex-1">
-      {/* Title, score and the whole summary on one line each. */}
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-        <h1 className="font-display text-2xl font-bold text-steel-100">
-          {/* The night's running order, so the sequence is obvious from the
-              title rather than only from the strip below it. */}
-          {position ? (
-            <span className="mr-2 text-steel-500">Match {position}</span>
-          ) : null}
-          {match.mapName}
-        </h1>
-        <span className="font-mono text-2xl tabular-nums">
-          <span className={match.winner === "red" ? "text-rust-400" : "text-steel-500"}>
-            {match.redScore}
-          </span>
-          <span className="mx-1.5 text-steel-600">-</span>
-          <span className={match.winner === "blue" ? "text-oxide-400" : "text-steel-500"}>
-            {match.blueScore}
-          </span>
-        </span>
-        <span className="text-sm text-steel-400">
-          {match.mode} · {matchTime(match.startedAt)} · {teamSizes}
-          {/* Duration only when it says something. Nearly every match runs the
-              full ten minutes, so printing 10:00 on all of them is noise. It
-              earns its place when the match went to overtime or ended early. */}
-          {notableDuration ? ` · ${notableDuration}` : ""}
-          {match.status !== "final" ? ` · ${match.status}` : ""}
-        </span>
-      </div>
+          {/*
+            The scoreline, as the thing the page is about.
+
+            It used to be a title with the score set beside it at the same weight
+            as the map name, so a page reporting a result opened by reporting a
+            filename. Every sports page in the world leads with the number,
+            because that is the one thing every reader came for, and the loser's
+            score is dimmed so the outcome is legible without reading the words.
+          */}
+          <p className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-steel-500">
+            {position ? `Match ${position} · ` : ""}
+            {match.mapName}
+          </p>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="flex items-center gap-3 font-mono text-4xl leading-none tabular-nums sm:text-5xl">
+              <span
+                className={
+                  match.winner === "red"
+                    ? "text-rust-400"
+                    : "text-steel-500 opacity-70"
+                }
+              >
+                {match.redScore}
+              </span>
+              <span className="text-2xl text-steel-700">/</span>
+              <span
+                className={
+                  match.winner === "blue"
+                    ? "text-oxide-400"
+                    : "text-steel-500 opacity-70"
+                }
+              >
+                {match.blueScore}
+              </span>
+            </p>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {match.winner ? (
+                <span
+                  className={
+                    "rounded-sm px-2 py-0.5 font-display text-[0.625rem] font-bold uppercase tracking-widest " +
+                    (match.winner === "red"
+                      ? "bg-rust-500/15 text-rust-300"
+                      : "bg-oxide-400/15 text-oxide-300")
+                  }
+                >
+                  {match.winner} won
+                </span>
+              ) : null}
+              {/* Overtime is the most interesting thing a match can be and it was
+                  buried at the end of a run of metadata. */}
+              {match.overtime ? (
+                <span className="rounded-sm border border-oxide-500/50 px-2 py-0.5 font-display text-[0.625rem] font-bold uppercase tracking-widest text-oxide-400">
+                  Overtime
+                </span>
+              ) : null}
+              {match.status !== "final" ? (
+                <span className="rounded-sm border border-basalt-600 px-2 py-0.5 font-display text-[0.625rem] font-bold uppercase tracking-widest text-steel-400">
+                  {match.status}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <p className="mt-2 text-sm text-steel-400">
+            {match.mode} · {matchTime(match.startedAt)} · {teamSizes}
+            {/* Duration only when it says something. Nearly every match runs the
+                full ten minutes, so printing 10:00 on all of them is noise. */}
+            {notableDuration ? ` · ${notableDuration}` : ""}
+          </p>
         </div>
       </div>
 
@@ -738,36 +782,15 @@ export function MatchDetailView({
       </details>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Captures, the short list that is worth reading in full. */}
+        {/* Captures, drawn along the clock. The one story a CTF match has. */}
         {match.captures.length ? (
-          <div className="panel p-4">
-            <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-steel-500">
-              Capture timeline
-            </h2>
-            <ol className="mt-3 space-y-1.5 text-sm">
-              {match.captures.map((capture, i) => (
-                <li
-                  key={`${capture.elapsedSeconds}-${i}`}
-                  className="flex flex-wrap items-baseline gap-x-2.5"
-                >
-                  <span className="font-mono tabular-nums text-steel-500">
-                    {clock(capture.elapsedSeconds)}
-                  </span>
-                  <span
-                    className={
-                      "font-display text-[0.625rem] font-semibold uppercase tracking-wider " +
-                      (TEAM_TEXT[capture.team] ?? "text-steel-300")
-                    }
-                  >
-                    {capture.team}
-                  </span>
-                  <PlayerLink name={capture.playerName} />
-                  <span className="font-mono tabular-nums text-steel-500">
-                    {capture.redScore}-{capture.blueScore}
-                  </span>
-                </li>
-              ))}
-            </ol>
+          <div className="plate p-4">
+            <h2 className="rule-heading">Capture timeline</h2>
+            <CaptureTrack
+              captures={match.captures}
+              startedAt={match.startedAt}
+              endedAt={match.endedAt}
+            />
           </div>
         ) : null}
 
