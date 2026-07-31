@@ -30,8 +30,16 @@ export const metadata: Metadata = {
     default: "RedFaction4You",
     template: "%s · RedFaction4You",
   },
+  /*
+   * What is actually here, not what is planned.
+   *
+   * This described the file catalogue, which is built but empty and hidden from
+   * the navigation, so every link preview promised maps, mods and guides and led
+   * to a match archive. The footer was already fixed; this is the copy that
+   * unfurls in Discord, which is where most people meet the site first.
+   */
   description:
-    "A community archive for Red Faction (2001): maps, mods, tools, guides and videos, in one place that stays up.",
+    "A community archive for Red Faction (2001): match results, nightly write-ups, player records and the community server, in one place that stays up.",
   icons: { icon: "/icon.png" },
   openGraph: {
     type: "website",

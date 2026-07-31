@@ -20,7 +20,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  IMAGE_CAPTION,
   MAX_MOOD_LENGTH,
   MOMENTS,
   buildComposition,
@@ -454,10 +453,9 @@ test("the key never lands in the backup prefix", () => {
   assert.ok(imageKeyFor("2026-07-29", "image/png").startsWith("news/"));
 });
 
-test("the caption still identifies the picture as machine made", () => {
-  // Shortened to two words because the old sentence was taller than a thumbnail,
-  // but it cannot become nothing: an unlabelled synthetic photograph is the one
-  // thing this archive must not publish.
-  assert.ok(IMAGE_CAPTION.includes("AI"), `no AI in ${IMAGE_CAPTION}`);
-  assert.ok(IMAGE_CAPTION.length <= 24, "the label crept back up in length");
-});
+/*
+ * The caption test lived here. The visible "AI interpretation" label was removed
+ * from the page at the user's request, so there is no longer a constant to
+ * assert on. The alt text and the figure title in `column-image.tsx` are what
+ * identify the picture as generated now.
+ */

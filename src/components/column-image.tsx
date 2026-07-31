@@ -1,6 +1,5 @@
 import Image from "next/image";
 
-import { IMAGE_CAPTION } from "@/lib/ai/image-prompt";
 import { publicUrl } from "@/lib/storage";
 
 /**
@@ -12,12 +11,11 @@ import { publicUrl } from "@/lib/storage";
  * Callers pass a max width.
  *
  * The only way this image is rendered anywhere on the site, which is deliberate.
- * Every other piece of generated content here says so, and a picture has to say
- * it more loudly than prose does: the whole value of this archive is that its
- * information can be trusted, and a synthetic photograph presented as a record
- * of the evening is the single most misleading thing that could be added to it.
- * Keeping the caption inside the component means nobody can render the picture
- * and forget the label, because there is no way to ask for one without the other.
+ * It carried a visible "AI interpretation" caption until it was removed at the
+ * user's request. What labelling remains is the alt text, which names it as a
+ * generated illustration, and the figure's title, which says it is not a
+ * photograph of the match. Both are attached here rather than at the call site
+ * for the original reason: there is no way to ask for the picture without them.
  *
  * Renders nothing at all when there is no image or when storage is unconfigured,
  * rather than a broken frame. Same honest degradation as `publicUrl` elsewhere.
@@ -64,9 +62,6 @@ export function ColumnImage({
           className="object-cover"
         />
       </div>
-      <figcaption className="mt-1 font-mono text-[0.5625rem] uppercase tracking-wider text-steel-700">
-        {IMAGE_CAPTION}
-      </figcaption>
     </figure>
   );
 }
