@@ -18,25 +18,18 @@ anything. The full reasoning is in `../BUILD-PLAN.md`.
 
 ## Current state
 
-Phase 1 is built and running locally. Outstanding to finish it:
+**Live at `redfaction4you.com`**, deployed from `redfaction4you/site` on push to
+`main`. `docs/HANDOVER.md` is the authority on what is built and what is next;
+this file is conventions and gotchas.
 
-1. **Discord OAuth app** — not created. `AUTH_DISCORD_ID` / `AUTH_DISCORD_SECRET`
-   are empty in `.env.local`, so sign-in is untested end to end.
-2. ~~Verify migrations landed~~ — **done, 28 July 2026.** `npm run db:check`
-   passes: accounts, sessions, users, verificationToken all present, one
-   migration recorded.
-3. ~~GitHub org + repo~~ — **done, 28 July 2026.** Public at
-   `redfaction4you/site`, `main` tracking `origin/main`.
-4. **Vercel** — import, env vars, **generate a separate `AUTH_SECRET` for
-   production**, add the production callback URL to Discord.
-5. **Domain repoint** — last. `redfaction4you.com` is currently a Google Site and
-   keeps serving until DNS changes, so there is no downtime window.
+Navigation: News, Matches, Players, Stats, Server, Events. The catalogue
+sections (maps, mods, models, weapons, tools, videos, guides) are built, empty,
+and hidden with the `hidden` flag in `src/lib/nav.ts`. Their routes still answer
+so shared links keep working.
 
-Live pages: `/`, `/videos`, `/discord`, `/members/[handle]`, `/signin`, and the
-five catalogue sections `/maps`, `/mods`, `/models`, `/weapons`, `/tools` with
-their `/[slug]` detail pages. The catalogue is built but empty — it renders an
-empty state, not a stub.
-Stubs remaining: `/guides` (Phase 2), `/events` (Phase 4).
+Sign-in is removed from the header. Discord auth is still in the code and
+returns on its own if `AUTH_DISCORD_ID` is set, but every page reads without an
+account.
 
 ## Commands
 

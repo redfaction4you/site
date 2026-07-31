@@ -292,23 +292,17 @@ and the 30 July column puts Fatoon in a match they did not play. The prompts now
 forbid naming anybody not in the list and forbid remarking that somebody scored
 nothing, but stored prose does not change until it is regenerated.
 
-*Prose written from the poisoned totals.* Stored, so it outlives the bug that
-produced it, and the page now contradicts itself where the scoreboard withholds a
-figure the article still quotes. Confirmed:
+*Prose written from the poisoned totals: fixed, 31 July 2026.* Three match
+reports, the 30 July column and five profiles were regenerated after the
+accuracy fix, and the whole archive was re-audited: no stored report, column or
+profile now quotes an impossible percentage or names a player who was not in the
+match. Left here because the shape recurs: prose is stored, so it outlives the
+bug that produced it, and a page then contradicts itself where the scoreboard
+withholds a figure the article still quotes. Nothing regenerates on its own,
+which is what item two on the list below is for.
 
-- The **Rail Fight match report** says SiD shot "1067.5% accuracy".
-- **SiD's profile** says "a league-best 29.5 percent accuracy". The sound total is
-  16.0%. 29.5% is exactly what you get by including the broken match.
-- Every **profile written after the rail night** ranked accuracy against SiD's
-  inflated figure, so the ranks are suspect even where the player's own number is
-  fine. That covers medeo, t1k}super, ed assmaster, oddbaal, fatoon and romek.
-  "SiD hits shots at a rate no one else matches" is simply false.
-- The night columns are clean, checked for any three digit percentage.
-
-Fixing means regenerating, which costs quota and rewrites other prose, so it was
-left as a decision rather than done. Note the fact checker could not have caught
-any of this: it verifies prose against the facts it was given, and the facts were
-wrong.
+Note the fact checker could not have caught any of it. It verifies prose against
+the facts it was given, and the facts were wrong.
 
 **Orphaned images.** Changing image provider changed the stored extension from
 `.png` to `.jpg`, leaving the old objects in the bucket. Harmless, worth a cleanup
