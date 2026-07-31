@@ -361,6 +361,28 @@ async function callAnthropic(
  * key configured. Never throws: this is decoration on top of an archive, and it
  * must not be able to break an ingest or a page render.
  */
+/**
+ * Removes em dashes from generated prose.
+ *
+ * Seven system prompts say not to use them and one still reached a published
+ * match report, which is the whole argument for doing this here instead: an
+ * instruction is a request and this is a guarantee. Same lesson as the
+ * illustrations, where listing prohibitions in the prompt put the forbidden
+ * thing in the picture.
+ *
+ * A spaced em dash becomes a comma, which is what the sentence almost always
+ * wanted. An unspaced one becomes a comma and a space so words do not fuse.
+ *
+ * En dashes are left alone deliberately. They are correct in a scoreline and in
+ * a range, and both appear all over this site.
+ */
+export function withoutEmDashes(text: string): string {
+  return text
+    .replace(/\s*—\s*/g, ", ")
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*,/g, ",");
+}
+
 export async function generate(system: string, prompt: string): Promise<string | null> {
   const chain = attempts();
 
