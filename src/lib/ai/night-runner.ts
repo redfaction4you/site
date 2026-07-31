@@ -16,6 +16,7 @@ import { desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches, nightColumns, playerProfiles } from "@/lib/db/schema";
+import { TOOK_PART } from "@/lib/matches/queries";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
@@ -298,7 +299,7 @@ export async function backfillProfiles(): Promise<number> {
       matchCount: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
     })
     .from(matchPlayers)
-    .where(eq(matchPlayers.spectator, false))
+    .where(TOOK_PART)
     .groupBy(sql`lower(${matchPlayers.name})`);
 
   const existing = await db

@@ -79,6 +79,11 @@ export type PublicPlayer = {
   weaponStats: PublicWeaponStat[];
   /** Private. Stored, never served. */
   identityKey: string | null;
+  /**
+   * The shooting pair as one unit, kept only long enough to merge snapshots.
+   * Not stored: `shotsHit` and `shotsFired` above are what reaches the database.
+   */
+  shots: ShotTuple;
 };
 
 /**
@@ -96,6 +101,90 @@ export type PublicWeaponStat = {
   accuracy: number;
   kills: number;
 };
+
+/**
+ * Hits and shots are one measurement, not two numbers.
+ *
+ * This is the fix for the worst data bug the archive has had. The server emits
+ * periodic snapshots and duplicate rows were merged by taking the maximum of
+ * every counter independently, which is right for a running total and wrong for
+ * a pair: it took the largest hit count it had ever seen and the largest shot
+ * count it had ever seen, from different snapshots, and reported them as one
+ * measurement. One bad snapshot then poisoned the row permanently, and the site
+ * published SiD at 1804 hits from 169 shots, an accuracy of 1067 percent.
+ *
+ * A tuple is believed only if it is internally coherent, and a whole tuple is
+ * chosen or rejected together. The rules, which came from the 2.2 broadcaster
+ * package and match what it now sends:
+ *
+ * - Never pick hits from one snapshot and shots from another.
+ * - Reject a tuple whose hits exceed its shots. It is not a good player, it is a
+ *   broken counter.
+ * - Prefer the newest tuple that is valid, since a snapshot is cumulative.
+ * - A newer invalid tuple must never displace an older valid one.
+ * - With no timestamps anywhere, fall back to the richest valid tuple, which is
+ *   what every row archived before the broadcaster carried them will hit.
+ */
+type ShotTuple = {
+  shotsHit: number;
+  shotsFired: number;
+  /** False when the pair contradicts itself, so nothing may be derived from it. */
+  valid: boolean;
+  /** Epoch milliseconds, or -Infinity when this snapshot carried no time. */
+  observedAt: number;
+};
+
+/** Floating point slack. Hits can land a hair over shots without being broken. */
+const SHOT_TOLERANCE = 0.001;
+
+function readShotTuple(source: Record<string, unknown>): ShotTuple {
+  const shotsHit = Math.max(0, finite(source.shots_hit));
+  const shotsFired = Math.max(0, finite(source.shots_fired));
+
+  // The broadcaster marks a tuple it already knows is bad. Trust that, and
+  // check the arithmetic ourselves as well, so a version that does not send the
+  // flag is still protected.
+  const flaggedBad = source.shot_data_valid === false;
+
+  return {
+    shotsHit,
+    shotsFired,
+    valid: !flaggedBad && shotsHit <= shotsFired + SHOT_TOLERANCE,
+    observedAt: shotObservedAt(source),
+  };
+}
+
+function shotObservedAt(source: Record<string, unknown>): number {
+  for (const key of ["shot_observed_at", "last_seen", "observed_at", "first_seen"]) {
+    const parsed = Date.parse(text(source[key], 64));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * Picks one of two tuples. Never blends them.
+ *
+ * Preference order: a valid tuple that recorded shots, then any valid tuple,
+ * then whatever there is. Within that, newest wins where anything is timestamped
+ * and the richer reading wins where nothing is.
+ */
+export function chooseShotTuple(left: ShotTuple, right: ShotTuple): ShotTuple {
+  const candidates = [left, right].filter(Boolean);
+  if (candidates.length < 2) return candidates[0] ?? left ?? right;
+
+  const populated = candidates.filter((tuple) => tuple.valid && tuple.shotsFired > 0);
+  const valid = candidates.filter((tuple) => tuple.valid);
+  const pool = populated.length ? populated : valid.length ? valid : candidates;
+
+  const timed = pool.some((tuple) => Number.isFinite(tuple.observedAt));
+
+  return [...pool].sort((a, b) =>
+    timed
+      ? b.observedAt - a.observedAt
+      : b.shotsFired - a.shotsFired || b.shotsHit - a.shotsHit,
+  )[0];
+}
 
 export type PublicCapture = {
   elapsedSeconds: number;
@@ -178,8 +267,9 @@ const MAX_FIELDS = [
   "deaths",
   "caps",
   "maxStreak",
-  "shotsHit",
-  "shotsFired",
+  // shotsHit and shotsFired are deliberately absent. They are one measurement
+  // and taking the maximum of each independently is what produced 1804 hits
+  // from 169 shots. See `chooseShotTuple`.
   "damageGiven",
   "damageTaken",
   "flagHoldMs",
@@ -213,12 +303,19 @@ function sanitizeWeaponStats(source: unknown): PublicWeaponStat[] {
       const shotsHit = Math.max(0, finite(raw.shots_hit));
       const shotsFired = Math.max(0, finite(raw.shots_fired));
 
+      // Same integrity rule as the overall figure. Without it the Rail Driver
+      // row reported 1073% on its own, which is where the player total's 1067%
+      // came from in the first place.
+      const coherent = shotsHit <= shotsFired + SHOT_TOLERANCE;
+
       return {
         weapon,
         shotsHit,
         shotsFired,
-        // Recomputed rather than trusted, same as overall accuracy.
-        accuracy: shotsFired > 0 ? shotsHit / shotsFired : Math.max(0, finite(raw.accuracy)),
+        accuracy:
+          coherent && shotsFired > 0
+            ? Math.min(1, shotsHit / shotsFired)
+            : Math.max(0, finite(raw.accuracy)),
         kills: whole(raw.kills),
       };
     })
@@ -257,13 +354,34 @@ function sanitizePlayer(source: Record<string, unknown> = {}): PublicPlayer {
       : null,
     weaponStats: sanitizeWeaponStats(source.weapon_stats),
     identityKey: nullableText(source.identity_id, 128),
+    shots: readShotTuple(source),
   };
 
-  // Recompute rather than trust: a reported accuracy and a shot count that
-  // disagree should resolve to the one derived from the counts.
-  if (player.shotsFired > 0) player.accuracy = player.shotsHit / player.shotsFired;
+  /*
+   * Recompute rather than trust: a reported accuracy and a shot count that
+   * disagree should resolve to the one derived from the counts.
+   *
+   * Capped at 1 and only computed from a coherent pair. An incoherent one keeps
+   * whatever the server reported, which is usually sane even when its counters
+   * are not, and the read paths withhold it anyway. See accuracy.ts.
+   */
+  if (player.shots.valid && player.shotsFired > 0) {
+    player.accuracy = Math.min(1, player.shotsHit / player.shotsFired);
+  }
 
   return player;
+}
+
+/** The stored pair as a tuple, for players not built by `sanitizePlayer`. */
+function tupleOf(player: PublicPlayer): ShotTuple {
+  return (
+    player.shots ?? {
+      shotsHit: player.shotsHit,
+      shotsFired: player.shotsFired,
+      valid: player.shotsHit <= player.shotsFired + SHOT_TOLERANCE,
+      observedAt: Number.NEGATIVE_INFINITY,
+    }
+  );
 }
 
 /**
@@ -289,22 +407,79 @@ export function mergePlayers(left: PublicPlayer, right: PublicPlayer): PublicPla
   );
   merged.fastestCaptureMs = fastest.length ? Math.min(...fastest) : null;
 
+  /*
+   * The shooting pair, chosen whole from one snapshot or the other.
+   *
+   * This is the line that used to read `Math.max` on each half separately, and
+   * it is why a single bad snapshot could put 1804 hits against 169 shots and
+   * keep them there forever.
+   */
+  // `shots` is derived where a caller built a player by hand rather than through
+  // `sanitizePlayer`. This function is exported, so it cannot assume otherwise.
+  const shots = chooseShotTuple(tupleOf(left), tupleOf(right));
+  merged.shots = shots;
+  merged.shotsHit = shots.shotsHit;
+  merged.shotsFired = shots.shotsFired;
+
   merged.accuracy =
-    merged.shotsFired > 0
-      ? merged.shotsHit / merged.shotsFired
+    shots.valid && shots.shotsFired > 0
+      ? Math.min(1, shots.shotsHit / shots.shotsFired)
       : Math.max(left.accuracy, right.accuracy);
 
   // Keep whichever row actually carried an identity.
   merged.identityKey = left.identityKey ?? right.identityKey;
 
-  // Snapshots again: the richer list is the later one, so take whichever has
-  // more rather than concatenating two views of the same totals.
-  merged.weaponStats =
-    right.weaponStats.length >= left.weaponStats.length
-      ? right.weaponStats
-      : left.weaponStats;
+  merged.weaponStats = mergeWeaponStats(left.weaponStats, right.weaponStats);
 
   return merged;
+}
+
+/**
+ * Merges two snapshots of per weapon shooting, weapon by weapon.
+ *
+ * Taking whichever list was longer used to be enough, and it is not: a snapshot
+ * can carry the same weapons with one of them broken. Each weapon is now chosen
+ * on its own, whole, by the same rule the overall pair uses.
+ *
+ * Per weapon timestamps are not kept on the stored shape, so this is the
+ * untimestamped branch of `chooseShotTuple`: a coherent reading beats an
+ * incoherent one, and among coherent readings the one with more shots is the
+ * later, because a snapshot counter only climbs.
+ */
+function mergeWeaponStats(
+  left: PublicWeaponStat[],
+  right: PublicWeaponStat[],
+): PublicWeaponStat[] {
+  const byWeapon = new Map<string, PublicWeaponStat>();
+
+  for (const stat of [...left, ...right]) {
+    const key = stat.weapon.toLocaleLowerCase("en-US");
+    const existing = byWeapon.get(key);
+    if (!existing) {
+      byWeapon.set(key, stat);
+      continue;
+    }
+
+    const sound = (s: PublicWeaponStat) => s.shotsHit <= s.shotsFired + SHOT_TOLERANCE;
+    const better =
+      sound(stat) !== sound(existing)
+        ? sound(stat)
+          ? stat
+          : existing
+        : stat.shotsFired >= existing.shotsFired
+          ? stat
+          : existing;
+
+    byWeapon.set(key, {
+      ...better,
+      // Frags are an ordinary counter and are safe to take the larger of.
+      kills: Math.max(existing.kills, stat.kills),
+    });
+  }
+
+  return [...byWeapon.values()].sort(
+    (a, b) => b.kills - a.kills || b.shotsFired - a.shotsFired,
+  );
 }
 
 function consolidatePlayers(players: unknown): PublicPlayer[] {

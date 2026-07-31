@@ -9,6 +9,12 @@ import type {
 } from "@/lib/matches/queries";
 import { dayLabel, duration, matchTime } from "@/components/match-archive";
 import { MapShot } from "@/components/map-shot";
+import {
+  UNSOUND_SHOOTING_NOTE,
+  accuracyOf,
+  shootingIsSound,
+} from "@/lib/matches/accuracy";
+import { tookPart } from "@/lib/matches/participation";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -62,9 +68,16 @@ const CORE_COLUMNS: ScoreColumn[] = [
   { key: "deaths", label: "Deaths" },
   { key: "caps", label: "Caps" },
   {
+    // Recomputed from the counters rather than trusting the stored `accuracy`,
+    // which is hits over shots and is therefore nonsense whenever the counters
+    // are. A dash when the record cannot support a figure; the raw hits and
+    // shots are still under "All statistics" for anyone diagnosing it.
     key: "accuracy",
     label: "Acc",
-    format: (r) => (r.shotsFired > 0 ? percent(r.accuracy) : "-"),
+    format: (r) => {
+      const value = accuracyOf(r.shotsHit, r.shotsFired);
+      return value === null ? "-" : percent(value);
+    },
   },
 ];
 
@@ -320,7 +333,10 @@ export function MatchDetailView({
   previous: MatchLink | null;
   next: MatchLink | null;
 }) {
-  const active = match.players.filter((p) => !p.spectator);
+  // Everyone who actually played. A row on a team with nothing at all recorded
+  // is somebody who never entered the game, and listing them made a two against
+  // two read as a three against three. See participation.ts.
+  const active = match.players.filter(tookPart);
   const teams = [...new Set(active.map((p) => p.team))];
   const spectators = match.players.filter((p) => p.spectator);
 
@@ -377,8 +393,14 @@ export function MatchDetailView({
   }
 
   const totalKills = active.reduce((sum, p) => sum + p.kills, 0);
-  const shotsFired = active.reduce((sum, p) => sum + p.shotsFired, 0);
-  const shotsHit = active.reduce((sum, p) => sum + p.shotsHit, 0);
+
+  // Team accuracy adds up only the players whose counters agree with themselves.
+  // One broken row would otherwise carry the whole side's figure past 100% and
+  // make the sound records look wrong too.
+  const soundShooters = active.filter((p) => shootingIsSound(p.shotsHit, p.shotsFired));
+  const shotsFired = soundShooters.reduce((sum, p) => sum + p.shotsFired, 0);
+  const shotsHit = soundShooters.reduce((sum, p) => sum + p.shotsHit, 0);
+  const excludedShooters = active.length - soundShooters.length;
 
   const top = (key: keyof PublicScoreRow) =>
     active.reduce<PublicScoreRow | null>(
@@ -489,6 +511,15 @@ export function MatchDetailView({
             {shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
           </span>{" "}
           team accuracy
+          {excludedShooters > 0 ? (
+            <span className="ml-1 text-steel-600" title={UNSOUND_SHOOTING_NOTE}>
+              (
+              {excludedShooters === 1
+                ? "1 player left out"
+                : `${excludedShooters} players left out`}
+              )
+            </span>
+          ) : null}
         </span>
         <span className="text-steel-400">
           <span className="font-mono text-lg text-steel-100">
@@ -597,8 +628,21 @@ export function MatchDetailView({
                               <td className="py-0.5 text-right font-mono tabular-nums text-steel-500">
                                 {Math.round(w.shotsFired)}
                               </td>
-                              <td className="py-0.5 text-right font-mono tabular-nums text-steel-400">
-                                {w.shotsFired > 0 ? percent(w.accuracy) : "-"}
+                              {/* The per weapon figure is where the rail counter
+                                  breaks, so this is the row that has to withhold
+                                  it. The hits and shots either side stay exactly
+                                  as recorded, which is what makes it diagnosable. */}
+                              <td
+                                className="py-0.5 text-right font-mono tabular-nums text-steel-400"
+                                title={
+                                  shootingIsSound(w.shotsHit, w.shotsFired)
+                                    ? undefined
+                                    : UNSOUND_SHOOTING_NOTE
+                                }
+                              >
+                                {accuracyOf(w.shotsHit, w.shotsFired) === null
+                                  ? "-"
+                                  : percent(accuracyOf(w.shotsHit, w.shotsFired)!)}
                               </td>
                             </tr>
                           ))}

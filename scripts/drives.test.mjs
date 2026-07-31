@@ -194,3 +194,87 @@ test("winning carry time only counts drives that scored", () => {
   // The 30 seconds on the failed drive do not count. Only the 10 that scored.
   assert.equal(credit.get("a").winningCarryMs, 10_000);
 });
+
+/* --- overtime, where the match clock restarts ----------------------------- */
+
+/*
+ * The match clock goes back to zero for extra time, so an overtime event has a
+ * smaller `elapsedSeconds` than the first minute of regulation. Sorting on it
+ * put the extra period first and shuffled the flag's journey. On the three
+ * overtime matches on record that turned two of Romek's solo captures into
+ * relays and credited a drive to somebody with no part in it.
+ *
+ * `observedAt` is a real instant and is on every event on record, so it wins
+ * where the whole match has it.
+ */
+const at = (seconds) => new Date(Date.UTC(2026, 6, 30, 20, 0, seconds)).toISOString();
+
+const timedPickup = (clock, observed, player, flag) => ({
+  ...pickup(clock, player, flag),
+  observedAt: at(observed),
+});
+
+const timedCapture = (clock, observed, team, player) => ({
+  elapsedSeconds: clock,
+  team,
+  playerName: player,
+  observedAt: at(observed),
+});
+
+test("overtime is ordered by when it happened, not by the restarted clock", () => {
+  // Regulation: SiD carries from 8:00 and caps at 8:56. Overtime: Romek picks
+  // up 2 seconds in and caps at 5. On the match clock the overtime pair sorts
+  // first and Romek's pickup lands inside SiD's drive, making it a relay.
+  const drives = reconstructDrives(
+    [
+      timedPickup(480, 480, "SiD", "blue"),
+      timedPickup(2, 600, "Romek", "blue"),
+    ],
+    [
+      timedCapture(536, 536, "red", "SiD"),
+      timedCapture(5, 603, "red", "Romek"),
+    ],
+  );
+
+  assert.equal(drives.length, 2);
+  // Two separate solo runs, which is what happened.
+  assert.deepEqual(
+    drives.map((drive) => drive.capper),
+    ["SiD", "Romek"],
+  );
+  assert.equal(drives[0].solo, true);
+  assert.equal(drives[1].solo, true);
+
+  const credit = creditDrives(drives);
+  assert.equal(credit.get("sid").soloCaps, 1);
+  assert.equal(credit.get("romek").soloCaps, 1);
+  assert.equal(credit.get("romek").relayCaps, 0);
+});
+
+test("without timestamps it still uses the match clock", () => {
+  // Every older export predates observed_at, and their matches must keep
+  // reconstructing exactly as before rather than collapsing to one order.
+  const drives = reconstructDrives(
+    [pickup(10, "Skuldug", "blue")],
+    [capture(40, "red", "Skuldug")],
+  );
+
+  assert.equal(drives.length, 1);
+  assert.equal(drives[0].capper, "Skuldug");
+});
+
+test("a partly timestamped match falls back rather than mixing two clocks", () => {
+  // An epoch in milliseconds and a match clock in seconds sort far worse
+  // together than either does alone, so coverage has to be all or nothing.
+  const drives = reconstructDrives(
+    [
+      timedPickup(10, 10, "Skuldug", "blue"),
+      { ...pickup(30, "Medeo", "red"), observedAt: null },
+    ],
+    [capture(40, "red", "Skuldug"), capture(60, "blue", "Medeo")],
+  );
+
+  assert.equal(drives.length, 2);
+  assert.equal(drives[0].capper, "Skuldug");
+  assert.equal(drives[1].capper, "Medeo");
+});

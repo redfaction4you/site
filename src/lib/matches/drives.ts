@@ -38,7 +38,52 @@ type CaptureLike = {
   elapsedSeconds: number;
   team: string;
   playerName: string | null;
+  /** Optional. See `timeline` for why it is preferred when present. */
+  observedAt?: Date | string | null;
 };
+
+type TimedLike = { elapsedSeconds: number; observedAt?: Date | string | null };
+
+/**
+ * Puts every event on one clock that only ever moves forward.
+ *
+ * `elapsedSeconds` is the match clock and **it restarts at zero in overtime**.
+ * Reconstruction sorts by time, so on an overtime match the extra period sorted
+ * in front of the first minute and the flag's journey came out shuffled. That is
+ * not cosmetic: it changed who was credited. On three overtime matches on record
+ * it turned two of Romek's solo captures into relays and gave one drive to a
+ * player who had no part in it.
+ *
+ * `observed_at` is a real instant and is present on every event on record, so
+ * where the whole match has it, everything is re-timed as seconds from the first
+ * event. It is all or nothing per match: mixing an epoch in milliseconds with a
+ * match clock in seconds would sort far worse than either alone. Without full
+ * coverage this falls back to the match clock and behaves exactly as before,
+ * which is right for any older export that never carried timestamps.
+ *
+ * The zero point becomes the first flag event rather than the whistle. Nothing
+ * reads the absolute value; only the order and the gaps matter, and both survive.
+ */
+function timeline<T extends TimedLike>(events: T[]): (event: T) => number {
+  const instants: number[] = [];
+
+  for (const event of events) {
+    const raw = event.observedAt;
+    if (raw === undefined || raw === null) return (e) => e.elapsedSeconds;
+    const ms = raw instanceof Date ? raw.getTime() : Date.parse(raw);
+    if (!Number.isFinite(ms)) return (e) => e.elapsedSeconds;
+    instants.push(ms);
+  }
+
+  if (instants.length === 0) return (e) => e.elapsedSeconds;
+
+  const base = Math.min(...instants);
+  return (event) => {
+    const raw = event.observedAt;
+    const ms = raw instanceof Date ? raw.getTime() : Date.parse(raw as string);
+    return (ms - base) / 1000;
+  };
+}
 
 function otherTeam(team: string): string {
   return team === "red" ? "blue" : team === "blue" ? "red" : "";
@@ -72,25 +117,29 @@ export function reconstructDrives(
     else byFlag.set(flag, [step]);
   };
 
+  // One clock for both streams, so a capture cannot sort before the pickup that
+  // led to it. Built from everything at once for the same reason.
+  const clock = timeline([...flagEvents, ...captures]);
+
   for (const event of flagEvents) {
     const flag = (event.flagOwner ?? "").toLowerCase();
     if (event.eventType === "flag_pickup") {
-      push(flag, { at: event.elapsedSeconds, kind: "pickup", player: event.playerName });
+      push(flag, { at: clock(event), kind: "pickup", player: event.playerName });
     } else if (event.eventType === "flag_drop") {
       push(flag, {
-        at: event.elapsedSeconds,
+        at: clock(event),
         kind: "drop",
         player: event.playerName,
         carryMs: event.carryMs,
       });
     } else if (event.eventType === "flag_return") {
-      push(flag, { at: event.elapsedSeconds, kind: "return" });
+      push(flag, { at: clock(event), kind: "return" });
     }
   }
 
   for (const capture of captures) {
     push(otherTeam(capture.team.toLowerCase()), {
-      at: capture.elapsedSeconds,
+      at: clock(capture),
       kind: "capture",
       player: capture.playerName,
     });

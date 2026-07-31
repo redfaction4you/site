@@ -15,10 +15,12 @@
  * at the expense of everyone who played properly, and it is exactly what these
  * tables do by default. Each board says what it takes to appear on it and why.
  *
- * Deliberately free of imports so `node --test` can load it directly. The shape
- * below is structural: anything with these fields works, which in practice means
- * whatever `listPlayers` returns.
+ * The shape below is structural: anything with these fields works, which in
+ * practice means whatever `listPlayers` returns. The one import is the accuracy
+ * rule, which has to be the same one the scoreboards use or a figure withheld on
+ * a match page would reappear on a board.
  */
+import { accuracyOf } from "./accuracy.ts";
 
 /** The subset of a player's totals the boards read. */
 export type RankablePlayer = {
@@ -116,7 +118,10 @@ export const BOARDS: Board[] = [
     key: "accuracy",
     label: "Accuracy",
     blurb: "Shots that hit, as a share of shots fired.",
-    value: (p) => (p.shotsFired > 0 ? p.shotsHit / p.shotsFired : null),
+    // Withheld rather than clamped when the counters contradict each other. A
+    // clamp would put a broken record at the top of the board on 100%, which is
+    // the same failure this board's qualification rule exists to prevent.
+    value: (p) => accuracyOf(p.shotsHit, p.shotsFired),
     format: (v) => `${(v * 100).toFixed(1)}%`,
     direction: "high",
     qualifies: (p) => p.shotsFired >= MIN_SHOTS_FOR_ACCURACY,

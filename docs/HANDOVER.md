@@ -175,10 +175,42 @@ would add them the day after this session. Drop into
 name (`20260711_201308_CTF-Ankhb12.jpg`), so folders and `MAP_ALIASES` entries can
 be derived rather than guessed. Never guess a map from pixels.
 
-**Pairings, and then Orion.** The next real feature and explicitly requested. Who
-plays with whom, how they do together, how they do against each other. It is the
-foundation Orion needs, and it also makes player pages interesting once there is
-more than a couple of nights.
+**Pairings** are built, 30 July 2026. `src/lib/matches/pairings.ts` is pure and
+tested, `queries.ts` fetches the appearances it reads, and every player page has
+an "Alongside and against" section. The facts also go into the player profile
+prompt, which is the part Orion needs.
+
+Two rules in it are the point rather than detail. A win rate is withheld below
+five decided matches together, because a percentage from three games describes
+the last one; the record is always shown, since that is a fact and the rate is an
+inference. And **how much better somebody plays with a given partner is
+deliberately not computed.** It is the obvious next question and this data cannot
+answer it: splitting an already small number of matches into with-them and
+without-them leaves a figure that is mostly which side the shuffle picked. It
+becomes answerable at hundreds of matches, not eight. The reasoning is in the
+module header so nobody adds it by accident.
+
+`/players/pairings` is the server-wide view, linked from `/players` and from each
+player's own section. It shadows `/players/[name]` for anybody actually called
+"pairings", since Next resolves a static segment first. Left alone deliberately.
+
+**Who moves flags together is the obvious next dimension and is not built.** It is
+the pairing that only a CTF archive can show, and the measurement is already
+there: `drives.ts` reconstructs every drive at ingest to credit lead carries. What
+is missing is persistence. `match_captures.drive_participants` and `assists` are
+empty on every row currently stored, because the VPS sends them empty and ingest
+copies what it is given, so a pairing built on hand-offs would have to re-read
+`matches.flag_events` for every match on every page load. The fix is to have
+`storeDay` write the reconstructed carriers into `drive_participants` when the
+payload does not supply them, which is what the column comment in `schema.ts`
+already anticipates, plus a backfill for rows already stored.
+
+Measured on the current archive before deciding not to build it: 32 drives, 22
+solo and 10 relays, with the most-relayed pair on three. Thin enough that a table
+would be mostly ones, which is the reason it waits rather than a reason it will
+not work.
+
+**Then Orion**, below.
 
 **Orion**, on hold at the user's request rather than blocked. A named automated
 columnist writing short opinion and prediction pieces to fill the front page
@@ -206,6 +238,63 @@ match boards exist for this reason; eventually you want recent-form windows.
 **Discord webhook.** `DISCORD_NEWS_WEBHOOK` is deliberately unset everywhere, so
 columns publish on the site but are announced nowhere. Setting it turns
 announcements on with no code change.
+
+## The 2.2 broadcaster package, and why the storage was not changed
+
+`RF4U-MATCH-ARCHIVE-INTEGRATION-2.2.zip` arrived on 31 July with instructions to
+build the archive on Vercel Blob, one JSON document per day. **The shot integrity
+rules were taken and the storage model was not.** That decision is the same one
+recorded further up this file, and it is worth restating because the package will
+probably arrive again:
+
+Day-sized documents cannot answer a question that crosses matches. `/players`,
+the twelve stat boards, pairings, player profiles and the night columns all
+aggregate across the whole archive, and every one of them would become "read
+every document and reduce in memory". Postgres was chosen for exactly this and
+the reasoning has not changed.
+
+What the package was genuinely right about is the shooting bug, and its own test
+fixture uses `shots_hit: 1804, shots_fired: 169`, our numbers. Those rules are now
+in `sanitize.ts` and its tests. See `chooseShotTuple`.
+
+Also worth knowing: the `windows-vps/` scripts in the package are byte identical
+to `../Transfers/vps-archive-sync/`, which is a superset with extra diagnostics
+and is newer. Nothing to take there.
+
+**Two stored things are still wrong and code cannot fix them on its own.**
+
+*Drive credit on the three overtime matches.* `soloCaps`, `relayCaps` and
+`leadCarries` are computed at ingest, so the ordering fix in `drives.ts` only
+reaches a match when its day is re-sent. The VPS re-sends recent days on every
+sync, so nights inside that window heal themselves once this deploys; anything
+older needs a deliberate re-send. Verify with a re-run of the comparison: correct
+ordering gives Romek two solo captures on Relic Seeker where the stored row says
+one solo and one relay.
+
+*Prose naming people who were not in the match.* Every stored report and column
+written before 31 July counted absent rows as players. Confirmed: the match 10
+report says "Both Fatoon for red and T1k}super for blue finished with 0 frags",
+and the 30 July column puts Fatoon in a match they did not play. The prompts now
+forbid naming anybody not in the list and forbid remarking that somebody scored
+nothing, but stored prose does not change until it is regenerated.
+
+*Prose written from the poisoned totals.* Stored, so it outlives the bug that
+produced it, and the page now contradicts itself where the scoreboard withholds a
+figure the article still quotes. Confirmed:
+
+- The **Rail Fight match report** says SiD shot "1067.5% accuracy".
+- **SiD's profile** says "a league-best 29.5 percent accuracy". The sound total is
+  16.0%. 29.5% is exactly what you get by including the broken match.
+- Every **profile written after the rail night** ranked accuracy against SiD's
+  inflated figure, so the ranks are suspect even where the player's own number is
+  fine. That covers medeo, t1k}super, ed assmaster, oddbaal, fatoon and romek.
+  "SiD hits shots at a rate no one else matches" is simply false.
+- The night columns are clean, checked for any three digit percentage.
+
+Fixing means regenerating, which costs quota and rewrites other prose, so it was
+left as a decision rather than done. Note the fact checker could not have caught
+any of this: it verifies prose against the facts it was given, and the facts were
+wrong.
 
 **Orphaned images.** Changing image provider changed the stored extension from
 `.png` to `.jpg`, leaving the old objects in the bucket. Harmless, worth a cleanup
@@ -251,10 +340,13 @@ Never replace it with a spread.
 guesses the key. Backups are encrypted and an unencrypted write is refused.
 `src/lib/r2.ts` refuses the `backups/` prefix outright.
 
-**Generated content is always labelled.** The illustration caption lives inside
-`ColumnImage` so the picture cannot be rendered without it. There is deliberately
-no OpenGraph image: a link preview is the one place the label could not follow it.
-The label is two words now, but it is not nothing.
+**Generated content is always labelled**, with one exception the user asked for.
+Prose says who wrote it everywhere it appears. The illustration's visible "AI
+interpretation" caption was removed on 30 July 2026 at the user's request; the alt
+text and the figure title still identify it as generated, and both live inside
+`ColumnImage` so the picture cannot be rendered without them. Do not put the
+caption back unasked. There is deliberately no OpenGraph image: a link preview is
+the one place a label could not follow it.
 
 **No em dashes**, anywhere, in site copy or generated text.
 

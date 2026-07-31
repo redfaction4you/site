@@ -338,3 +338,125 @@ test("a day with no matches is valid, not an error", () => {
   assert.equal(day.matches.length, 0);
   assert.equal(day.archiveDay, "2026-07-28");
 });
+
+/* --- shooting is one measurement, not two counters ------------------------ */
+
+/*
+ * These came from the 2.2 broadcaster package, which was written in response to
+ * the same bug this archive hit. The numbers in the third test are the real
+ * ones: SiD on Rail Fight, 1804 hits from 169 shots, published as 1067%.
+ *
+ * The rule is that hits and shots are chosen together from one snapshot or
+ * rejected together. Merging by taking the maximum of each half independently
+ * is what let a single bad sample poison a row permanently.
+ */
+
+/** One snapshot of a player, as the server sends it. */
+function snapshot(overrides = {}) {
+  return {
+    name: "SiD",
+    team: "red",
+    score: 10,
+    kills: 5,
+    deaths: 5,
+    shots_hit: 100,
+    shots_fired: 500,
+    ...overrides,
+  };
+}
+
+function mergedPlayer(rows) {
+  const day = sanitizeDay({
+    calendarDate: "2026-07-30",
+    server: "rf4u",
+    matches: [{ id: 1, map_name: "Rail Fight", players: rows }],
+  });
+  return day.matches[0].players[0];
+}
+
+test("a newer valid shot tuple replaces an older larger one, whole", () => {
+  const player = mergedPlayer([
+    snapshot({ shots_hit: 400, shots_fired: 1000, shot_observed_at: "2026-07-30T03:05:00.000Z" }),
+    snapshot({ shots_hit: 180, shots_fired: 900, shot_observed_at: "2026-07-30T03:10:00.000Z" }),
+  ]);
+
+  // Not max(400, 180) over max(1000, 900). The newer pair wins entire.
+  assert.equal(player.shotsHit, 180);
+  assert.equal(player.shotsFired, 900);
+});
+
+test("hits and shots are never taken from different snapshots", () => {
+  const player = mergedPlayer([
+    snapshot({ shots_hit: 400, shots_fired: 500, shot_observed_at: "2026-07-30T03:05:00.000Z" }),
+    snapshot({ shots_hit: 50, shots_fired: 900, shot_observed_at: "2026-07-30T03:10:00.000Z" }),
+  ]);
+
+  // The old code would have produced 400 hits from 900 shots, a pair that never
+  // existed in any snapshot.
+  assert.equal(player.shotsHit, 50);
+  assert.equal(player.shotsFired, 900);
+});
+
+test("a newer invalid tuple cannot poison an older valid one", () => {
+  const player = mergedPlayer([
+    snapshot({ name: "Romek", shots_hit: 95, shots_fired: 736, shot_observed_at: "2026-07-30T03:05:00.000Z" }),
+    // The real Rail Fight reading, arriving later.
+    snapshot({ name: "Romek", shots_hit: 1804, shots_fired: 169, shot_observed_at: "2026-07-30T03:10:00.000Z" }),
+  ]);
+
+  assert.equal(player.shotsHit, 95);
+  assert.equal(player.shotsFired, 736);
+  assert.ok(player.accuracy <= 1, `accuracy escaped: ${player.accuracy}`);
+});
+
+test("the broadcaster's own invalid flag is honoured", () => {
+  const player = mergedPlayer([
+    snapshot({ shots_hit: 100, shots_fired: 500, shot_observed_at: "2026-07-30T03:05:00.000Z" }),
+    snapshot({
+      shots_hit: 200,
+      shots_fired: 600,
+      shot_data_valid: false,
+      shot_observed_at: "2026-07-30T03:10:00.000Z",
+    }),
+  ]);
+
+  // Arithmetically fine, but the server says not to trust it.
+  assert.equal(player.shotsHit, 100);
+  assert.equal(player.shotsFired, 500);
+});
+
+test("without timestamps the richest valid tuple wins", () => {
+  // Every row archived before the broadcaster carried times lands here.
+  const player = mergedPlayer([
+    snapshot({ shots_hit: 100, shots_fired: 500 }),
+    snapshot({ shots_hit: 180, shots_fired: 900 }),
+  ]);
+
+  assert.equal(player.shotsHit, 180);
+  assert.equal(player.shotsFired, 900);
+});
+
+test("an accuracy over 100 percent can no longer be stored", () => {
+  const player = mergedPlayer([snapshot({ shots_hit: 1804, shots_fired: 169 })]);
+  assert.ok(player.accuracy <= 1, `accuracy escaped: ${player.accuracy}`);
+});
+
+test("per weapon shooting obeys the same rule", () => {
+  const player = mergedPlayer([
+    snapshot({
+      weapon_stats: [{ weapon: "Rail Driver", shots_hit: 50, shots_fired: 165, kills: 50 }],
+      shot_observed_at: "2026-07-30T03:05:00.000Z",
+    }),
+    snapshot({
+      weapon_stats: [{ weapon: "Rail Driver", shots_hit: 1804, shots_fired: 168, kills: 69 }],
+      shot_observed_at: "2026-07-30T03:10:00.000Z",
+    }),
+  ]);
+
+  const rail = player.weaponStats.find((w) => w.weapon === "Rail Driver");
+  assert.equal(rail.shotsHit, 50);
+  assert.equal(rail.shotsFired, 165);
+  assert.ok(rail.accuracy <= 1, `weapon accuracy escaped: ${rail.accuracy}`);
+  // Frags are an ordinary counter, so the larger is still the later.
+  assert.equal(rail.kills, 69);
+});

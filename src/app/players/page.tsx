@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { UNSOUND_SHOOTING_NOTE } from "@/lib/matches/accuracy";
 import { listPlayers } from "@/lib/matches/queries";
 
 export const metadata: Metadata = {
@@ -39,6 +40,17 @@ export default async function PlayersPage() {
       <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">Players</h1>
       <p className="mt-4 max-w-2xl text-lg leading-relaxed text-steel-300">
         Everyone who has played a recorded match, and how they did across all of them.
+      </p>
+
+      {/* This page is who played. Pairings is who they played it with, which is
+          the question the totals below cannot answer. */}
+      <p className="mt-4">
+        <Link
+          href="/players/pairings"
+          className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+        >
+          Who plays with whom
+        </Link>
       </p>
 
       {players.length === 0 ? (
@@ -117,6 +129,17 @@ export default async function PlayersPage() {
                         {player.shotsFired > 0
                           ? percent(player.shotsHit / player.shotsFired)
                           : "-"}
+                        {/* Totalled from the matches whose counters agree with
+                            themselves, so a reader is not silently shown a
+                            figure covering less than their whole record. */}
+                        {player.unsoundShootingMatches > 0 ? (
+                          <span
+                            className="ml-1 text-steel-600"
+                            title={`${UNSOUND_SHOOTING_NOTE} ${player.unsoundShootingMatches} of their matches are left out of this figure.`}
+                          >
+                            *
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
                         {player.bestStreak}
@@ -133,6 +156,15 @@ export default async function PlayersPage() {
             Two people using the same name appear as one row; anyone who renamed appears
             as two.
           </p>
+
+          {players.some((player) => player.unsoundShootingMatches > 0) ? (
+            <p className="mt-3 text-xs leading-relaxed text-steel-600">
+              An accuracy marked with an asterisk leaves out one or more matches
+              where the server recorded more hits than shots for that player,
+              which happens on the rail maps. Those matches count in every other
+              column; only the accuracy is affected.
+            </p>
+          ) : null}
         </>
       )}
     </div>

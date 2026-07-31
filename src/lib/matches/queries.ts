@@ -19,8 +19,55 @@ import {
   playerProfiles,
 } from "@/lib/db/schema";
 import { type PickableMatch, pickMatch } from "@/lib/ai/match-pick";
+import {
+  type Appearance,
+  type Pairings,
+  type PlayerPairings,
+  buildPairings,
+  pairingsFor,
+} from "@/lib/matches/pairings";
 import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
 import type { VettableMatch } from "@/lib/matches/vet";
+
+/**
+ * Who actually played, as a `where` clause.
+ *
+ * The SQL twin of `tookPart` in participation.ts, which is where the reasoning
+ * lives. Kept in step with it by hand because a scoreboard filtered in
+ * TypeScript and a total filtered in Postgres disagreeing would be the worst of
+ * both: a player page saying somebody played nine matches and a match page not
+ * listing them in one of the nine.
+ *
+ * Replaces the bare `spectator = false` that used to be the test everywhere.
+ * That let through rows on a real team with nothing whatever recorded, which
+ * turned a two against two into a three against three.
+ */
+export const TOOK_PART = sql`
+  not ${matchPlayers.spectator} and (
+    ${matchPlayers.score} > 0 or ${matchPlayers.kills} > 0 or ${matchPlayers.deaths} > 0
+    or ${matchPlayers.caps} > 0 or ${matchPlayers.shotsFired} > 0
+    or ${matchPlayers.shotsHit} > 0 or ${matchPlayers.damageTaken} > 0
+    or ${matchPlayers.damageGiven} > 0 or ${matchPlayers.flagPickups} > 0
+    or ${matchPlayers.flagReturns} > 0 or ${matchPlayers.maxStreak} > 0
+  )`;
+
+/**
+ * The order captures actually happened in.
+ *
+ * Not `elapsed_seconds`, which is the match clock and **restarts at zero in
+ * overtime**. Ordering by it puts the golden goal at the top of the timeline: on
+ * Rail Fight the winning capture two seconds into extra time sorted above the
+ * opening capture of the match, so the page opened by showing the final score
+ * and then counted up to it.
+ *
+ * `observed_at` is a real instant and is populated on every capture on record.
+ * The clock is kept as the tie break, so a match that somehow arrives without
+ * timestamps still comes out in a sensible order rather than an arbitrary one.
+ */
+const CAPTURE_ORDER = {
+  first: asc(matchCaptures.observedAt),
+  second: asc(matchCaptures.elapsedSeconds),
+};
 
 export type DaySummary = {
   archiveDay: string;
@@ -112,7 +159,7 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
           matchPlayers.matchId,
           rows.map((row) => row.id),
         ),
-        eq(matchPlayers.spectator, false),
+        TOOK_PART,
       ),
     )
     .groupBy(matchPlayers.matchId);
@@ -239,7 +286,7 @@ export const getMatch = cache(async function getMatch(
     })
     .from(matchCaptures)
     .where(eq(matchCaptures.matchId, match.id))
-    .orderBy(asc(matchCaptures.elapsedSeconds));
+    .orderBy(CAPTURE_ORDER.first, CAPTURE_ORDER.second);
 
   return { ...match, players, captures };
 });
@@ -305,8 +352,11 @@ export type PlayerTotals = {
   deaths: number;
   caps: number;
   score: number;
+  /** Totalled from matches whose counters agree with themselves. See below. */
   shotsHit: number;
   shotsFired: number;
+  /** How many of their matches were left out of the two figures above. */
+  unsoundShootingMatches: number;
   damageGiven: number;
   damageTaken: number;
   flagHoldMs: number;
@@ -348,6 +398,22 @@ export const MIN_MEANINGFUL_CAPTURE_MS = 2000;
  */
 const UNRELAYED = sql`${matchPlayers.relayCaps} = 0`;
 
+/**
+ * Matches whose shooting counters agree with themselves.
+ *
+ * The rail maps produce rows where hits exceed shots, sometimes by a factor of
+ * ten. Summing those into a career total is worse than showing one bad match,
+ * because it silently corrupts a figure that looks fine: a player with one rail
+ * match and thirty sound ones ends up with an accuracy nobody can trace back to
+ * anything. Totalled here from the sound matches only, and the count of what was
+ * left out is returned alongside so a page can say so rather than quietly
+ * showing less than it claims.
+ *
+ * The rows themselves are untouched. See `accuracy.ts` for why withholding the
+ * derived figure is the trade rather than correcting the record.
+ */
+export const SOUND_SHOOTING = sql`${matchPlayers.shotsHit} <= ${matchPlayers.shotsFired}`;
+
 const playerTotalColumns = {
   name: sql<string>`min(${matchPlayers.name})`,
   matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
@@ -355,8 +421,10 @@ const playerTotalColumns = {
   deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
   caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
   score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
-  shotsHit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}), 0)::float8`,
-  shotsFired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}), 0)::float8`,
+  shotsHit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+  shotsFired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+  /** Matches left out of the two figures above, so a page can say so. */
+  unsoundShootingMatches: sql<number>`count(*) filter (where not (${SOUND_SHOOTING}))::int`,
   damageGiven: sql<number>`coalesce(sum(${matchPlayers.damageGiven}), 0)::float8`,
   damageTaken: sql<number>`coalesce(sum(${matchPlayers.damageTaken}), 0)::float8`,
   flagHoldMs: sql<number>`coalesce(sum(${matchPlayers.flagHoldMs}), 0)::int`,
@@ -387,7 +455,7 @@ export const listPlayers = cache(async function listPlayers(): Promise<PlayerTot
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(eq(matchPlayers.spectator, false))
+    .where(TOOK_PART)
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`count(distinct ${matchPlayers.matchId}) desc`, sql`2 desc`);
 
@@ -405,7 +473,10 @@ export const getPlayer = cache(async function getPlayer(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(sql`lower(${matchPlayers.name}) = lower(${name})`)
+    // Filtered like the list is. Without this a player page counted the nights
+    // somebody spectated as matches they played, so the list and the page
+    // disagreed about the same person.
+    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .limit(1);
 
@@ -428,6 +499,50 @@ export const getPlayerProfile = cache(async function getPlayerProfile(name: stri
   return row ?? null;
 });
 
+// ---------------------------------------------------------------------------
+// Pairings
+//
+// Who plays with whom, and how it goes. The arithmetic lives in pairings.ts,
+// which is pure so it can be tested; all that happens here is fetching the
+// appearances it reads.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every player's every match, as the pairing code wants it.
+ *
+ * Deliberately not filtered to `status = 'final'`, matching `listPlayers` and
+ * `getPlayerMatches`. A match that never finished still happened and the people
+ * in it were still on the same side; it carries no winner, so it lands in
+ * `undecided` and cannot flatter or damage anybody's record.
+ *
+ * Exported uncached as well as cached because the profile writer runs outside a
+ * request, where React's `cache` has no scope to work in.
+ */
+export async function fetchAppearances(): Promise<Appearance[]> {
+  return db
+    .select({
+      matchId: matchPlayers.matchId,
+      name: matchPlayers.name,
+      team: matchPlayers.team,
+      winner: matches.winner,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(TOOK_PART);
+}
+
+/** Every partnership and rivalry on record. One query, computed in memory. */
+export const allPairings = cache(async function allPairings(): Promise<Pairings> {
+  return buildPairings(await fetchAppearances());
+});
+
+/** One player's pairings, from their point of view. */
+export const getPlayerPairings = cache(async function getPlayerPairings(
+  name: string,
+): Promise<PlayerPairings> {
+  return pairingsFor(name, await allPairings());
+});
+
 export type PlayerMatchRow = {
   archiveDay: string;
   sourceMatchId: number;
@@ -442,7 +557,13 @@ export type PlayerMatchRow = {
   kills: number;
   deaths: number;
   caps: number;
-  accuracy: number;
+  /**
+   * Carried raw so the page can apply the same accuracy rule as everywhere
+   * else. Deriving it from the stored `accuracy` would mean a second way of
+   * spotting a broken counter, and two rules drift.
+   */
+  shotsHit: number;
+  shotsFired: number;
 };
 
 /** Every match this player appeared in, newest first. */
@@ -464,11 +585,12 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
       kills: matchPlayers.kills,
       deaths: matchPlayers.deaths,
       caps: matchPlayers.caps,
-      accuracy: matchPlayers.accuracy,
+      shotsHit: matchPlayers.shotsHit,
+      shotsFired: matchPlayers.shotsFired,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(sql`lower(${matchPlayers.name}) = lower(${name})`)
+    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART))
     .orderBy(desc(matches.startedAt));
 
   return rows.map(({ winner, ...row }) => ({
@@ -566,7 +688,7 @@ export const getDayDocument = cache(async function getDayDocument(archiveDay: st
     })
     .from(matchCaptures)
     .where(inArray(matchCaptures.matchId, ids))
-    .orderBy(asc(matchCaptures.elapsedSeconds));
+    .orderBy(CAPTURE_ORDER.first, CAPTURE_ORDER.second);
 
   const iso = (value: Date | null) => value?.toISOString() ?? null;
 
@@ -689,7 +811,7 @@ export const nightTotals = cache(async function nightTotals(archiveDay: string) 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)));
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART));
 
   return row ?? { players: 0, frags: 0, captures: 0 };
 });
@@ -791,7 +913,7 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
       count: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
     })
     .from(matchPlayers)
-    .where(and(inArray(matchPlayers.matchId, ids), eq(matchPlayers.spectator, false)))
+    .where(and(inArray(matchPlayers.matchId, ids), TOOK_PART))
     .groupBy(matchPlayers.matchId, matchPlayers.team);
 
   const captureCounts = await db
@@ -887,7 +1009,7 @@ export const nightScoreboard = cache(async function nightScoreboard(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 });

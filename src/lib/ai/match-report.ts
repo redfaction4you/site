@@ -20,6 +20,8 @@
  */
 import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
+import { accuracyOf } from "@/lib/matches/accuracy";
+import { tookPart } from "@/lib/matches/participation";
 import type { MatchDetail } from "@/lib/matches/queries";
 
 const SYSTEM = `You write short match reports for a Red Faction capture-the-flag archive.
@@ -36,6 +38,9 @@ Hard rules:
 - Do not open with "In a thrilling match" or similar filler.
 - Do not use em dashes.
 - Refer to players exactly by the names given, including odd capitalisation.
+- The players listed are everyone who played. Never mention spectators, and
+  never name anybody not in the lists below. Do not remark that somebody
+  scored nothing or did not appear: only write about what people did.
 - Never guess a player's gender. Use they and them for everyone, without
   exception, however the name reads to you. Never write he, she, his or her
   about a player.
@@ -81,7 +86,10 @@ function phase(elapsed: number, total: number | null): string {
  * thirty seconds before each capture, which is where a story usually is.
  */
 function buildPrompt(match: MatchDetail): string {
-  const active = match.players.filter((p) => !p.spectator);
+  // Only people who played. Anyone on a team with nothing recorded never
+  // entered the match, and a report naming them is a report of a game that did
+  // not happen. See participation.ts.
+  const active = match.players.filter(tookPart);
   const lines: string[] = [];
 
   const totalSeconds =
@@ -107,8 +115,16 @@ function buildPrompt(match: MatchDetail): string {
     if (!squad.length) continue;
     lines.push(`${team.toUpperCase()} team:`);
     for (const p of squad) {
+      // Said in words rather than omitted, so the model is told the figure does
+      // not exist instead of being left to infer one from hits and shots it can
+      // see elsewhere in the prompt.
+      const sound = accuracyOf(p.shotsHit, p.shotsFired);
       const accuracy =
-        p.shotsFired > 0 ? `${((p.shotsHit / p.shotsFired) * 100).toFixed(1)}% accuracy` : "no shots recorded";
+        sound !== null
+          ? `${(sound * 100).toFixed(1)}% accuracy`
+          : p.shotsFired > 0
+            ? "accuracy not usable, the server recorded more hits than shots for them"
+            : "no shots recorded";
       lines.push(
         `  ${p.name}: score ${p.score}, ${p.kills} frags, ${p.deaths} deaths, ` +
           `${p.caps} captures, best streak ${p.maxStreak}, ${accuracy}` +

@@ -189,6 +189,58 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   build plan calls the hard part of player statistics. Every query in
   `queries.ts` names its columns and none name that one. Do not use
   `db.query.matchPlayers.findMany()` here — it would select everything.
+- **Hits and shots are one measurement and must never be merged separately.**
+  This was the cause of the 1067% accuracy on Rail Fight, and the 2.2
+  broadcaster package confirmed it: `mergePlayers` took the maximum of every
+  counter independently, which is right for a running total and wrong for a
+  pair, so it could report the largest hit count it had seen against the largest
+  shot count it had seen, from different snapshots. One bad sample then stuck
+  forever. `chooseShotTuple` in `sanitize.ts` now picks a whole tuple, prefers
+  the newest valid one, and never lets a newer invalid one displace an older
+  valid one. Weapon stats obey the same rule. **Do not put `shotsHit` or
+  `shotsFired` back into `MAX_FIELDS`.**
+- **A row can still arrive bad with nothing better to choose**, so the read
+  guard stays as well. **`src/lib/matches/accuracy.ts` is the single rule.** `accuracyOf` returns
+  null where the record contradicts itself, every read path uses it, and the
+  aggregates total only sound matches via `SOUND_SHOOTING` in `queries.ts`. The
+  rows are left exactly as sent, the same trade `fastest_capture_ms` makes for
+  relays. Do not clamp to 100%: that puts a broken counter top of the board.
+- **`spectator = false` does not mean somebody played.** The server sends a row
+  for everyone it had on a team when it snapshotted, and five rows on record
+  carry a real team, the flag unset, and every counter zero: no score, frags,
+  deaths, shots, flag touches or damage taken. They never entered the game.
+  Real spectators arrive correctly marked with `team = 'spectator'`; this is a
+  third category the schema had no name for. **`participation.ts` (`tookPart`)
+  and its SQL twin `TOOK_PART` in `queries.ts` are now the test everywhere**, and
+  the two must be kept in step. Any sign of life counts, down to one point of
+  damage taken, because dropping somebody who played is far worse than keeping
+  somebody who did not. Uncorrected it made match 10 a three against three when
+  it was two against two, gave Chill Hippo and Ath-PL a player page each despite
+  never playing a match, fed the illustration the wrong number of figures a
+  side, and put a name in a column for a match they were not in, which is how a
+  reader found it.
+- **`shots_hit` is fractional and that is correct.** Values like 159.75 and
+  207.875 are always eighths, and an audit of every match traced all 32 of them
+  to the Automatic Shotgun: eight pellets a shot, so three pellets landing is
+  three eighths of a hit. No row is fractional without shotgun use and no other
+  weapon ever produces one. Accuracy is therefore pellet weighted, which is the
+  more meaningful figure and matches what the game reports. Rounding to integers
+  would inflate every shotgun user. The column is `doublePrecision` for this.
+- **Weapon stats are absent, never wrong, before the 2.1 broadcaster.** Matches 2
+  to 5 carry none; from match 6 onward all 44 rows sum exactly to their player
+  total. An empty `weapon_stats` is expected history, not a fault.
+- **Overtime restarts `elapsed_seconds` at zero**, and two things sorted on it.
+  The capture timeline opened with the golden goal and counted up to it, fixed by
+  `CAPTURE_ORDER` in `queries.ts`, which orders on `observed_at`. Worse,
+  `drives.ts` reconstructs the flag's journey by time, so extra time sorted in
+  front of the first minute and **credit came out wrong**: across the three
+  overtime matches on record it turned two of Romek's solo captures into relays
+  and gave a drive to somebody with no part in it. `reconstructDrives` now
+  re-times everything onto `observed_at` when the whole match has it, and falls
+  back to the match clock when it does not. All or nothing per match: mixing an
+  epoch in milliseconds with a clock in seconds sorts worse than either alone.
+  **Drive credit is computed at ingest, so stored rows only correct themselves
+  when a day is re-sent.**
 - **Duplicate player rows are merged by maximum, not summed.** The server emits
   periodic snapshots, so two rows are one player counted twice. Summing would
   double everyone's night. Accuracy is recomputed from shot counts rather than
@@ -199,6 +251,16 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 - **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
   to that evening even though it is the next day in UTC. Timestamps stay UTC;
   only the grouping is local.
+- **Pairings (`src/lib/matches/pairings.ts`) are built on names, never on
+  colours.** Who is on a side with whom, and who is opposite. The module is pure
+  so `node --test` loads it directly, the same arrangement as `leaderboards.ts`.
+  Two decisions in it are load bearing: a win rate is withheld below five decided
+  matches together, because a percentage from three games describes the last one
+  rather than the pairing, and the record is shown regardless because that is a
+  fact where the rate is an inference. **How much better somebody plays with a
+  given partner is deliberately not computed** and the header says why: it splits
+  an already small sample in two and the difference would be mostly which side
+  the shuffle picked.
 - **The nightly column carries a generated illustration, composed from reference
   images** rather than imagined: a screenshot of the map that was actually played,
   the actual player models in red and blue, and the real number of figures a side.
@@ -227,10 +289,13 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   - A map with no screenshots is skipped rather than invented. `MAP_ALIASES` in
     `image-refs.ts` maps server map names onto folders; `npm run refs:push`
     regenerates that file and syncs `assets/refs` to R2.
-  - `src/components/column-image.tsx` is the only thing that renders it and the
-    caption lives inside that component, so the picture cannot be shown unlabelled.
-    There is deliberately no OpenGraph image: a link preview is the one place the
-    label could not follow it.
+  - `src/components/column-image.tsx` is the only thing that renders it. It
+    carried a visible "AI interpretation" caption until **30 July 2026, when the
+    user asked for it to be removed**. What labels the picture now is the alt
+    text, which calls it a generated illustration, and the figure's title, which
+    says it is not a photograph of the match. Both are attached inside the
+    component so the picture cannot be rendered without them. Do not reinstate the
+    caption without being asked. There is deliberately no OpenGraph image.
 - **Generated writing is fact checked before it is stored.** `fact-check.ts` sends
   every draft column and match report back with the facts and asks what the data
   does not support; a failure is rewritten once, then discarded. It exists because a

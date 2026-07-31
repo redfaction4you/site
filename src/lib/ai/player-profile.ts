@@ -16,6 +16,12 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
+import {
+  MIN_MATCHES_FOR_PAIR_RATE,
+  buildPairings,
+  pairingsFor,
+} from "@/lib/matches/pairings";
+import { SOUND_SHOOTING, TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
 import { generate } from "./generate";
 
 const SYSTEM = `You write two paragraph player profiles for a Red Faction
@@ -31,10 +37,20 @@ What makes a good one:
   something hard, and a profile should notice.
 - Name a genuine weakness only if the numbers plainly show one, and say it
   the way a teammate would, not a critic.
+- Who they play with and against is worth a line when the numbers are clear:
+  the person they are most often on a side with, or somebody they have faced a
+  lot. Say it as attendance, which is what it is. "Usually on the same side as
+  X" is supported. "Has a rivalry with X" is not, and neither is anything
+  about how the two of them get on, play off each other, or feel about it.
 
 Hard rules:
 - Use ONLY the facts given. You know nothing else about this person.
 - Never invent history, rivalries, past seasons, records or motives.
+- Sides are shirt colours that get reshuffled between matches. Red and blue
+  are not teams and must never be written about as though they were.
+- A record of two or three matches is not a trend. If a win rate was withheld
+  as too few to give, do not compute one from the record yourself and do not
+  describe the pairing as working well or badly.
 - Never state a number that is not in the data.
 - Never guess a player's gender. Use they and them for everyone, without
   exception, however the name reads to you. Never write he, she, his or her.
@@ -74,13 +90,15 @@ export async function buildProfileFacts(
       caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
       leadCarries: sql<number>`coalesce(sum(${matchPlayers.leadCarries}), 0)::int`,
       flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
-      hit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}), 0)::float8`,
-      fired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}), 0)::float8`,
+      // Sound matches only, matching the boards and the scoreboards. See
+      // `SOUND_SHOOTING`.
+      hit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      fired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
       bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
       flagHoldMs: sql<number>`coalesce(sum(${matchPlayers.flagHoldMs}), 0)::int`,
     })
     .from(matchPlayers)
-    .where(eq(matchPlayers.spectator, false))
+    .where(TOOK_PART)
     .groupBy(sql`lower(${matchPlayers.name})`);
 
   const me = everyone.find((row) => row.nameKey === nameKey);
@@ -151,6 +169,45 @@ export async function buildProfileFacts(
       const result = r.winner ? (r.winner === r.team ? "won" : "lost") : "no result";
       lines.push(
         `  ${r.archiveDay} ${r.mapName}: ${result}, ${r.kills} frags, ${r.deaths} deaths, ${r.caps} captures`,
+      );
+    }
+  }
+
+  /*
+   * Who they play with and against.
+   *
+   * The most human thing the archive knows and the last thing it was telling
+   * anybody. A profile that can say who somebody keeps ending up next to reads
+   * like it is about a person in a group rather than a row in a table.
+   *
+   * The rate is handed over already computed, and withheld where it would be
+   * noise, for the same reason the superlatives are: working out a percentage
+   * from a record is arithmetic, and being told "do not overread small numbers"
+   * is not something a model reliably acts on when a tempting number is sitting
+   * in front of it. Below the bar it simply never sees a percentage.
+   */
+  const pairings = pairingsFor(me.name, buildPairings(await fetchAppearances()));
+
+  if (pairings.alongside.length) {
+    lines.push("");
+    lines.push("Matches on the same side as each player, and the shared record:");
+    for (const row of pairings.alongside) {
+      const rate =
+        row.winRate === null
+          ? ` (too few to give a win rate, fewer than ${MIN_MATCHES_FOR_PAIR_RATE} decided)`
+          : ` (${Math.round(row.winRate * 100)}% won)`;
+      lines.push(
+        `  With ${row.partner}: ${row.matches} together, ${row.wins} won, ${row.losses} lost${rate}`,
+      );
+    }
+  }
+
+  if (pairings.against.length) {
+    lines.push("");
+    lines.push(`Matches against each player, from ${me.name}'s side of it:`);
+    for (const row of pairings.against) {
+      lines.push(
+        `  Against ${row.opponent}: ${row.matches} faced, ${row.won} won, ${row.lost} lost`,
       );
     }
   }

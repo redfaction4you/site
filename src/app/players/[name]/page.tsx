@@ -3,10 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
+import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
+import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
 import {
   getPlayer,
   getPlayerMatches,
+  getPlayerPairings,
   getPlayerProfile,
   listPlayers,
 } from "@/lib/matches/queries";
@@ -58,15 +61,61 @@ function ordinal(n: number): string {
   return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`;
 }
 
+/**
+ * A win rate, to the whole percent.
+ *
+ * Deliberately coarser than the accuracy figures above. Those are computed from
+ * thousands of shots and a decimal place means something; a win rate comes from
+ * a handful of matches, and printing 66.7% would dress five games up as a
+ * measurement.
+ */
+function share(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function PairHead({ columns }: { columns: string[] }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((label, i) => (
+          <th
+            key={label}
+            className={
+              "px-3 py-2 font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 " +
+              (i === 0 ? "text-left" : "text-right")
+            }
+          >
+            {label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function PairName({ name }: { name: string }) {
+  return (
+    <td className="px-3 py-2">
+      <Link
+        href={`/players/${encodeURIComponent(name)}`}
+        className="text-steel-100 hover:text-rust-300"
+      >
+        {name}
+      </Link>
+    </td>
+  );
+}
+
 export default async function PlayerPage({ params }: Props) {
   const { name } = await params;
   const decoded = decodeURIComponent(name);
 
-  const [player, history, profile, everyone] = await Promise.all([
+  const [player, history, profile, everyone, pairings] = await Promise.all([
     getPlayer(decoded),
     getPlayerMatches(decoded),
     getPlayerProfile(decoded),
     listPlayers(),
+    getPlayerPairings(decoded),
   ]);
 
   if (!player) notFound();
@@ -94,7 +143,9 @@ export default async function PlayerPage({ params }: Props) {
   }).filter((placing): placing is NonNullable<typeof placing> => placing !== null);
 
   const kd = player.deaths > 0 ? player.kills / player.deaths : player.kills;
-  const accuracy = player.shotsFired > 0 ? player.shotsHit / player.shotsFired : null;
+  // Already totalled from the sound matches only, so this cannot exceed 1. The
+  // count of what was excluded rides along so the hint can say so.
+  const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
   const wins = history.filter((m) => m.won === true).length;
   const losses = history.filter((m) => m.won === false).length;
 
@@ -206,7 +257,12 @@ export default async function PlayerPage({ params }: Props) {
           hint={
             accuracy === null
               ? undefined
-              : `${Math.round(player.shotsHit)} of ${Math.round(player.shotsFired)}`
+              : `${Math.round(player.shotsHit)} of ${Math.round(player.shotsFired)}` +
+                (player.unsoundShootingMatches > 0
+                  ? `, ${player.unsoundShootingMatches} ${
+                      player.unsoundShootingMatches === 1 ? "match" : "matches"
+                    } left out`
+                  : "")
           }
         />
         <Stat label="Best streak" value={String(player.bestStreak)} />
@@ -216,6 +272,117 @@ export default async function PlayerPage({ params }: Props) {
           value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "-"}
         />
       </dl>
+
+      {/*
+        Who they actually play with, and who they play against.
+
+        Worked out from who was on each side match by match, never from the
+        colours. Red and blue get reshuffled between games here, so a player's
+        real teammates are a fact about names and not about shirts, and the same
+        two people usually appear in both tables.
+      */}
+      {pairings.alongside.length > 0 || pairings.against.length > 0 ? (
+        <section className="mt-12">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+            <h2 className="font-display text-lg font-bold text-steel-100">
+              Alongside and against
+            </h2>
+            <Link
+              href="/players/pairings"
+              className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+            >
+              Everyone&rsquo;s pairings
+            </Link>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-steel-400">
+            Sides are shuffled between matches, so most people show up in both
+            tables. Counted from who was on which side in each match.
+          </p>
+
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            {pairings.alongside.length > 0 ? (
+              <div>
+                <h3 className="eyebrow">On the same side</h3>
+                <div className="panel mt-2 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <PairHead columns={["Player", "Together", "Record", "Win rate"]} />
+                    <tbody>
+                      {pairings.alongside.map((row) => (
+                        <tr key={row.partner} className="border-t border-basalt-700">
+                          <PairName name={row.partner} />
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
+                            {row.matches}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-200">
+                            {row.wins}–{row.losses}
+                            {row.undecided > 0 ? (
+                              <span
+                                className="ml-1 text-steel-600"
+                                title={`${row.undecided} with no recorded result`}
+                              >
+                                +{row.undecided}
+                              </span>
+                            ) : null}
+                          </td>
+                          {/*
+                            Blank rather than a dash when the pairing is too new
+                            for a rate. A dash reads as "none", and the answer
+                            here is "not yet", which is a different thing.
+                          */}
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
+                            {row.winRate === null ? "" : share(row.winRate)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {pairings.against.length > 0 ? (
+              <div>
+                <h3 className="eyebrow">On the other side</h3>
+                <div className="panel mt-2 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <PairHead columns={["Player", "Faced", "Record"]} />
+                    <tbody>
+                      {pairings.against.map((row) => (
+                        <tr key={row.opponent} className="border-t border-basalt-700">
+                          <PairName name={row.opponent} />
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
+                            {row.matches}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-200">
+                            {row.won}–{row.lost}
+                            {row.undecided > 0 ? (
+                              <span
+                                className="ml-1 text-steel-600"
+                                title={`${row.undecided} with no recorded result`}
+                              >
+                                +{row.undecided}
+                              </span>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/*
+            The bar for a rate, stated where it applies rather than in a
+            footnote, the same way the stat boards state theirs.
+          */}
+          <p className="mt-3 text-xs leading-relaxed text-steel-600">
+            {PAIR_RATE_REQUIREMENT} A record of 3–1 means three matches won and one
+            lost; anything after a plus sign had no recorded result.
+          </p>
+        </section>
+      ) : null}
 
       <section className="mt-12">
         <h2 className="font-display text-lg font-bold text-steel-100">Match history</h2>
@@ -307,7 +474,20 @@ export default async function PlayerPage({ params }: Props) {
                     {row.caps}
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
-                    {row.accuracy > 0 ? percent(row.accuracy) : "-"}
+                    {(() => {
+                      const value = accuracyOf(row.shotsHit, row.shotsFired);
+                      return value === null ? (
+                        <span
+                          title={
+                            row.shotsFired > 0 ? UNSOUND_SHOOTING_NOTE : undefined
+                          }
+                        >
+                          -
+                        </span>
+                      ) : (
+                        percent(value)
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}

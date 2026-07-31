@@ -14,6 +14,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { SOUND_SHOOTING, TOOK_PART } from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
 import type { PickableMatch, Team } from "./match-pick";
@@ -45,6 +46,10 @@ Hard rules:
   exception, however the name reads to you. Never write he, she, his or her
   about a player.
 - Refer to players exactly by the names given, including odd capitalisation.
+- The players listed are everyone who played. Never mention spectators, and
+  never name anybody not in the lists given. Do not point out that a player
+  finished with zero captures or zero frags: naming somebody only to say they
+  did nothing is not worth a reader's time and reads as a slight.
 - Write about people, not colours. Red and blue are shirt colours that get
   reshuffled between matches, so "red pushed hard" says almost nothing while
   "Romek and ED ASSMASTER pushed hard" says who did it. Name the players who did
@@ -124,14 +129,18 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
       caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
       score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
-      hit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}), 0)::float8`,
-      fired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}), 0)::float8`,
+      // Sound matches only. A rail match where the hit counter runs away would
+      // otherwise hand the column an accuracy over 100% as a fact, and the one
+      // thing a fact checker cannot catch is a false figure it was given as
+      // ground truth.
+      hit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      fired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
       bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
       returns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 
@@ -151,7 +160,7 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), eq(matchPlayers.spectator, false)))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
     .groupBy(matchPlayers.matchId, matchPlayers.team);
 
   const squads = new Map<
@@ -184,7 +193,9 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     .from(matchCaptures)
     .innerJoin(matches, eq(matches.id, matchCaptures.matchId))
     .where(eq(matches.archiveDay, archiveDay))
-    .orderBy(asc(matchCaptures.elapsedSeconds));
+    // By when they happened, not by the match clock, which restarts in
+    // overtime. See CAPTURE_ORDER in queries.ts.
+    .orderBy(asc(matchCaptures.observedAt), asc(matchCaptures.elapsedSeconds));
 
   const captureRows = new Map<string, typeof captureList>();
   for (const row of captureList) {

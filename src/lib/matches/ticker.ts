@@ -11,7 +11,7 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
-import { MIN_MEANINGFUL_CAPTURE_MS } from "@/lib/matches/queries";
+import { MIN_MEANINGFUL_CAPTURE_MS, TOOK_PART } from "@/lib/matches/queries";
 
 export type TickerItem = {
   /** Short label, shown in the accent colour. */
@@ -51,7 +51,7 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matchPlayers.spectator, false), eq(matches.status, "final")));
+    .where(and(TOOK_PART, eq(matches.status, "final")));
 
   if (best.length === 0) return items;
 
