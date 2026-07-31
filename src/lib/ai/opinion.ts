@@ -34,6 +34,7 @@ import { matchPlayers, matches } from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
 import { TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
+import { verifyDraft, verifyNote } from "./verify";
 import { generate } from "./generate";
 
 /**
@@ -420,33 +421,82 @@ function split(text: string): OpinionColumn | null {
 }
 
 /**
- * Writes the piece, checks it, and rewrites once if the check objects.
+ * How many times he is asked to fix his own work before it is abandoned.
  *
- * Fails open like the other checkers, for the reason given in `fact-check.ts`:
- * a checker that cannot run must never become a new way for the site to go
- * quiet. The difference here is what the check can catch. It verifies the
- * numbers, which leaves the preference-versus-finding rule resting on the prompt
- * and on the facts withholding what should not be leaned on.
+ * Three, because the free checks make a rewrite cheap to judge and most
+ * corrections land on the first attempt. Past that it is not converging and more
+ * requests spend an allowance that the reports and the column want.
+ */
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Writes the piece, verifies it, and rewrites until it passes or gives up.
+ *
+ * The order is the design.
+ *
+ *   1. Write.
+ *   2. Free checks: invented numbers, superlatives on a tie. Instant, costs
+ *      nothing, and where they fire they are certain rather than probable.
+ *   3. The model check, for what only judgement can catch.
+ *   4. Hand back exactly what was wrong and ask again, up to three times.
+ *
+ * Running the free checks first is not only about cost. A model asked to scan a
+ * table for the largest value gets it wrong, which is how the error arrived; a
+ * model asked to check that scan can get it wrong the same way. Where arithmetic
+ * can decide, arithmetic decides.
+ *
+ * **This fails closed, unlike the reports and the column.** Those publish when
+ * the checker cannot run, because withholding every article whenever an
+ * allowance is exhausted trades a rare small error for frequent total silence.
+ * That reasoning does not carry here. A missing opinion column costs nothing:
+ * there is no record it is the only copy of, and nobody is waiting for it. A
+ * wrong one costs the thing the whole site is for. So an unverified piece is not
+ * published.
  */
 export async function writeOpinion(facts: OpinionFacts): Promise<OpinionColumn | null> {
-  const first = await generate(SYSTEM, facts.prompt);
-  if (!first) return null;
+  let note = "";
 
-  const piece = split(first);
-  if (!piece) return null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const raw = await generate(SYSTEM, note ? `${facts.prompt}
 
-  const check = await checkClaims(facts.prompt, piece.body);
-  if (check.ok) return piece;
+${note}` : facts.prompt);
+    if (!raw) return null;
 
-  const second = await generate(
-    SYSTEM,
-    `${facts.prompt}\n\n${repairNote(check.problems)}`,
+    const piece = split(raw);
+    if (!piece) {
+      note = "Your previous reply was not in the required shape. The first line must be a headline on its own, then a blank line, then the column.";
+      continue;
+    }
+
+    const free = verifyDraft(facts.prompt, piece.body);
+    if (!free.ok) {
+      console.warn(
+        `[ai] ${COLUMNIST_NAME} attempt ${attempt}: ${free.problems
+          .map((problem) => problem.problem)
+          .join(" ")}`,
+      );
+      note = verifyNote(free.problems);
+      continue;
+    }
+
+    const checked = await checkClaims(facts.prompt, piece.body);
+    if (checked.ok) {
+      // Failing closed means an unrun check is not a pass. Everything else here
+      // publishes on a check that could not run; this does not.
+      if (!checked.ran) {
+        console.warn(
+          `[ai] ${COLUMNIST_NAME}: fact check could not run, so nothing is published.`,
+        );
+        return null;
+      }
+      return piece;
+    }
+
+    note = repairNote(checked.problems);
+  }
+
+  console.warn(
+    `[ai] ${COLUMNIST_NAME}: ${MAX_ATTEMPTS} attempts did not verify, so nothing is published.`,
   );
-  if (!second) return null;
-
-  const repaired = split(second);
-  if (!repaired) return null;
-
-  const recheck = await checkClaims(facts.prompt, repaired.body);
-  return recheck.ok ? repaired : null;
+  return null;
 }
