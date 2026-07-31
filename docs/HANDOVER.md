@@ -316,6 +316,89 @@ pass if it recurs.
 
 ---
 
+## Next session: what to do, and why
+
+Written at the end of 31 July 2026. Everything below is deployed and verified
+unless it says otherwise.
+
+### The one pattern worth understanding before touching anything
+
+Four separate data bugs were fixed today and **every one of them had already
+been detected.** `vet.ts` had been reporting `hits-exceed-shots` on every run for
+days while the site published 1067% accuracy. The failure was never detection. It
+was that nothing consumed what detection produced.
+
+The same shape appeared four more times: a reported scalar trusted over a derived
+one (accuracy, fastest capture), a stale figure that a staleness check could not
+see, prose outliving the bug that produced it, and a job whose result nothing
+reported so nobody could tell it had stopped.
+
+**When adding anything here, ask what consumes it when it fires.** A check nobody
+acts on is a log line.
+
+### The to-do list
+
+Ordered by how much each reduces the chance of the next silent wrong number.
+
+**1. Make vetting consume its own output.** The biggest structural gap left.
+`vetNight` runs on every ingest, logs, returns a summary in the response, and
+gates nothing: the reports and column are then written from data already known to
+be faulty. Two anomalies are open right now that nothing acts on
+(`implausible-solo-capture` on matches 10 and 12). The proportionate fix is not
+to block publication, which would trade a rare error for frequent silence, but to
+pass the anomalies into the generation prompts as "these specific figures are
+known bad, do not cite them", the way superlatives are already precomputed and
+handed over. Cheap, suppresses nothing.
+
+**2. Give stored prose a fact fingerprint.** Reports, columns and profiles are
+written once and keep whatever was true then. `player_profiles.match_count` is
+the only staleness check and it cannot see counters changing inside an
+already-counted match, which is how a profile came to claim 254 frags beside a
+page showing 263. Store a cheap hash of the facts a piece was written from and
+rewrite when it changes. Weigh against quota: the free tier is the binding
+constraint, so a check that rewrites eagerly is its own problem. There is a task
+chip open for this.
+
+**3. Extend `verify.ts` to the reports and the column.** The free checks, no
+invented numbers and no superlative on a contested value, currently guard only
+Stanley Mesh. Match reports and night columns run the model check without them,
+which is both more expensive and less certain. They should run the free pass
+first for the same reason he does.
+
+**4. Give the generation pipeline somewhere to be observed.** Twice today a job
+was working and looked broken because nothing reported it. `/api/health` covers
+sync and backup; it says nothing about what was written, what failed
+verification, or what is stale. Even a small admin JSON would have saved an hour.
+
+**5. Record a fixture set so prompts can be iterated without quota.** Every
+prompt change today cost real requests from an allowance that is the binding
+constraint. A handful of saved facts blocks plus expected-shape assertions would
+let the wording be changed and tested for free.
+
+**6. Replace throwaway repair scripts with a real command.** Nulling reports,
+clearing pieces and re-checking data were all done with ad hoc scripts written
+and deleted in the same minute. A small `npm run repair -- <operation>` with
+named, reviewed operations would make that repeatable and safe against a
+production database that is also the development one.
+
+### Known state, so nothing is rediscovered
+
+- **Two rows permanently hold `hits > shots`** (SiD and Romek, Rail Fight). The
+  VPS patch fixes counting forward and never recomputed that night. Quarantined
+  on read; nothing derived from them reaches a page.
+- **Five absent rows are still stored** and always will be. Filtered on read by
+  `TOOK_PART`.
+- **39 rows carry a measured `fastest_solo_capture_ms`.** Nothing under five
+  seconds anywhere. The board is correct.
+- **Overtime drive credit is correct after re-ingest**, verified: Romek shows two
+  solo captures on match 13, which is what the corrected ordering predicts.
+- **Stanley Mesh has one piece**, for 30 July. Nights 28 and 29 correctly have
+  none: scoped to what was known then, they fall under the twelve match minimum.
+- The avatar is still `public/mr-mesh.png` from before he was renamed. Harmless,
+  and a two line change if it bothers anybody.
+
+---
+
 ## Operating it
 
 ```bash
