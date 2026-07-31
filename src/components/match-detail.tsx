@@ -17,6 +17,7 @@ import {
 import { tookPart } from "@/lib/matches/participation";
 import { MatchFootageList } from "@/components/match-footage";
 import { footageForMatch } from "@/lib/match-videos";
+import { FootageMark } from "@/components/footage-mark";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -134,10 +135,20 @@ function Scoreboard({
   if (players.length === 0) return null;
   const shown = used(columns, players);
 
+  /*
+   * The side is carried by the plate's top edge as well as the caption colour.
+   *
+   * Two scoreboards side by side in identical grey, distinguished only by a
+   * small coloured word, meant working out which was which every time. An edge
+   * is readable from the corner of the eye.
+   */
+  const edge =
+    team === "red" ? "plate-red" : team === "blue" ? "plate-blue" : "";
+
   return (
-    <div className="panel overflow-x-auto">
+    <div className={`plate ${edge} overflow-x-auto`}>
       <table className="w-full text-sm">
-        <caption className="px-3 pt-3 text-left font-display text-xs font-bold uppercase tracking-wider">
+        <caption className="px-3 pt-3 text-left font-display text-xs font-bold uppercase tracking-[0.18em]">
           <span className={TEAM_TEXT[team] ?? "text-steel-200"}>
             {team || "unassigned"}
           </span>
@@ -292,6 +303,10 @@ function MatchNav({
                 >
                   {sibling.number}
                 </span>
+                <FootageMark
+                  archiveDay={match.archiveDay}
+                  sourceMatchId={sibling.sourceMatchId}
+                />
                 <span
                   className={
                     "truncate " + (current ? "text-rust-300" : "text-steel-300")
@@ -510,49 +525,85 @@ export function MatchDetailView({
         className="mt-6"
       />
 
-      {/* Summary as a single line of figures. */}
-      <div className="panel mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2 p-4 text-sm">
-        <span className="text-steel-400">
-          <span className="font-mono text-lg text-steel-100">{totalKills}</span> frags
-        </span>
-        <span className="text-steel-400">
-          <span className="font-mono text-lg text-steel-100">
-            {shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
-          </span>{" "}
-          team accuracy
-          {excludedShooters > 0 ? (
-            <span className="ml-1 text-steel-600" title={UNSOUND_SHOOTING_NOTE}>
-              (
-              {excludedShooters === 1
-                ? "1 player left out"
-                : `${excludedShooters} players left out`}
-              )
-            </span>
-          ) : null}
-        </span>
-        <span className="text-steel-400">
-          <span className="font-mono text-lg text-steel-100">
-            {match.captures.length}
-          </span>{" "}
-          captures
-        </span>
-        {topScorer ? (
-          <span className="text-steel-400">
-            Top score <PlayerLink name={topScorer.name} />{" "}
-            <span className="font-mono text-steel-200">{topScorer.score}</span>
-          </span>
-        ) : null}
-        {topKiller ? (
-          <span className="text-steel-400">
-            Most frags <PlayerLink name={topKiller.name} />{" "}
-            <span className="font-mono text-steel-200">{topKiller.kills}</span>
-          </span>
-        ) : null}
-        {topCapper ? (
-          <span className="text-steel-400">
-            Most caps <PlayerLink name={topCapper.name} />{" "}
-            <span className="font-mono text-steel-200">{topCapper.caps}</span>
-          </span>
+      {/*
+        The night's figures, split into what the match was and who did it.
+
+        Was one long line mixing three totals with three names, all at the same
+        weight, so nothing led and the eye had nowhere to start. The totals are
+        figures; the standouts are people, and people want their names readable
+        rather than set as statistics.
+      */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="plate p-4">
+          <h2 className="rule-heading">The match</h2>
+          <dl className="mt-3 grid grid-cols-3 gap-4">
+            <div>
+              <dt className="figure-label">Frags</dt>
+              <dd className="figure-value mt-0.5 font-mono text-xl">{totalKills}</dd>
+            </div>
+            <div>
+              <dt className="figure-label">Captures</dt>
+              <dd className="figure-value mt-0.5 font-mono text-xl">
+                {match.captures.length}
+              </dd>
+            </div>
+            <div>
+              <dt className="figure-label">Accuracy</dt>
+              <dd className="figure-value mt-0.5 font-mono text-xl">
+                {shotsFired > 0 ? percent(shotsHit / shotsFired) : "-"}
+              </dd>
+              {excludedShooters > 0 ? (
+                <dd
+                  className="mt-0.5 text-[0.6875rem] leading-snug text-steel-600"
+                  title={UNSOUND_SHOOTING_NOTE}
+                >
+                  {excludedShooters === 1 ? "1 player" : `${excludedShooters} players`}{" "}
+                  left out
+                </dd>
+              ) : null}
+            </div>
+          </dl>
+        </div>
+
+        {topScorer || topKiller || topCapper ? (
+          <div className="plate p-4">
+            <h2 className="rule-heading">Who stood out</h2>
+            <dl className="mt-3 space-y-1.5 text-sm">
+              {topScorer ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Top score</dt>
+                  <dd className="min-w-0 truncate text-right">
+                    <PlayerLink name={topScorer.name} />{" "}
+                    <span className="font-mono tabular-nums text-steel-400">
+                      {topScorer.score}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+              {topKiller ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Most frags</dt>
+                  <dd className="min-w-0 truncate text-right">
+                    <PlayerLink name={topKiller.name} />{" "}
+                    <span className="font-mono tabular-nums text-steel-400">
+                      {topKiller.kills}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+              {topCapper ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="figure-label">Most caps</dt>
+                  <dd className="min-w-0 truncate text-right">
+                    <PlayerLink name={topCapper.name} />{" "}
+                    <span className="font-mono tabular-nums text-steel-400">
+                      {topCapper.caps}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
         ) : null}
       </div>
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FootageMark } from "@/components/footage-mark";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -156,8 +157,9 @@ export default async function MatchDayPage({ params }: Props) {
                     </span>
                   </div>
 
-                  <h3 className="mt-1 truncate font-display text-base font-bold text-steel-100 transition-colors group-hover:text-rust-300">
-                    {match.mapName}
+                  <h3 className="mt-1 flex items-center gap-2 font-display text-base font-bold text-steel-100 transition-colors group-hover:text-rust-300">
+                    <span className="truncate">{match.mapName}</span>
+                    <FootageMark archiveDay={day} sourceMatchId={match.sourceMatchId} />
                   </h3>
 
                   <p className="mt-1 text-xs text-steel-500">

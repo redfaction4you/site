@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FootageMark } from "@/components/footage-mark";
 
 import { MapShot } from "@/components/map-shot";
 import { matchTime } from "@/components/match-archive";
@@ -80,8 +81,14 @@ export function NightMatches({
               />
 
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs text-steel-300 group-hover:text-rust-300">
-                  {match.mapName}
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-xs text-steel-300 group-hover:text-rust-300">
+                    {match.mapName}
+                  </span>
+                  <FootageMark
+                    archiveDay={archiveDay}
+                    sourceMatchId={match.sourceMatchId}
+                  />
                 </span>
                 <span className="block font-mono text-[0.5625rem] uppercase tracking-wider text-steel-700">
                   {/* Overtime first: it is the most interesting thing here and
