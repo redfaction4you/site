@@ -212,7 +212,21 @@ not work.
 
 **Then Orion**, below.
 
-**Orion**, on hold at the user's request rather than blocked. A named automated
+**Stanley Mesh** is built, 31 July 2026, and is what the Orion note below
+became. A sports analyst with a byline photo of a low poly character from the
+game, writing one opinion piece per night about pairings, in `opinion.ts` and the
+`opinion_pieces` table. All three decisions listed below were kept: the byline
+says machine written, the guard is different from the fact checker, and it runs
+on leftover quota.
+
+The guard worth understanding is that it is mostly upstream rather than in the
+prompt. He sees a win rate only where a pairing has cleared five decided
+matches, and sees no percentage at all below that, because a model told to
+ignore a number in front of it will use it. He is also shown only the archive as
+it stood on the night he is writing under, after the first version cited seven
+matches together on a page where the pair had played once.
+
+**Orion**, the earlier note, kept for the reasoning: A named automated
 columnist writing short opinion and prediction pieces to fill the front page
 between match nights. Three things already decided: the byline must state it is
 machine written, because a human-sounding name is the one thing that quietly

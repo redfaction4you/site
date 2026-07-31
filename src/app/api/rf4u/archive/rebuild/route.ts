@@ -57,5 +57,10 @@ export async function POST(request: Request) {
     images: night.images,
     announced: night.posted,
     profiles: night.profiles,
+    // Reported because it was not, and a job nobody can see the result of is a
+    // job nobody can tell has stopped working. Its absence here had me reading
+    // the response as proof the code was not deployed when it had been running
+    // for an hour.
+    opinions: night.opinions,
   });
 }

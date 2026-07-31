@@ -7,7 +7,7 @@
  * it has no business in a scoreboard. Selecting whole rows with
  * `db.query.matchPlayers.findMany()` would quietly undo that, so don't.
  */
-import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, lte, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
@@ -575,7 +575,7 @@ export const getPlayerProfile = cache(async function getPlayerProfile(name: stri
  * Exported uncached as well as cached because the profile writer runs outside a
  * request, where React's `cache` has no scope to work in.
  */
-export async function fetchAppearances(): Promise<Appearance[]> {
+export async function fetchAppearances(upToDay?: string): Promise<Appearance[]> {
   return db
     .select({
       matchId: matchPlayers.matchId,
@@ -585,7 +585,11 @@ export async function fetchAppearances(): Promise<Appearance[]> {
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(TOOK_PART);
+    .where(
+      upToDay
+        ? and(TOOK_PART, lte(matches.archiveDay, upToDay))
+        : TOOK_PART,
+    );
 }
 
 /** Every partnership and rivalry on record. One query, computed in memory. */

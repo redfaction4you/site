@@ -27,7 +27,7 @@
  * quietly undoes the labelling everything else on the site carries. Stanley Mesh is a
  * column, not a person, and the page says so.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
@@ -145,7 +145,14 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     })
     .from(matches)
     .innerJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
-    .where(and(eq(matches.status, "final"), TOOK_PART));
+    // Only what was on record that night. See the note below.
+    .where(
+      and(
+        eq(matches.status, "final"),
+        TOOK_PART,
+        lte(matches.archiveDay, archiveDay),
+      ),
+    );
 
   if (
     !totals ||
@@ -155,7 +162,20 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     return null;
   }
 
-  const pairings = buildPairings(await fetchAppearances());
+  /*
+   * The archive as it stood that night, not as it stands now.
+   *
+   * Written from the whole archive, the piece under 28 July said ED ASSMASTER
+   * and Romek had shared a side seven times at an 86% win rate. On 28 July they
+   * had played together once. Every number was true of today and false of the
+   * page it sat on, which is the same failure as a stale profile: a figure that
+   * is accurate in one frame and misleading in the one it is presented in.
+   *
+   * A consequence worth stating: an early night may now have too little behind
+   * it to say anything, and gets no piece rather than a backdated one. That is
+   * the correct outcome. There was nothing to have an opinion about yet.
+   */
+  const pairings = buildPairings(await fetchAppearances(archiveDay));
   if (pairings.partnerships.length === 0) return null;
 
   // Who played on the night this piece follows, so it can be about them rather

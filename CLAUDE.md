@@ -251,6 +251,27 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 - **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
   to that evening even though it is the next day in UTC. Timestamps stay UTC;
   only the grouping is local.
+- **Stanley Mesh (`src/lib/ai/opinion.ts`) is the one thing here allowed a view.**
+  A sports analyst who writes a short piece about pairings after each night. The
+  whole guard is the line between a preference and a finding: "the pairing worth
+  trying is X with Y" claims nothing about the record, "X and Y are the strongest
+  pairing" claims a measurement three matches cannot support. The fact checker
+  cannot catch the second kind, since every number in such a sentence may be
+  true, so the defence is upstream. **He is handed a win rate only where the
+  pairing has cleared the bar, and below it never sees a percentage** rather than
+  being told to ignore one. A model given a tempting number and told not to use
+  it uses it.
+  - **He is shown the archive as it stood that night, not as it stands now.**
+    Written from everything, the piece under 28 July said two players had shared
+    a side seven times at 86%; on 28 July they had played together once. Every
+    number was true of today and false of the page it sat on.
+  - Byline and photo are deliberate. A mesh is a 3D model, and the portrait is a
+    visibly low poly character from the game. A photorealistic face would be the
+    one thing that quietly undoes the machine written label. The name lives in
+    `COLUMNIST_NAME`, so renaming him is one line.
+  - Runs last in `runNightJobs`, so it only spends quota nothing else wanted, and
+    never rewrites: an opinion does not go stale the way a summary of a half
+    finished evening does.
 - **Pairings (`src/lib/matches/pairings.ts`) are built on names, never on
   colours.** Who is on a side with whom, and who is opposite. The module is pure
   so `node --test` loads it directly, the same arrangement as `leaderboards.ts`.

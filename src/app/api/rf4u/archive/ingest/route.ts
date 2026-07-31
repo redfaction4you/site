@@ -120,6 +120,7 @@ export async function POST(request: Request) {
       vetted,
       reports,
       columns: night.columns,
+      opinions: night.opinions,
       images: night.images,
       announced: night.posted,
     });
