@@ -387,7 +387,7 @@ export async function backfillProfiles(): Promise<number> {
 
 /** Guard used by the ingest route so a missing table cannot break a sync. */
 /**
- * Writes Mr. Mesh's opinion piece for any night that has a column and no piece.
+ * Writes Stanley Mesh's opinion piece for any night that has a column and no piece.
  *
  * Runs last on purpose. It is the one thing here that is decoration rather than
  * record, so it should only ever spend quota the reports, the column, the

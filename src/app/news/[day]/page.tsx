@@ -137,7 +137,7 @@ export default async function ColumnPage({ params }: Props) {
           </nav>
         ) : null}
         {/*
-          Mr. Mesh, under the report and visually apart from it.
+          Stanley Mesh, under the report and visually apart from it.
 
           The column above reports and is fact checked against the night. This
           has a view, which cannot be checked the same way, so the two must not

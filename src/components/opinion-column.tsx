@@ -3,7 +3,7 @@ import Image from "next/image";
 import { COLUMNIST_NAME, COLUMNIST_NOTE } from "@/lib/ai/opinion";
 
 /**
- * Mr. Mesh's opinion piece, under the night it follows.
+ * Stanley Mesh's opinion piece, under the night it follows.
  *
  * Visually apart from the column above it, and that separation is the point.
  * Everything else on this site reports and is checkable; this has a view, and a
@@ -41,7 +41,8 @@ export function OpinionColumn({
         undoes the labelling: a real looking person implies a real person wrote
         it. This is a screenshot of a character from the game, visibly low poly
         and visibly of 2001, which reads as a character rather than a
-        correspondent. The name does the same work, a mesh being a 3D model.
+        correspondent. The surname does the same work, a mesh being a 3D model,
+        while the first name keeps him a character rather than a system.
 
         The disclosure travels with the name rather than sitting in a footnote,
         so the two cannot be separated by a skim.

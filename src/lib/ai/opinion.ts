@@ -1,5 +1,5 @@
 /**
- * Mr. Mesh: a short opinion piece about who plays with whom.
+ * Stanley Mesh: a short opinion piece about who plays with whom.
  *
  * Every other piece of writing here reports. This one has a view, and that is
  * the point: with a handful of nights on record there is very little that can
@@ -9,7 +9,7 @@
  *
  * **The whole guard is the line between a preference and a finding.**
  *
- *   "Mr. Mesh would like to see Medeo paired with Romek"  is fine. A stated
+ *   "Stanley Mesh would like to see Medeo paired with Romek"  is fine. A stated
  *   preference makes no claim about what the record shows.
  *
  *   "Medeo and Romek are the strongest pairing"  is not, on three matches. That
@@ -17,14 +17,14 @@
  *
  * The fact checker cannot catch the second kind on its own: every number in it
  * may be true while the sentence is still asserting something the sample cannot
- * support. So the defence is mostly upstream. Mr. Mesh is handed rates only where
+ * support. So the defence is mostly upstream. Stanley Mesh is handed rates only where
  * the pairing has cleared the bar in `pairings.ts`, and below it never sees a
  * percentage at all rather than being asked not to use one. A model given a
  * tempting number and told to ignore it will use the number.
  *
  * The byline says it is machine written. That was decided before this existed
  * and is recorded in the handover: a human sounding name is the one thing that
- * quietly undoes the labelling everything else on the site carries. Mr. Mesh is a
+ * quietly undoes the labelling everything else on the site carries. Stanley Mesh is a
  * column, not a person, and the page says so.
  */
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -40,13 +40,15 @@ import { generate } from "./generate";
  * How this piece is signed, everywhere it appears.
  *
  * In one place so renaming the columnist is one line rather than a search. The
- * name is doing quiet work: a mesh is a 3D model, so it says rendered thing
- * without the reader having to be told, which is the opposite of what a human
- * sounding byline would do to a machine written column.
+ * The surname is doing quiet work: a mesh is a 3D model, so it says rendered
+ * thing without the reader having to be told. The first name pulls the other
+ * way, which is the point of having both. He should read as a character with a
+ * byline rather than as a system with a label, while the surname and the note
+ * beside it stop anybody mistaking him for a correspondent.
  */
-export const COLUMNIST_NAME = "Mr. Mesh";
+export const COLUMNIST_NAME = "Stanley Mesh";
 export const COLUMNIST_NOTE =
-  "Mr. Mesh is a machine written opinion column, not a person. It reads the same " +
+  "Stanley Mesh is a machine written opinion column, not a person. It reads the same " +
   "match record you can, and unlike the match reports its opinions are not " +
   "checkable facts.";
 
