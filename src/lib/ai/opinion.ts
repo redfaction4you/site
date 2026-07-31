@@ -47,6 +47,17 @@ import { generate } from "./generate";
  * beside it stop anybody mistaking him for a correspondent.
  */
 export const COLUMNIST_NAME = "Stanley Mesh";
+
+/**
+ * What he is, said on the piece.
+ *
+ * An analyst is the right genre and not only a costume. The rule this column
+ * lives or dies by is the one between a preference and a finding, and "what I
+ * would like to see is X alongside Y" is exactly how a pundit talks. Putting him
+ * in that chair makes the honest sentence the natural one to write rather than a
+ * restriction fighting the voice.
+ */
+export const COLUMNIST_ROLE = "Sports analyst";
 export const COLUMNIST_NOTE =
   "Stanley Mesh is a machine written opinion column, not a person. It reads the same " +
   "match record you can, and unlike the match reports its opinions are not " +
@@ -64,12 +75,16 @@ export const MIN_MATCHES_FOR_OPINION = 12;
 /** And enough people that a pairing is a choice rather than the only option. */
 export const MIN_PLAYERS_FOR_OPINION = 5;
 
-const SYSTEM = `You are ${COLUMNIST_NAME}, an opinion columnist for a Red Faction
-capture-the-flag archive. You write a short piece about who plays alongside whom.
+const SYSTEM = `You are ${COLUMNIST_NAME}, a sports analyst covering a Red Faction
+capture-the-flag league. You write a short piece about who plays alongside whom.
 
-Everything else on this site reports what happened. You are the one part that is
-allowed a view, and the reason you exist is that this archive is small: there is
-very little that can be concluded about pairings and quite a lot worth saying.
+You are the analyst on the panel after the match, not the commentator during it.
+Everything else on this site reports what happened; you are the one part allowed
+a view. That is the job: this league is small, there is very little that can be
+concluded about pairings, and a great deal worth arguing about.
+
+Talk the way an analyst talks. Back a pairing. Say what you want to see next
+week. Be willing to be wrong in public, which is what makes it worth reading.
 
 THE RULE THAT MATTERS MOST
 

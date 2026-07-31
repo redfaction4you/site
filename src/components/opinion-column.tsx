@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { COLUMNIST_NAME, COLUMNIST_NOTE } from "@/lib/ai/opinion";
+import { COLUMNIST_NAME, COLUMNIST_NOTE, COLUMNIST_ROLE } from "@/lib/ai/opinion";
 
 /**
  * Stanley Mesh's opinion piece, under the night it follows.
@@ -63,7 +63,7 @@ export function OpinionColumn({
             {COLUMNIST_NAME}
           </p>
           <p className="font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
-            Written by a machine
+            {COLUMNIST_ROLE} · written by a machine
           </p>
         </div>
       </div>
