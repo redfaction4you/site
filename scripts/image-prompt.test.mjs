@@ -30,9 +30,11 @@ import {
 } from "../src/lib/ai/image-prompt.ts";
 
 import {
+  isSideMap,
   matchInterest,
   pickMatch,
   pickMoment,
+  rankMatches,
   rotationFor,
 } from "../src/lib/ai/match-pick.ts";
 
@@ -459,3 +461,64 @@ test("the key never lands in the backup prefix", () => {
  * assert on. The alt text and the figure title in `column-image.tsx` are what
  * identify the picture as generated now.
  */
+
+/* --- side maps are not the story of the night ----------------------------- */
+
+/*
+ * Rail maps use a one shot kill weapon and are played as a laugh between the
+ * real games. Nothing on the scoreboard says so, and the scoring cannot work it
+ * out: a rail match is high scoring and often goes to overtime, which is exactly
+ * the shape of a great game. On 30 July "Rail Fight" beat five ordinary matches
+ * to become the match of the night and the subject of the illustration.
+ */
+
+function pickable(overrides = {}) {
+  return {
+    sourceMatchId: 1,
+    mapName: "Huna b8",
+    redScore: 3,
+    blueScore: 2,
+    winner: "red",
+    overtime: false,
+    redPlayers: 2,
+    bluePlayers: 2,
+    captures: [],
+    ...overrides,
+  };
+}
+
+test("an ordinary match outranks a rail match that went to overtime", () => {
+  const chosen = pickMatch([
+    pickable({ sourceMatchId: 15, mapName: "Rail Fight", overtime: true, redScore: 4, blueScore: 3 }),
+    pickable({ sourceMatchId: 11, mapName: "Huna b8", redScore: 3, blueScore: 6 }),
+  ]);
+
+  assert.equal(chosen.mapName, "Huna b8");
+});
+
+test("a rail match still leads a night that had nothing else", () => {
+  const chosen = pickMatch([
+    pickable({ sourceMatchId: 15, mapName: "Rail Fight", overtime: true }),
+  ]);
+
+  assert.equal(chosen.mapName, "Rail Fight");
+});
+
+test("rankMatches puts every side map last", () => {
+  const ranked = rankMatches([
+    pickable({ mapName: "Rail Fight", overtime: true, redScore: 9, blueScore: 8 }),
+    pickable({ mapName: "Ankh b12", redScore: 1, blueScore: 0 }),
+    pickable({ mapName: "Relic Seeker", overtime: true }),
+  ]);
+
+  assert.equal(ranked[ranked.length - 1].mapName, "Rail Fight");
+  assert.equal(ranked[0].mapName, "Relic Seeker");
+});
+
+test("side maps are recognised by name, not by scoreline", () => {
+  assert.equal(isSideMap("Rail Fight"), true);
+  assert.equal(isSideMap("rail fight"), true);
+  assert.equal(isSideMap("Ankh b12"), false);
+  // Not a substring match: a map merely containing the letters must not count.
+  assert.equal(isSideMap("Guardrail Complex"), false);
+});

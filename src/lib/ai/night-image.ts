@@ -27,7 +27,7 @@ import {
   imageKeyFor,
 } from "./image-prompt";
 import { type ReferenceImage, generateImage, imageGenerationConfigured } from "./image";
-import { type PickableMatch, pickMatch, pickMoment, rotationFor } from "./match-pick";
+import { type PickableMatch, pickMoment, rankMatches, rotationFor } from "./match-pick";
 import type { NightFacts, WrittenColumn } from "./night-column";
 import { checkImage } from "./vision";
 
@@ -182,30 +182,44 @@ export async function makeColumnImage(
     return null;
   }
 
-  const match = pickMatch(facts.matches);
-  if (!match) {
+  const ranked = rankMatches(facts.matches);
+  if (ranked.length === 0) {
     console.warn(
       `[ai] no image for ${facts.archiveDay}: none of its ${facts.matches.length} matches had a scoreboard to pick from`,
     );
     return null;
   }
 
-  const shots = shotsForMap(match.mapName);
-  if (shots.length === 0) {
-    /*
-     * No screenshots for this map, so there is nothing to set the scene in.
-     *
-     * Skipped rather than generated without one. An invented location would be
-     * wrong: these maps are an Egyptian tomb, a Martian mining base and several
-     * other things that share nothing, so a model with no reference has no way to
-     * be right and every reason to be confidently wrong.
-     */
+  /*
+   * The best match we can actually illustrate.
+   *
+   * A map with no screenshots is skipped rather than invented: these maps are an
+   * Egyptian tomb, a mining base and several other things that share nothing, so
+   * a model with no reference has no way to be right and every reason to be
+   * confidently wrong. What changed is that this no longer gives up on the whole
+   * night. On 30 July the overtime match was on Rail Fight, which had no
+   * references, and the column went out with no picture while five other matches
+   * sat there perfectly illustratable.
+   */
+  const match = ranked.find((candidate) => shotsForMap(candidate.mapName).length > 0);
+
+  if (!match) {
     console.warn(
-      `[ai] no map references for "${match.mapName}", skipping the illustration. ` +
-        `Add screenshots and a MAP_ALIASES entry in image-refs.ts.`,
+      `[ai] no image for ${facts.archiveDay}: none of its maps have references. ` +
+        `Add screenshots and a MAP_ALIASES entry in image-refs.ts. ` +
+        `Maps played: ${[...new Set(ranked.map((m) => m.mapName))].join(", ")}`,
     );
     return null;
   }
+
+  if (match !== ranked[0]) {
+    console.warn(
+      `[ai] "${ranked[0].mapName}" has no references, so the illustration is of ` +
+        `"${match.mapName}" instead. Add screenshots for it in image-refs.ts.`,
+    );
+  }
+
+  const shots = shotsForMap(match.mapName);
 
   const picked = pickMoment(match);
   const rotation = rotationFor(facts.archiveDay);

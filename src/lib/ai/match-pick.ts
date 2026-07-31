@@ -26,12 +26,37 @@ export type PickableMatch = {
 };
 
 /**
+ * Maps that are a laugh rather than the night's story.
+ *
+ * Rail maps are played with a one shot kill weapon and the regulars treat them
+ * as a fun side game between the real ones. Nothing in the scoreboard says so,
+ * and the scoring below cannot work it out: a rail match is high scoring and
+ * often goes to overtime, which is exactly the shape of a great game, so on 30
+ * July "Rail Fight" beat five ordinary matches to become the match of the night
+ * and the subject of the illustration.
+ *
+ * This is domain knowledge from the people who play here, not something
+ * derivable, so it is written down rather than inferred. Add to the pattern as
+ * other novelty modes appear.
+ */
+const SIDE_MAP_PATTERN = /\brail\b/i;
+
+export function isSideMap(mapName: string): boolean {
+  return SIDE_MAP_PATTERN.test(mapName);
+}
+
+/**
  * How interesting a match was, as a number.
  *
  * Ordered so the tie breaks make sense rather than being arbitrary: overtime is
  * the strongest signal a match was worth watching, then a close finish, then
  * whether much happened at all. A blowout with many captures still loses to a
  * one-goal game, which matches how somebody would actually pick.
+ *
+ * Side maps are ranked below every ordinary match rather than penalised by some
+ * number, because the question is not how good the rail game was. It is a
+ * different thing that happened to be fun, and it should only lead a night that
+ * had nothing else in it.
  */
 export function matchInterest(match: PickableMatch): number {
   const margin = Math.abs(match.redScore - match.blueScore);
@@ -54,14 +79,44 @@ export function matchInterest(match: PickableMatch): number {
  * one people remember.
  */
 export function pickMatch(matches: PickableMatch[]): PickableMatch | null {
+  return rankMatches(matches)[0] ?? null;
+}
+
+/**
+ * Every match worth illustrating, most interesting first.
+ *
+ * Exists because the best match is not always one that *can* be illustrated. The
+ * picture is composed from a screenshot of the map that was played, and a map
+ * with no screenshots on file is skipped rather than invented. On 30 July the
+ * overtime match was on Rail Fight, which had no references, so the night's
+ * column went out with no picture at all despite five other matches being
+ * perfectly illustratable.
+ *
+ * The caller walks this list and takes the first map it has references for. That
+ * costs a little of the deliberate agreement between the picture and the
+ * featured match, which is worth less than a column with nothing beside it, and
+ * it corrects itself the moment the missing screenshots are added.
+ *
+ * Ties break on the later match, because the last close game of the night is the
+ * one people remember, so the sort has to be stable in reverse.
+ */
+export function rankMatches(matches: PickableMatch[]): PickableMatch[] {
   const playable = matches.filter(
     (match) => match.redPlayers > 0 || match.bluePlayers > 0,
   );
-  if (playable.length === 0) return null;
 
-  return playable.reduce((best, match) =>
-    matchInterest(match) >= matchInterest(best) ? match : best,
-  );
+  return playable
+    .map((match, order) => ({ match, order }))
+    .sort((a, b) => {
+      // Every ordinary match outranks every side map, whatever the scoreboard
+      // says about either. See `isSideMap`.
+      const bySide = Number(isSideMap(a.match.mapName)) - Number(isSideMap(b.match.mapName));
+      if (bySide !== 0) return bySide;
+
+      const byInterest = matchInterest(b.match) - matchInterest(a.match);
+      return byInterest !== 0 ? byInterest : b.order - a.order;
+    })
+    .map((entry) => entry.match);
 }
 
 export type MomentKind =
