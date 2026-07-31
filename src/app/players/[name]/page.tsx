@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
+import { MIN_MATCHES_FOR_PROFILE } from "@/lib/ai/player-profile";
 import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
 import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
@@ -169,7 +170,15 @@ export default async function PlayerPage({ params }: Props) {
 
       {/* What they are like to play against, as opposed to what they scored.
           Labelled, like every other piece of writing on the site. */}
-      {profile ? (
+      {/*
+          A profile describes a player, so it needs enough matches to be about
+          one. The generator already refuses below this, but a stored profile can
+          fall under it later: when rows that were never really played stopped
+          counting, two players dropped from three matches to two and their
+          profiles became undeletable by the generator, which only ever writes
+          forward. Withheld here rather than trusted to stay valid.
+      */}
+      {profile && player.matchesPlayed >= MIN_MATCHES_FOR_PROFILE ? (
         <div className="panel mt-6 p-5">
           <div className="space-y-3 text-sm leading-relaxed text-steel-300">
             {profile.body
