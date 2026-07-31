@@ -44,15 +44,55 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/**
+ * One figure, dense.
+ *
+ * Was a bordered panel per number, which meant nine boxes of mostly padding and
+ * the interesting part of the page below the fold. A figure is only readable in
+ * comparison to its neighbours anyway, so they sit together in a group and the
+ * group carries the border.
+ */
+function Figure({
+  label,
+  value,
+  hint,
+  title,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  title?: string;
+}) {
   return (
-    <div className="panel p-4">
-      <dt className="font-display text-[0.6875rem] uppercase tracking-widest text-steel-500">
-        {label}
-      </dt>
-      <dd className="mt-1 font-mono text-2xl tabular-nums text-steel-100">{value}</dd>
-      {hint ? <dd className="mt-0.5 text-xs text-steel-500">{hint}</dd> : null}
+    <div title={title}>
+      <dt className="figure-label">{label}</dt>
+      <dd className="figure-value mt-0.5 font-mono text-xl">{value}</dd>
+      {hint ? (
+        <dd className="mt-0.5 text-[0.6875rem] leading-snug text-steel-500">{hint}</dd>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * A set of figures that answer the same question.
+ *
+ * The grouping is the point. Frags next to accuracy next to flag time is nine
+ * unrelated numbers; frags next to deaths next to streak is a picture of how
+ * somebody fights. The eye compares within a group, not across a page.
+ */
+function StatGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="plate p-4">
+      <h3 className="rule-heading">{title}</h3>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4">{children}</dl>
+    </section>
   );
 }
 
@@ -157,16 +197,34 @@ export default async function PlayerPage({ params }: Props) {
           Players
         </Link>
       </p>
-      <h1 className="mt-1 font-display text-3xl font-bold text-steel-100">
-        {player.name}
-      </h1>
-      <p className="mt-3 text-sm text-steel-400">
-        {player.matchesPlayed} {player.matchesPlayed === 1 ? "match" : "matches"}
-        {player.firstSeen ? ` · first seen ${dayLabel(player.firstSeen)}` : ""}
-        {player.lastSeen && player.lastSeen !== player.firstSeen
-          ? ` · last seen ${dayLabel(player.lastSeen)}`
-          : ""}
-      </p>
+      {/*
+        The name and the record together, because the record is the first thing
+        anybody wants and it used to sit as one box among nine, weighted the same
+        as fastest capture.
+      */}
+      <div className="mt-1 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b-2 border-basalt-700 pb-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-bold text-steel-100">
+            {player.name}
+          </h1>
+          <p className="mt-1.5 text-sm text-steel-400">
+            {player.matchesPlayed} {player.matchesPlayed === 1 ? "match" : "matches"}
+            {player.firstSeen ? ` · first seen ${dayLabel(player.firstSeen)}` : ""}
+            {player.lastSeen && player.lastSeen !== player.firstSeen
+              ? ` · last seen ${dayLabel(player.lastSeen)}`
+              : ""}
+          </p>
+        </div>
+
+        <p className="flex items-baseline gap-2 whitespace-nowrap">
+          <span className="font-mono text-3xl tabular-nums text-steel-100">
+            {wins}
+            <span className="text-steel-600">&ndash;</span>
+            {losses}
+          </span>
+          <span className="figure-label">won &amp; lost</span>
+        </p>
+      </div>
 
       {/* What they are like to play against, as opposed to what they scored.
           Labelled, like every other piece of writing on the site. */}
@@ -232,55 +290,73 @@ export default async function PlayerPage({ params }: Props) {
         </div>
       ) : null}
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        <Stat label="Record" value={`${wins}–${losses}`} hint="wins and losses" />
-        <Stat
-          label="Frags"
-          value={String(player.kills)}
-          hint={`${player.deaths} deaths`}
-        />
-        <Stat label="F/D" value={kd.toFixed(2)} />
-        <Stat
-          label="Captures"
-          value={String(player.caps)}
-          hint={
-            player.relayCaps > 0
-              ? `${player.soloCaps} solo, ${player.relayCaps} relay`
-              : undefined
-          }
-        />
-        {/*
-          The contribution the scoreboard never showed. A flag often changes
-          hands: someone carries it most of the length, dies at the door, and a
-          teammate walks it in. Only the finisher got a cap. This counts the
-          drives you carried longest and somebody else finished.
-        */}
-        <Stat
-          label="Lead carries"
-          value={String(player.leadCarries)}
-          hint="carried furthest, teammate capped"
-        />
-        <Stat
-          label="Accuracy"
-          value={accuracy === null ? "-" : percent(accuracy)}
-          hint={
-            accuracy === null
-              ? undefined
-              : `${Math.round(player.shotsHit)} of ${Math.round(player.shotsFired)}` +
-                (player.unsoundShootingMatches > 0
-                  ? `, ${player.unsoundShootingMatches} ${
-                      player.unsoundShootingMatches === 1 ? "match" : "matches"
-                    } left out`
-                  : "")
-          }
-        />
-        <Stat label="Best streak" value={String(player.bestStreak)} />
-        <Stat label="Flag time" value={seconds(player.flagHoldMs)} />
-        <Stat
-          label="Fastest cap"
-          value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "-"}
-        />
-      </dl>
+      {/*
+        Three questions rather than nine numbers: how they fight, what they do
+        with the flag, and how they shoot. Grouping is what makes these
+        comparable; a flat grid of nine weighted every figure the same and
+        invited none of them to be read against another.
+      */}
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <StatGroup title="Fighting">
+          <Figure label="Frags" value={String(player.kills)} />
+          <Figure label="Deaths" value={String(player.deaths)} />
+          <Figure label="Per death" value={kd.toFixed(2)} />
+          <Figure label="Best streak" value={String(player.bestStreak)} />
+        </StatGroup>
+
+        <StatGroup title="The flag">
+          <Figure
+            label="Captures"
+            value={String(player.caps)}
+            hint={
+              player.relayCaps > 0
+                ? `${player.soloCaps} solo, ${player.relayCaps} relay`
+                : undefined
+            }
+          />
+          {/*
+            The contribution the scoreboard never showed. A flag often changes
+            hands: somebody carries it most of the length, dies at the door, and
+            a teammate walks it in. Only the finisher got a cap.
+          */}
+          <Figure
+            label="Lead carries"
+            value={String(player.leadCarries)}
+            title="Drives they carried furthest and a teammate finished"
+          />
+          <Figure label="Time carrying" value={seconds(player.flagHoldMs)} />
+          <Figure
+            label="Fastest cap"
+            value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "-"}
+          />
+        </StatGroup>
+
+        <StatGroup title="Shooting">
+          <Figure
+            label="Accuracy"
+            value={accuracy === null ? "-" : percent(accuracy)}
+            title={accuracy === null ? UNSOUND_SHOOTING_NOTE : undefined}
+          />
+          <Figure
+            label="Shots hit"
+            value={accuracy === null ? "-" : Math.round(player.shotsHit).toLocaleString("en-GB")}
+          />
+          <Figure
+            label="Shots fired"
+            value={accuracy === null ? "-" : Math.round(player.shotsFired).toLocaleString("en-GB")}
+          />
+          <Figure label="Damage dealt" value={Math.round(player.damageGiven).toLocaleString("en-GB")} />
+          {player.unsoundShootingMatches > 0 ? (
+            <div className="col-span-2">
+              <p className="text-[0.6875rem] leading-snug text-steel-600">
+                {player.unsoundShootingMatches}{" "}
+                {player.unsoundShootingMatches === 1 ? "match is" : "matches are"} left
+                out: the server recorded more hits than shots there.
+              </p>
+            </div>
+          ) : null}
+        </StatGroup>
+      </div>
 
       {/*
         Who they actually play with, and who they play against.

@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { BOARDS, rank } from "@/lib/matches/leaderboards";
+import {
+  BOARDS,
+  BOARD_GROUPS,
+  BOARD_GROUP_BLURB,
+  BOARD_GROUP_LABEL,
+  rank,
+} from "@/lib/matches/leaderboards";
 import { listPlayers } from "@/lib/matches/queries";
 
 export const metadata: Metadata = {
@@ -30,6 +36,13 @@ export default async function StatsPage() {
     board,
     entries: rank(players, board),
   })).filter(({ entries }) => entries.length > 0);
+
+  // Grouped rather than a flat twelve. Empty groups drop out entirely, so a
+  // thin archive shows two headings rather than three and one empty rule.
+  const groups = BOARD_GROUPS.map((group) => ({
+    group,
+    boards: boards.filter(({ board }) => board.group === group),
+  })).filter((entry) => entry.boards.length > 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10">
@@ -66,12 +79,21 @@ export default async function StatsPage() {
             boards do not.
           </p>
 
-          <div className="grid gap-x-8 gap-y-7 pb-6 sm:grid-cols-2 lg:grid-cols-3">
-            {boards.map(({ board, entries }) => (
+          <div className="space-y-10 pb-6">
+            {groups.map(({ group, boards: inGroup }) => (
+              <section key={group}>
+                <h2 className="rule-heading">{BOARD_GROUP_LABEL[group]}</h2>
+                <p className="mt-1.5 text-xs text-steel-500">
+                  {BOARD_GROUP_BLURB[group]}
+                </p>
+
+                <div className="mt-4 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+                  {inGroup.map(({ board, entries }) => (
+
               <section key={board.key} className="min-w-0">
-                <h2 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+                <h3 className="border-b border-basalt-800 pb-1.5 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-300">
                   {board.label}
-                </h2>
+                </h3>
                 <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
                   {board.blurb}
                 </p>
@@ -112,6 +134,9 @@ export default async function StatsPage() {
                     {board.requirement}
                   </p>
                 ) : null}
+              </section>
+                  ))}
+                </div>
               </section>
             ))}
           </div>
