@@ -462,6 +462,47 @@ export const listPlayers = cache(async function listPlayers(): Promise<PlayerTot
   return rows;
 });
 
+/**
+ * Recent results for everybody, newest last, keyed by lowercased name.
+ *
+ * The squad list ranked people by career totals and said nothing about who is
+ * playing well now, which on any sports site is the first thing a reader scans
+ * a table for. One query for the whole list rather than one per player: the
+ * archive is small enough to sort in memory and an N+1 here would be a round
+ * trip per name for a strip of five letters.
+ */
+export const recentForm = cache(async function recentForm(
+  perPlayer = 5,
+): Promise<Map<string, (boolean | null)[]>> {
+  const rows = await db
+    .select({
+      nameKey: sql<string>`lower(${matchPlayers.name})`,
+      team: matchPlayers.team,
+      winner: matches.winner,
+      startedAt: matches.startedAt,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(TOOK_PART, eq(matches.status, "final")))
+    .orderBy(desc(matches.startedAt));
+
+  const byPlayer = new Map<string, (boolean | null)[]>();
+
+  for (const row of rows) {
+    const runs = byPlayer.get(row.nameKey) ?? [];
+    if (runs.length >= perPlayer) continue;
+    // Null rather than false with no winner: a match without a result is not a
+    // defeat, the same rule the player page's history uses.
+    runs.push(row.winner ? row.winner === row.team : null);
+    byPlayer.set(row.nameKey, runs);
+  }
+
+  // Collected newest first, read oldest first, the way a run of form is written.
+  for (const [key, runs] of byPlayer) byPlayer.set(key, runs.reverse());
+
+  return byPlayer;
+});
+
 export const getPlayer = cache(async function getPlayer(
   name: string,
 ): Promise<PlayerTotals | null> {

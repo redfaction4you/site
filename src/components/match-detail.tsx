@@ -415,6 +415,8 @@ export function MatchDetailView({
   // Team accuracy adds up only the players whose counters agree with themselves.
   // One broken row would otherwise carry the whole side's figure past 100% and
   // make the sound records look wrong too.
+  const footage = footageForMatch(match.archiveDay, match.sourceMatchId);
+
   const soundShooters = active.filter((p) => shootingIsSound(p.shotsHit, p.shotsFired));
   const shotsFired = soundShooters.reduce((sum, p) => sum + p.shotsFired, 0);
   const shotsHit = soundShooters.reduce((sum, p) => sum + p.shotsHit, 0);
@@ -562,12 +564,37 @@ export function MatchDetailView({
         </div>
       ) : null}
 
-      {/* Footage of this match, where somebody recorded it. */}
-      <MatchFootageList
-        footage={footageForMatch(match.archiveDay, match.sourceMatchId)}
-        heading="Watch this match"
-        className="mt-6"
-      />
+      {/*
+        How the match went, and the footage of it, side by side.
+
+        The timeline used to sit near the bottom beside the collapsed event
+        streams, which is where a reader arrives having already scrolled past
+        everything it explains. It is the clearest thing on the page, so it goes
+        where the page is still being read. Where nobody filmed the match it
+        takes the whole width rather than leaving a hole.
+      */}
+      {match.captures.length || footage.length ? (
+        <div
+          className={
+            "mt-6 grid gap-4 " + (footage.length ? "lg:grid-cols-[3fr_2fr]" : "")
+          }
+        >
+          {match.captures.length ? (
+            <div className="plate p-4">
+              <h2 className="rule-heading">How it was won</h2>
+              <CaptureTrack
+                captures={match.captures}
+                startedAt={match.startedAt}
+                endedAt={match.endedAt}
+                redScore={match.redScore}
+                blueScore={match.blueScore}
+              />
+            </div>
+          ) : null}
+
+          <MatchFootageList footage={footage} heading="Watch this match" />
+        </div>
+      ) : null}
 
       {/*
         The night's figures, split into what the match was and who did it.
@@ -781,21 +808,9 @@ export function MatchDetailView({
         </div>
       </details>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Captures, drawn along the clock. The one story a CTF match has. */}
-        {match.captures.length ? (
-          <div className="plate p-4">
-            <h2 className="rule-heading">Capture timeline</h2>
-            <CaptureTrack
-              captures={match.captures}
-              startedAt={match.startedAt}
-              endedAt={match.endedAt}
-            />
-          </div>
-        ) : null}
-
+      <div className="mt-4">
         {/* Event streams, collapsed. */}
-        <div className="space-y-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           <EventSection title="Frags" count={match.kills.length}>
             <table className="w-full text-sm">
               <tbody>

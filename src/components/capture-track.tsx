@@ -64,14 +64,56 @@ export function CaptureTrack({
   captures,
   startedAt,
   endedAt,
+  redScore,
+  blueScore,
 }: {
   captures: TrackCapture[];
   startedAt: Date | null;
   endedAt: Date | null;
+  /** The final score, so the track can end on the result. */
+  redScore?: number;
+  blueScore?: number;
 }) {
   if (captures.length === 0) return null;
 
   const at = positions(captures, startedAt, endedAt);
+
+  /*
+   * Who was ahead, across the whole match.
+   *
+   * The markers said when the flags went in. This says what that meant, which is
+   * the question a timeline is actually for: a match can have the same six
+   * captures and be either a procession or six lead changes, and the dots alone
+   * cannot tell you which. The ribbon runs from each capture to the next, tinted
+   * by whoever was in front over that stretch and left bare while it was level.
+   */
+  const lead = captures.map((capture, index) => {
+    const from = at[index];
+    const to = index + 1 < at.length ? at[index + 1] : 1;
+    const ahead =
+      capture.redScore > capture.blueScore
+        ? "red"
+        : capture.blueScore > capture.redScore
+          ? "blue"
+          : "level";
+    return { from, width: Math.max(0, to - from), ahead };
+  });
+
+  /*
+   * The capture that settled it, marked apart from the rest.
+   *
+   * The winning goal is the one moment everybody remembers and it looked exactly
+   * like the other five. Only claimed where the last capture actually belongs to
+   * the winning side, since a match can end with a consolation.
+   */
+  const decidedBy =
+    redScore !== undefined &&
+    blueScore !== undefined &&
+    redScore !== blueScore &&
+    captures[captures.length - 1]?.team ===
+      (redScore > blueScore ? "red" : "blue")
+      ? captures.length - 1
+      : -1;
 
   /*
    * Which captures happened in extra time.
@@ -108,8 +150,24 @@ export function CaptureTrack({
         than duplicating every name into an aria-label keeps one source of truth.
       */}
       <div aria-hidden="true" className="relative mt-4 h-24 select-none">
-        {/* The clock itself. */}
-        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-basalt-600" />
+        {/* Who was ahead, as a band on the clock. Level stretches stay bare. */}
+        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-sm bg-basalt-800">
+          {lead.map((segment, index) =>
+            segment.ahead === "level" ? null : (
+              <span
+                key={index}
+                className={
+                  "absolute inset-y-0 " +
+                  (segment.ahead === "red" ? "bg-rust-500/70" : "bg-oxide-400/70")
+                }
+                style={{
+                  left: `${segment.from * 100}%`,
+                  width: `${segment.width * 100}%`,
+                }}
+              />
+            ),
+          )}
+        </div>
 
         {captures.map((capture, index) => {
           const red = capture.team === "red";
@@ -149,12 +207,15 @@ export function CaptureTrack({
                     (red ? "bg-rust-500/50" : "bg-oxide-400/50")
                   }
                 />
+                {/* The decisive capture is bigger and ringed. It was the one
+                    moment everybody remembers and it looked like all the rest. */}
                 <span
                   className={
-                    "h-2.5 w-2.5 shrink-0 rotate-45 border " +
+                    "shrink-0 rotate-45 border " +
+                    (index === decidedBy ? "h-3.5 w-3.5 ring-2 " : "h-2.5 w-2.5 ") +
                     (red
-                      ? "order-3 border-rust-400 bg-rust-500"
-                      : "order-1 border-oxide-400 bg-oxide-500")
+                      ? "order-3 border-rust-300 bg-rust-500 ring-rust-500/30"
+                      : "order-1 border-oxide-300 bg-oxide-500 ring-oxide-400/30")
                   }
                 />
               </div>
@@ -163,13 +224,30 @@ export function CaptureTrack({
         })}
       </div>
 
-      {/* The ends of the clock, so the spacing means something. */}
-      <div aria-hidden="true" className="flex justify-between font-mono text-[0.625rem] tabular-nums text-steel-600">
+      {/* The ends of the clock, so the spacing means something, and the result
+          it arrived at. */}
+      <div
+        aria-hidden="true"
+        className="flex items-baseline justify-between font-mono text-[0.625rem] tabular-nums text-steel-600"
+      >
         <span>0:00</span>
-        {overtimeFrom !== -1 ? (
-          <span className="text-oxide-400">overtime</span>
-        ) : null}
-        <span>{clock(fullTime)}</span>
+        {overtimeFrom !== -1 ? <span className="text-oxide-400">overtime</span> : null}
+        <span className="flex items-baseline gap-2">
+          <span>{clock(fullTime)}</span>
+          {redScore !== undefined && blueScore !== undefined ? (
+            <span className="font-mono text-xs">
+              <span className={redScore > blueScore ? "text-rust-300" : "text-steel-600"}>
+                {redScore}
+              </span>
+              <span className="text-steel-700">-</span>
+              <span
+                className={blueScore > redScore ? "text-oxide-300" : "text-steel-600"}
+              >
+                {blueScore}
+              </span>
+            </span>
+          ) : null}
+        </span>
       </div>
 
       <ol className="mt-4 space-y-1.5 border-t border-basalt-800 pt-3 text-sm">
@@ -205,6 +283,11 @@ export function CaptureTrack({
             ) : (
               <span className="text-steel-500">unknown</span>
             )}
+            {index === decidedBy ? (
+              <span className="font-display text-[0.5625rem] font-bold uppercase tracking-widest text-steel-500">
+                decisive
+              </span>
+            ) : null}
             <span className="ml-auto font-mono tabular-nums text-steel-400">
               {capture.redScore}
               <span className="text-steel-600">-</span>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { dayLabel, matchTime } from "@/components/match-archive";
+import { FormRun } from "@/components/form-run";
 import { MIN_MATCHES_FOR_PROFILE } from "@/lib/ai/player-profile";
 import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
@@ -233,28 +234,16 @@ export default async function PlayerPage({ params }: Props) {
           {form.length > 0 ? (
             <div className="hidden sm:block">
               <p className="figure-label mb-1.5">Recent form</p>
-              <ol className="flex gap-1">
-                {form.map((row) => (
-                  <li key={`${row.archiveDay}-${row.sourceMatchId}`}>
-                    <Link
-                      href={`/matches/${row.archiveDay}/${row.sourceMatchId}`}
-                      title={`${row.mapName}, ${dayLabel(row.archiveDay)}: ${
-                        row.won === null ? "no result" : row.won ? "won" : "lost"
-                      } ${row.redScore}-${row.blueScore}`}
-                      className={
-                        "flex h-6 w-6 items-center justify-center rounded-sm border font-display text-[0.625rem] font-bold uppercase transition-transform hover:-translate-y-0.5 " +
-                        (row.won === null
-                          ? "border-basalt-600 bg-basalt-800 text-steel-500"
-                          : row.won
-                            ? "border-signal-green/50 bg-signal-green/20 text-signal-green"
-                            : "border-rust-700 bg-rust-500/10 text-rust-300")
-                      }
-                    >
-                      {row.won === null ? "–" : row.won ? "W" : "L"}
-                    </Link>
-                  </li>
-                ))}
-              </ol>
+              <FormRun
+                size="md"
+                results={form.map((row) => ({
+                  won: row.won,
+                  href: `/matches/${row.archiveDay}/${row.sourceMatchId}`,
+                  title: `${row.mapName}, ${dayLabel(row.archiveDay)}: ${
+                    row.won === null ? "no result" : row.won ? "won" : "lost"
+                  } ${row.redScore}-${row.blueScore}`,
+                }))}
+              />
             </div>
           ) : null}
 

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { UNSOUND_SHOOTING_NOTE } from "@/lib/matches/accuracy";
-import { listPlayers } from "@/lib/matches/queries";
+import { listPlayers, recentForm } from "@/lib/matches/queries";
+import { FormRun } from "@/components/form-run";
 
 export const metadata: Metadata = {
   title: "Players",
@@ -32,7 +33,7 @@ function percent(value: number): string {
 }
 
 export default async function PlayersPage() {
-  const players = await listPlayers();
+  const [players, form] = await Promise.all([listPlayers(), recentForm()]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-16">
@@ -67,6 +68,7 @@ export default async function PlayersPage() {
                 <tr>
                   {[
                     "Player",
+                    "Form",
                     "Matches",
                     "Frags",
                     "Deaths",
@@ -99,10 +101,20 @@ export default async function PlayersPage() {
                       <td className="px-3 py-2">
                         <Link
                           href={`/players/${encodeURIComponent(player.name)}`}
-                          className="text-steel-100 hover:text-rust-300"
+                          className="font-semibold text-steel-100 hover:text-rust-300"
                         >
                           {player.name}
                         </Link>
+                      </td>
+                      {/* Who is playing well now, which a table of career totals
+                          cannot say and which is also partly a ranking of who
+                          turns up most. */}
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <FormRun
+                          results={(form.get(player.name.toLowerCase()) ?? []).map(
+                            (won) => ({ won }),
+                          )}
+                        />
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
                         {player.matchesPlayed}
