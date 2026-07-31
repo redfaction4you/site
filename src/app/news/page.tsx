@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -7,9 +8,11 @@ import { NightMatches } from "@/components/night-matches";
 import {
   archiveTotals,
   listColumns,
+  listOpinions,
   listMatchesForDay,
   nightScoreboard,
 } from "@/lib/matches/queries";
+import { COLUMNIST_HREF, COLUMNIST_NAME } from "@/lib/ai/opinion";
 
 export const metadata: Metadata = {
   title: "News",
@@ -29,7 +32,12 @@ export const dynamic = "force-dynamic";
  * single entry.
  */
 export default async function NewsPage() {
-  const [columns, totals] = await Promise.all([listColumns(), archiveTotals()]);
+  const [columns, totals, opinions] = await Promise.all([
+    listColumns(),
+    archiveTotals(),
+    listOpinions(1),
+  ]);
+  const latestOpinion = opinions[0] ?? null;
 
   const [lead, ...earlier] = columns;
   const leadMatches = lead ? await listMatchesForDay(lead.archiveDay) : [];
@@ -109,6 +117,39 @@ export default async function NewsPage() {
         {/* The scores it is describing, so the claims sit next to the record. */}
         <aside className="min-w-0 space-y-6">
           <NightMatches matches={leadMatches} archiveDay={lead.archiveDay} />
+
+          {/*
+            The columnist, where somebody reading the news would find him.
+
+            His pieces were only reachable by opening the night they were filed
+            under, which is no way to discover that the site has an opinion
+            column at all.
+          */}
+          {latestOpinion ? (
+            <Link
+              href={COLUMNIST_HREF}
+              className="plate group flex items-start gap-3 border-l-2 border-l-oxide-500 p-3"
+            >
+              <Image
+                src="/mr-mesh.png"
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 shrink-0 rounded-sm border border-basalt-600 object-cover object-top"
+              />
+              <span className="min-w-0">
+                <span className="block font-display text-[0.5625rem] font-bold uppercase tracking-[0.24em] text-oxide-400">
+                  Opinion
+                </span>
+                <span className="mt-0.5 block font-display text-sm font-bold leading-snug text-steel-100 group-hover:text-rust-300">
+                  {latestOpinion.headline}
+                </span>
+                <span className="mt-0.5 block font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
+                  {COLUMNIST_NAME} · written by a machine
+                </span>
+              </span>
+            </Link>
+          ) : null}
 
           {/* Who was actually there. The page described a night without ever
               naming anybody in it, which reads oddly next to a column that is

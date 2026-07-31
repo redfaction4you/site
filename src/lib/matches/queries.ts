@@ -540,6 +540,22 @@ export const getOpinion = cache(async function getOpinion(archiveDay: string) {
   return row ?? null;
 });
 
+/** Everything the columnist has written, newest first. */
+export const listOpinions = cache(async function listOpinions(limit = 60) {
+  return db
+    .select({
+      archiveDay: opinionPieces.archiveDay,
+      headline: opinionPieces.headline,
+      body: opinionPieces.body,
+      matchCount: opinionPieces.matchCount,
+      model: opinionPieces.model,
+      generatedAt: opinionPieces.generatedAt,
+    })
+    .from(opinionPieces)
+    .orderBy(desc(opinionPieces.archiveDay))
+    .limit(limit);
+});
+
 /** The written profile, if one has been generated for this player. */
 export const getPlayerProfile = cache(async function getPlayerProfile(name: string) {
   const [row] = await db

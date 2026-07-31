@@ -1,6 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
 
-import { COLUMNIST_NAME, COLUMNIST_NOTE, COLUMNIST_ROLE } from "@/lib/ai/opinion";
+import {
+  COLUMNIST_HREF,
+  COLUMNIST_NAME,
+  COLUMNIST_NOTE,
+  COLUMNIST_ROLE,
+} from "@/lib/ai/opinion";
 
 /**
  * Stanley Mesh's opinion piece, under the night it follows.
@@ -47,7 +53,9 @@ export function OpinionColumn({
         The disclosure travels with the name rather than sitting in a footnote,
         so the two cannot be separated by a skim.
       */}
-      <div className="flex items-center gap-3">
+      {/* The byline leads to him. A name that goes nowhere is a name a reader
+          cannot check, which is the opposite of what this site is for. */}
+      <Link href={COLUMNIST_HREF} className="group flex items-center gap-3">
         <Image
           src="/mr-mesh.png"
           alt=""
@@ -55,18 +63,18 @@ export function OpinionColumn({
           height={44}
           className="h-11 w-11 shrink-0 rounded-sm border border-basalt-600 object-cover object-top"
         />
-        <div className="min-w-0">
-          <p className="font-display text-[0.625rem] font-bold uppercase tracking-[0.24em] text-oxide-400">
+        <span className="min-w-0">
+          <span className="block font-display text-[0.625rem] font-bold uppercase tracking-[0.24em] text-oxide-400">
             Opinion
-          </p>
-          <p className="font-display text-sm font-bold text-steel-100">
+          </span>
+          <span className="block font-display text-sm font-bold text-steel-100 group-hover:text-rust-300">
             {COLUMNIST_NAME}
-          </p>
-          <p className="font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
+          </span>
+          <span className="block font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
             {COLUMNIST_ROLE} · written by a machine
-          </p>
-        </div>
-      </div>
+          </span>
+        </span>
+      </Link>
 
       <h2
         id="orion-headline"
