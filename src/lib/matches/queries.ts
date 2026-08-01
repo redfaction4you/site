@@ -1480,7 +1480,18 @@ export const getDayDocument = cache(async function getDayDocument(archiveDay: st
     calendarDate: archiveDay,
     server: dayMatches[0].server,
     matchCount: dayMatches.length,
-    completedMatchCount: dayMatches.filter((m) => m.status === "final").length,
+    /*
+     * Completed means it ran, not that the server labelled it `final`.
+     *
+     * The server labels an abandoned start `final` exactly like a game that went
+     * the distance, which is the whole reason `matchCompleted` exists, so this
+     * field was counting the cancelled start of 31 July and telling anybody
+     * mirroring the archive that the night had eight completed matches while
+     * every page on the site said seven. `matchCount` still counts the documents
+     * below it, so the difference between the two is now readable rather than
+     * absent.
+     */
+    completedMatchCount: dayMatches.filter(matchCompleted).length,
     matches: dayMatches.map((match) => ({
       id: match.sourceMatchId,
       status: match.status,
