@@ -17,6 +17,7 @@ import {
   matches,
   nightColumns,
   opinionPieces,
+  playerIdentities,
   playerProfiles,
 } from "@/lib/db/schema";
 import { type PickableMatch, pickMatch } from "@/lib/ai/match-pick";
@@ -32,6 +33,11 @@ import {
   type PublicFlagEvent,
   type PublicWeaponStat,
 } from "@/lib/matches/sanitize";
+import {
+  DISPLAY_NAME,
+  IDENTITY_KEY,
+  playedBy,
+} from "@/lib/matches/identities";
 import type { VettableMatch } from "@/lib/matches/vet";
 
 /**
@@ -468,7 +474,7 @@ export type PlayerTotals = {
 export const SOUND_SHOOTING = sql`${matchPlayers.shotsHit} <= ${matchPlayers.shotsFired}`;
 
 const playerTotalColumns = {
-  name: sql<string>`min(${matchPlayers.name})`,
+  name: DISPLAY_NAME,
   matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
   kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
   deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
@@ -513,8 +519,12 @@ export const listPlayers = cache(async function listPlayers(): Promise<PlayerTot
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(and(TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    .groupBy(IDENTITY_KEY)
     .orderBy(sql`count(distinct ${matchPlayers.matchId}) desc`, sql`2 desc`);
 
   return rows;
@@ -575,8 +585,12 @@ export const getPlayer = cache(async function getPlayer(
     // Filtered like the list is. Without this a player page counted the nights
     // somebody spectated as matches they played, so the list and the page
     // disagreed about the same person.
-    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
+    .where(and(playedBy(name), TOOK_PART, MATCH_COMPLETED))
+    .groupBy(IDENTITY_KEY)
     .limit(1);
 
   return row ?? null;
@@ -738,7 +752,7 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART, MATCH_COMPLETED))
+    .where(and(playedBy(name), TOOK_PART, MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt));
 
   return rows.map(({ winner, ...row }) => ({
@@ -1018,7 +1032,7 @@ export const getMapRecord = cache(async function getMapRecord(
 
     db
       .select({
-        name: sql<string>`min(${matchPlayers.name})`,
+        name: DISPLAY_NAME,
         matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
         score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
         kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
@@ -1027,8 +1041,12 @@ export const getMapRecord = cache(async function getMapRecord(
       })
       .from(matchPlayers)
       .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+      .leftJoin(
+        playerIdentities,
+        eq(playerIdentities.identityKey, matchPlayers.identityKey),
+      )
       .where(and(eq(matches.mapName, mapName), TOOK_PART, MATCH_COMPLETED))
-      .groupBy(sql`lower(${matchPlayers.name})`)
+      .groupBy(IDENTITY_KEY)
       .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`),
   ]);
 
@@ -1575,7 +1593,7 @@ export const nightScoreboard = cache(async function nightScoreboard(
 > {
   return db
     .select({
-      name: sql<string>`min(${matchPlayers.name})`,
+      name: DISPLAY_NAME,
       kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
       caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
@@ -1594,8 +1612,12 @@ export const nightScoreboard = cache(async function nightScoreboard(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    .groupBy(IDENTITY_KEY)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 });
 
@@ -1723,5 +1745,80 @@ export const nightForVetting = cache(async function nightForVetting(
     durationSeconds: row.durationSeconds,
     players: players.filter((p) => p.matchId === row.id),
     captures: captures.filter((c) => c.matchId === row.id),
+  }));
+});
+
+export type IdentityGroup = {
+  /** The grouping key. Server side only: it never reaches a page. */
+  identityKey: string;
+  /** Every name this person has played under, most used first. */
+  names: string[];
+  /** What the site calls them now. */
+  displayName: string;
+  /** Set by hand on the admin page, rather than the most used name. */
+  chosen: boolean;
+  matchesPlayed: number;
+  lastSeen: string | null;
+};
+
+/**
+ * Everyone the archive knows about, grouped as people rather than as names.
+ *
+ * Only for the admin page. The identity key is in the return type because that
+ * page has to be able to name the row it is editing, and it must go no further
+ * than that page: nothing renders it, and it is not in any public query.
+ */
+export const listIdentities = cache(async function listIdentities(): Promise<
+  IdentityGroup[]
+> {
+  /*
+   * Two queries rather than one.
+   *
+   * The names belong to the group, but Postgres will not accept a correlated
+   * subquery keyed on the grouping expression: it sees `identity_key` inside the
+   * subquery as an ungrouped column of the outer query and refuses. Counting the
+   * names separately and joining them up here is shorter than the SQL that would
+   * satisfy it, and this page is read a few times a year.
+   */
+  const [groups, named] = await Promise.all([
+    db
+      .select({
+        identityKey: IDENTITY_KEY,
+        displayName: DISPLAY_NAME,
+        chosen: sql<boolean>`min(${playerIdentities.displayName}) is not null`,
+        matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+        lastSeen: sql<string | null>`max(${matches.archiveDay})::text`,
+      })
+      .from(matchPlayers)
+      .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+      .leftJoin(
+        playerIdentities,
+        eq(playerIdentities.identityKey, matchPlayers.identityKey),
+      )
+      .where(TOOK_PART)
+      .groupBy(IDENTITY_KEY)
+      .orderBy(sql`count(distinct ${matchPlayers.matchId}) desc`),
+
+    db
+      .select({
+        identityKey: IDENTITY_KEY,
+        name: matchPlayers.name,
+        used: sql<number>`count(*)::int`,
+      })
+      .from(matchPlayers)
+      .where(TOOK_PART)
+      .groupBy(IDENTITY_KEY, matchPlayers.name),
+  ]);
+
+  // Most used first, so the list reads as "known as" rather than as an
+  // alphabetical jumble.
+  const names = new Map<string, string[]>();
+  for (const row of [...named].sort((a, b) => b.used - a.used || a.name.localeCompare(b.name))) {
+    names.set(row.identityKey, [...(names.get(row.identityKey) ?? []), row.name]);
+  }
+
+  return groups.map((group) => ({
+    ...group,
+    names: names.get(group.identityKey) ?? [group.displayName],
   }));
 });

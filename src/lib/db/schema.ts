@@ -714,6 +714,39 @@ export const playerProfiles = pgTable(
 );
 
 /**
+ * One person, however many names they have played under.
+ *
+ * The server issues every player an identity derived from their connection, and
+ * the archive has been storing it on each row since the beginning without ever
+ * reading it. Names are neither unique nor stable here and people change them
+ * between matches for fun, so grouping by name splits one player into four: one
+ * person on this server has played as Chill Hippo, Skuldug, s9 and s9!nX, and
+ * appeared four times on every board.
+ *
+ * This table only holds the decision a person made about the display name. The
+ * grouping itself needs no table: it is the identity the server already sent.
+ * Absent a row, the most used name wins, which is right often enough that this
+ * exists for the cases where it is not.
+ *
+ * **`identityKey` is a hash and stays server side**, exactly as it does on
+ * `match_players`. It is the primary key here because it is the only stable
+ * handle on a person, and it must never reach a page.
+ */
+export const playerIdentities = pgTable("player_identities", {
+  identityKey: text("identity_key").primaryKey(),
+
+  /** What to call them. Overrides the most used name when set. */
+  displayName: text("display_name").notNull(),
+
+  /** Why, for whoever reads this table in a year. */
+  note: text("note"),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
  * Recordings of a match, added through the site rather than through a commit.
  *
  * Footage used to live in a typed file, which is the right home for data that
