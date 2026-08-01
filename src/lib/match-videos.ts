@@ -82,12 +82,91 @@ export const MATCH_VIDEOS: MatchVideo[] = [
     covers: [{ archiveDay: "2026-07-29", sourceMatchId: 9 }],
   },
   {
-    // Tesseract, the only match of the night that went to overtime and finished
-    // one nil. Identified from the archive rather than from the video.
+    /*
+     * Warlords Pro (No Fog), match 24. Corrected from match 18.
+     *
+     * Two matches that night finished nil one in overtime, and the first pass
+     * took the earlier one. The video's own title names the map, and the six
+     * players named alongside it are match 24's roster exactly, where match 18
+     * had eight. The count not matching was visible at the time and was talked
+     * past, which is why the page that adds these now shows the title back
+     * before anything is saved.
+     */
     youtubeId: "HHOoYaB12Rs",
-    covers: [{ archiveDay: "2026-07-31", sourceMatchId: 18 }],
+    covers: [{ archiveDay: "2026-07-31", sourceMatchId: 24 }],
   },
 ];
+
+/**
+ * The video id out of whatever somebody pasted.
+ *
+ * People paste the address bar, the share link, the mobile app link, and
+ * occasionally just the id. Asking them to extract eleven characters themselves
+ * is the kind of small chore that ends with the link never being added, so this
+ * takes all of it: `youtu.be/ID`, `watch?v=ID`, `/shorts/ID`, `/live/ID`,
+ * `/embed/ID`, with or without a scheme, extra parameters, or a timestamp.
+ *
+ * Returns null rather than guessing. A wrong id renders a dead embed against a
+ * real match, which is worse than refusing the paste and saying so.
+ */
+export function parseYouTubeId(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+
+  // Ids are exactly eleven characters of an unreserved alphabet, which is what
+  // makes a bare paste safe to accept.
+  const ID = /^[A-Za-z0-9_-]{11}$/;
+  if (ID.test(text)) return text;
+
+  let url: URL | null = null;
+  try {
+    url = new URL(text.startsWith("http") ? text : `https://${text}`);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  const isYouTube =
+    host === "youtu.be" ||
+    host === "youtube.com" ||
+    host === "m.youtube.com" ||
+    host === "music.youtube.com" ||
+    host.endsWith(".youtube.com");
+  if (!isYouTube) return null;
+
+  const fromQuery = url.searchParams.get("v");
+  if (fromQuery && ID.test(fromQuery)) return fromQuery;
+
+  const [first, second] = url.pathname.split("/").filter(Boolean);
+  if (host === "youtu.be" && first && ID.test(first)) return first;
+  if (
+    second &&
+    ID.test(second) &&
+    ["shorts", "live", "embed", "v"].includes(first ?? "")
+  ) {
+    return second;
+  }
+
+  return null;
+}
+
+/**
+ * Seconds out of a pasted timestamp.
+ *
+ * Accepts `90`, `1:30` and `1:02:03`, because somebody reading a time off a
+ * video player copies what the player shows them.
+ */
+export function parseStartsAt(input: string): number | null {
+  const text = input.trim();
+  if (!text) return null;
+  if (!/^\d+(:\d{1,2}){0,2}$/.test(text)) return null;
+
+  const parts = text.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part))) return null;
+
+  const seconds = parts.reduce((total, part) => total * 60 + part, 0);
+  return seconds > 0 ? seconds : null;
+}
 
 export function thumbnailUrl(youtubeId: string): string {
   return `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;

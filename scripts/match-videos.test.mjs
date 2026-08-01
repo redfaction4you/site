@@ -24,6 +24,8 @@ import {
   footageForMatch,
   footageForNight,
   hasFootage,
+  parseStartsAt,
+  parseYouTubeId,
   thumbnailUrl,
   watchUrl,
 } from "../src/lib/match-videos.ts";
@@ -153,4 +155,54 @@ test("thumbnails come from YouTube, needing no key", () => {
 
 test("hasFootage reflects the list", () => {
   assert.equal(hasFootage(), MATCH_VIDEOS.length > 0);
+});
+
+/* --- what people actually paste ------------------------------------------ */
+
+test("a video id is found in every shape of link", () => {
+  const shapes = [
+    "HHOoYaB12Rs",
+    "https://youtu.be/HHOoYaB12Rs",
+    "https://www.youtube.com/watch?v=HHOoYaB12Rs",
+    "https://m.youtube.com/watch?v=HHOoYaB12Rs&feature=share",
+    "https://www.youtube.com/watch?v=HHOoYaB12Rs&t=903s",
+    "youtube.com/shorts/HHOoYaB12Rs",
+    "https://www.youtube.com/live/HHOoYaB12Rs",
+    "https://www.youtube.com/embed/HHOoYaB12Rs",
+    "  https://youtu.be/HHOoYaB12Rs?si=abc  ",
+  ];
+
+  for (const shape of shapes) {
+    assert.equal(parseYouTubeId(shape), "HHOoYaB12Rs", `failed on ${shape}`);
+  }
+});
+
+test("anything that is not a youtube video is refused rather than guessed", () => {
+  // A wrong id renders a dead embed against a real match, which is worse than
+  // refusing the paste.
+  for (const bad of [
+    "",
+    "   ",
+    "not a link",
+    "https://vimeo.com/123456789",
+    "https://youtube.com",
+    "https://www.youtube.com/watch?v=tooshort",
+    "https://evil.example.com/watch?v=HHOoYaB12Rs",
+    "https://notyoutube.com/HHOoYaB12Rs",
+  ]) {
+    assert.equal(parseYouTubeId(bad), null, `accepted ${bad}`);
+  }
+});
+
+test("a channel url is not a video", () => {
+  assert.equal(parseYouTubeId("https://www.youtube.com/@somechannel"), null);
+});
+
+test("a timestamp is read the way a player shows it", () => {
+  assert.equal(parseStartsAt("90"), 90);
+  assert.equal(parseStartsAt("1:30"), 90);
+  assert.equal(parseStartsAt("1:02:03"), 3723);
+  assert.equal(parseStartsAt(""), null);
+  assert.equal(parseStartsAt("0"), null);
+  assert.equal(parseStartsAt("banana"), null);
 });
