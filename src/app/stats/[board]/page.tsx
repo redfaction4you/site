@@ -11,6 +11,7 @@ import {
   rank,
 } from "@/lib/matches/leaderboards";
 import { listPlayers } from "@/lib/matches/queries";
+import { StatStrip } from "@/components/stat-strip";
 
 type Props = { params: Promise<{ board: string }> };
 
@@ -105,6 +106,13 @@ export default async function BoardPage({ params }: Props) {
         </p>
       ) : (
         <>
+          {/*
+            The shape of the field, above the ranking of it. First place means
+            one thing when the field is spread and another when everybody is
+            within a couple of points, and the list below cannot say which.
+          */}
+          <StatStrip entries={entries} board={board} />
+
           <div className="panel mt-6 overflow-hidden">
             <div className="flex items-baseline gap-3 border-b border-basalt-700 px-3 py-1.5 font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
               <span className="w-5 shrink-0">#</span>
