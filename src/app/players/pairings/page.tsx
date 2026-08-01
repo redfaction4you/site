@@ -78,34 +78,56 @@ function Undecided({ count }: { count: number }) {
  * because Next resolves a static segment before a dynamic one. Left alone: the
  * alternative is a uglier URL for everybody to protect against a name nobody has
  * used, and if somebody ever does, this comment is where to start.
+ *
+ * **Ten of each, and the rest behind a link.** Every pairing on record is a long
+ * tail of people who have shared a side twice, and printing all of it put the
+ * interesting rows at the top of a page that then scrolled for a screen and a
+ * half of ones and twos. The two tables also sat one under the other when they
+ * are the same shape and read as a pair, so the second was below the fold on
+ * every screen.
+ *
+ * The full list is a URL rather than a button, the same as every other filter
+ * here: a link somebody can paste into Discord beats an interaction only the
+ * person who clicked it can see.
  */
-export default async function PairingsPage() {
-  const { partnerships, rivalries } = await allPairings();
+const SHOWN = 10;
+
+type Props = { searchParams: Promise<{ all?: string }> };
+
+export default async function PairingsPage({ searchParams }: Props) {
+  const [{ partnerships, rivalries }, { all }] = await Promise.all([
+    allPairings(),
+    searchParams,
+  ]);
+
+  const everything = all === "1";
+  const together = everything ? partnerships : partnerships.slice(0, SHOWN);
+  const faced = everything ? rivalries : rivalries.slice(0, SHOWN);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-16">
-      <p className="eyebrow">
-        <Link href="/players" className="hover:text-rust-300">
-          Players
-        </Link>
-      </p>
-      <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">Pairings</h1>
-      <p className="mt-4 max-w-2xl text-lg leading-relaxed text-steel-300">
-        Who plays with whom, and who plays against whom.
-      </p>
-
-      {/*
-        The thing a reader has to know before the numbers mean anything. Sides
-        here are shirt colours that get reshuffled between matches, so every
-        figure below is counted from who was actually on which side in each
-        match, and most people appear in both tables.
-      */}
-
-      <p className="mt-5 max-w-2xl text-sm leading-relaxed text-steel-400">
-        Red and blue are shirt colours on this server, not teams, and they get
-        reshuffled between matches. Everything here is counted from who was on
-        which side in each match, which is why most people appear in both tables.
-      </p>
+    /*
+     * The tables start about a hundred pixels down rather than five hundred.
+     *
+     * This page opened with 64px of padding, a 4xl heading, a lead line in 18px
+     * and two paragraphs of explanation, so on a 720px screen a reader saw the
+     * word "Pairings" and some prose and had to scroll to find out that the page
+     * has any numbers on it. Everything that was above the data is below it now,
+     * which is the rule the rest of the site was rebuilt around.
+     */
+    <div className="mx-auto max-w-6xl px-4 pb-12">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
+        <p className="eyebrow">
+          <Link href="/players" className="hover:text-rust-300">
+            Players
+          </Link>
+          <span className="mx-2 text-steel-700">/</span>
+          Pairings
+        </p>
+        <p className="font-mono text-xs text-steel-600">
+          <span className="text-steel-300">{partnerships.length}</span> shared ·{" "}
+          <span className="text-steel-300">{rivalries.length}</span> faced
+        </p>
+      </div>
 
       {partnerships.length === 0 && rivalries.length === 0 ? (
         <div className="panel mt-10 p-8 text-center">
@@ -115,16 +137,27 @@ export default async function PairingsPage() {
         </div>
       ) : (
         <>
+          {/*
+            Side by side, because they are the same shape and answer two halves
+            of one question. Stacked, the second table began below the fold on
+            every screen and most readers never learned it was there.
+          */}
+          <div className="mt-5 grid gap-x-6 gap-y-8 lg:grid-cols-2">
           {partnerships.length > 0 ? (
-            <section className="mt-10">
-              <h2 className="font-display text-lg font-bold text-steel-100">
+            <section className="min-w-0">
+              <h2 className="rule-heading">
                 On the same side
+                {partnerships.length > together.length ? (
+                  <span className="font-mono normal-case tracking-normal text-steel-600">
+                    top {together.length} of {partnerships.length}
+                  </span>
+                ) : null}
               </h2>
-              <p className="mt-1 text-sm text-steel-500">
+              <p className="mt-1.5 text-xs text-steel-500">
                 Matches these two played together, and the record they share.
               </p>
 
-              <div className="panel mt-4 overflow-x-auto">
+              <div className="panel mt-2 overflow-x-auto">
                 <table className="w-full text-sm">
                   <Head
                     columns={[
@@ -135,7 +168,7 @@ export default async function PairingsPage() {
                     ]}
                   />
                   <tbody>
-                    {partnerships.map((pair) => (
+                    {together.map((pair) => (
                       <tr
                         key={`${pair.a}-${pair.b}`}
                         className="border-t border-basalt-700"
@@ -166,23 +199,28 @@ export default async function PairingsPage() {
                 </table>
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-steel-600">
+              <p className="mt-2 text-[0.6875rem] leading-relaxed text-steel-600">
                 {PAIR_RATE_REQUIREMENT}
               </p>
             </section>
           ) : null}
 
           {rivalries.length > 0 ? (
-            <section className="mt-12">
-              <h2 className="font-display text-lg font-bold text-steel-100">
+            <section className="min-w-0">
+              <h2 className="rule-heading">
                 On opposite sides
+                {rivalries.length > faced.length ? (
+                  <span className="font-mono normal-case tracking-normal text-steel-600">
+                    top {faced.length} of {rivalries.length}
+                  </span>
+                ) : null}
               </h2>
-              <p className="mt-1 text-sm text-steel-500">
+              <p className="mt-1.5 text-xs text-steel-500">
                 Matches these two played against each other, and how those went.
                 The record reads left to right.
               </p>
 
-              <div className="panel mt-4 overflow-x-auto">
+              <div className="panel mt-2 overflow-x-auto">
                 <table className="w-full text-sm">
                   <Head
                     columns={[
@@ -193,7 +231,7 @@ export default async function PairingsPage() {
                     ]}
                   />
                   <tbody>
-                    {rivalries.map((pair) => (
+                    {faced.map((pair) => (
                       <tr
                         key={`${pair.a}-${pair.b}`}
                         className="border-t border-basalt-700"
@@ -218,6 +256,38 @@ export default async function PairingsPage() {
               </div>
             </section>
           ) : null}
+          </div>
+
+          {/*
+            The rest, as a URL. Both tables are cut to the same depth and one
+            link uncovers both, since a reader who wants the long tail of one
+            wants it of the other.
+          */}
+          {partnerships.length > SHOWN || rivalries.length > SHOWN ? (
+            <p className="mt-6">
+              <Link
+                href={everything ? "/players/pairings" : "/players/pairings?all=1"}
+                className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+              >
+                {everything
+                  ? `The most played ${SHOWN} of each`
+                  : `Every pairing, ${partnerships.length} shared and ${rivalries.length} faced`}
+              </Link>
+            </p>
+          ) : null}
+
+          {/*
+            What a reader has to know before the numbers mean anything, under
+            them rather than over them. Sides here are shirt colours that get
+            reshuffled between matches, so every figure is counted from who was
+            actually on which side, and most people appear in both tables.
+          */}
+          <p className="mt-8 max-w-3xl text-sm leading-relaxed text-steel-400">
+            Red and blue are shirt colours on this server, not teams, and they
+            get reshuffled between matches. Everything here is counted from who
+            was on which side in each match, which is why most people appear in
+            both tables.
+          </p>
 
           {/*
             The same limit the player pages carry, said again here because this
