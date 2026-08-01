@@ -6,6 +6,7 @@ import { ArchiveNav } from "@/components/archive-nav";
 import { ColumnImage } from "@/components/column-image";
 import { DayBlock } from "@/components/day-block";
 import { NightFootageCard } from "@/components/match-footage";
+import { NightScoreboard } from "@/components/night-scoreboard";
 import { NightStrip } from "@/components/night-strip";
 import { dayLabel } from "@/components/match-archive";
 import { footageForNight } from "@/lib/match-footage";
@@ -19,16 +20,6 @@ import {
 import { isValidDay } from "@/lib/matches/sanitize";
 
 type Props = { params: Promise<{ day: string }> };
-
-/**
- * How many earlier nights stack under the one being read.
- *
- * The point of the stack is that scrolling walks backwards through the archive
- * rather than dead-ending after one night. It is bounded because every extra
- * night is another query and another set of thumbnails, and nobody scrolls
- * through a season. The strip across the top is how you reach anything further back.
- */
-const STACKED_NIGHTS = 4;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { day } = await params;
@@ -53,24 +44,6 @@ export default async function MatchDayPage({ params }: Props) {
   ]);
 
   if (matches.length === 0) notFound();
-
-  /*
-   * The nights below this one, newest of them first.
-   *
-   * Loaded together rather than on scroll: four nights is four small queries,
-   * and an infinite scroller would be a lot of machinery for an archive that
-   * adds a night every couple of days.
-   */
-  const behind = days.filter((entry) => entry.archiveDay < day);
-  const stacked = behind.slice(0, STACKED_NIGHTS);
-  const older = behind.length - stacked.length;
-
-  const earlierNights = await Promise.all(
-    stacked.map(async (entry) => ({
-      archiveDay: entry.archiveDay,
-      matches: await listMatchesForDay(entry.archiveDay),
-    })),
-  );
 
   const first = matches[0]?.startedAt ?? null;
   const last = matches[matches.length - 1]?.endedAt ?? null;
@@ -100,7 +73,7 @@ export default async function MatchDayPage({ params }: Props) {
         wide screen the rail takes the second column across both rows and the
         nights take the first, which is the same arrangement as before.
       */}
-      <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_18rem]">
+      <div className="mt-5 grid gap-x-8 gap-y-6 lg:grid-cols-[1fr_16rem]">
         <div className="min-w-0">
           {/*
             The night being read, whole and above the fold.
@@ -168,6 +141,38 @@ export default async function MatchDayPage({ params }: Props) {
               }
             />
           </div>
+
+          {/*
+            Everything the archive holds about the evening, on the page named
+            after the evening.
+
+            It was five columns in a rail: rank, name, score, frags, caps.
+            Accuracy, damage, deaths, returns and streaks were a click away on a
+            player page or spread across six match pages, so the night page said
+            less about the night than any page it linked to.
+          */}
+          {scoreboard.length ? (
+            <section className="mt-6">
+              <h2 className="rule-heading">
+                Who played
+                <span className="font-mono normal-case tracking-normal text-steel-600">
+                  {scoreboard.length} players
+                </span>
+              </h2>
+              <div className="mt-2">
+                <NightScoreboard
+                  players={scoreboard}
+                  matchCount={matches.length}
+                />
+              </div>
+              <p className="mt-2 text-[0.6875rem] leading-snug text-steel-600">
+                Ordered by score, which is what the game ranks on: a capture is
+                worth many frags, so the frag leader is often not top. The last
+                column is how many of the night&rsquo;s matches each player was
+                actually in.
+              </p>
+            </section>
+          ) : null}
         </div>
 
         {/*
@@ -186,75 +191,6 @@ export default async function MatchDayPage({ params }: Props) {
           be quietly wrong.
         */}
         <aside className="space-y-7 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:self-start">
-          {scoreboard.length ? (
-            <section>
-              <h2 className="rule-heading">
-                Who played
-                <span className="font-mono normal-case tracking-normal text-steel-600">
-                  {dayLabel(day)}
-                </span>
-              </h2>
-
-              {/*
-                Named, for the same reason the match rows are: `6 caps` and
-                `6/6` beside a frag count are three numbers and one of them was
-                a fraction of something never stated.
-
-                Score is here because the table is ordered by it and was not
-                showing it, so fourth place held 137 frags and fifth held 157 and
-                the ranking read as broken. In CTF it is not: a capture is worth
-                far more than a frag, and this is the column that explains why
-                somebody with eleven of them outranks somebody who shot more
-                people.
-              */}
-              <div className="mt-2 flex items-baseline gap-2 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
-                <span className="w-3 shrink-0">#</span>
-                <span className="min-w-0 flex-1">Player</span>
-                <span className="w-9 shrink-0 text-right">Score</span>
-                <span className="w-8 shrink-0 text-right">Frags</span>
-                <span className="w-6 shrink-0 text-right">Caps</span>
-                <span
-                  className="w-8 shrink-0 text-right"
-                  title="Matches they played, of the matches that night"
-                >
-                  Played
-                </span>
-              </div>
-
-              <ol>
-                {scoreboard.map((player, index) => (
-                  <li key={player.name} className="border-b border-basalt-800">
-                    <Link
-                      href={`/players/${encodeURIComponent(player.name)}`}
-                      className="group flex items-baseline gap-2 py-1"
-                    >
-                      <span className="w-3 shrink-0 font-display text-[0.625rem] tabular-nums text-steel-600">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
-                        {player.name}
-                      </span>
-                      <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-100">
-                        {player.score}
-                      </span>
-                      <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
-                        {player.kills}
-                      </span>
-                      <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
-                        {player.caps}
-                      </span>
-                      {/* The denominator. People drop in and out across a night,
-                          so a frag total is partly a measure of who stayed. */}
-                      <span className="w-8 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
-                        {player.matchesPlayed}/{matches.length}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ) : null}
-
           {/* Anything anybody filmed of this night, beside the results rather
               than under the write-up at the bottom of the page. */}
           <NightFootageCard
@@ -266,41 +202,22 @@ export default async function MatchDayPage({ params }: Props) {
         </aside>
 
         {/*
-          Backwards through the archive, a night per scroll.
+          One night, and a door to the rest.
 
-          The page used to end after one night, so the only route to the night
-          before was back out to a selector and in again. Reading an archive is
-          walking backwards through it, and the scroll should do that.
-
-          Under a heading, and at h3, because without one the page shows three
-          nights of equal weight beside a rail that is about one of them. The
-          rail is not wrong, it is scoped to the night in the URL, but nothing
-          said so: the fix is to say which night this page is, rather than to
-          stop the rail being about it.
+          Four earlier nights used to be stacked underneath, which was right
+          while `/matches` was a redirect and there was nowhere else to go. It
+          made this page four times longer than the night it is named after, and
+          the archive index now does that job properly.
         */}
-        <div className="min-w-0 lg:col-start-1">
-          {earlierNights.length > 0 ? (
-            <h2 className="rule-heading mb-3">Earlier nights</h2>
-          ) : null}
+        <p className="lg:col-start-1">
+          <Link
+            href="/matches"
+            className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+          >
+            Every night in the archive
+          </Link>
+        </p>
 
-          <div className="space-y-8">
-            {earlierNights.map((night) => (
-              <DayBlock
-                key={night.archiveDay}
-                archiveDay={night.archiveDay}
-                matches={night.matches}
-                heading="h3"
-              />
-            ))}
-          </div>
-
-          {older > 0 ? (
-            <p className="mt-8 text-sm text-steel-500">
-              {older} older {older === 1 ? "night is" : "nights are"} in the index
-              beside this.
-            </p>
-          ) : null}
-        </div>
       </div>
     </div>
   );

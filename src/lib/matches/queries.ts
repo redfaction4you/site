@@ -1564,6 +1564,13 @@ export const nightScoreboard = cache(async function nightScoreboard(
      * from two, which is the difference between a ranking and a claim.
      */
     matchesPlayed: number;
+    /** Totalled from the matches whose counters agree with themselves. */
+    shotsHit: number;
+    shotsFired: number;
+    unsoundShootingMatches: number;
+    damageGiven: number;
+    bestStreak: number;
+    flagReturns: number;
   }[]
 > {
   return db
@@ -1574,6 +1581,16 @@ export const nightScoreboard = cache(async function nightScoreboard(
       caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
       score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
       matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+      // The same accuracy rule the rest of the site uses. A match whose
+      // counters contradict themselves is left out of the figure rather than
+      // allowed to inflate it, and the count of those rides along so the page
+      // can say so.
+      shotsHit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      shotsFired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      unsoundShootingMatches: sql<number>`count(*) filter (where not (${SOUND_SHOOTING}))::int`,
+      damageGiven: sql<number>`coalesce(sum(${matchPlayers.damageGiven}), 0)::float8`,
+      bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
+      flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
