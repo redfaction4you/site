@@ -250,6 +250,30 @@ for (const team of ["red", "blue"]) {
   }
   if (!flags.some((f) => f.team === team)) problems.push(`${team} has no flag reference.`);
 }
+/*
+ * A screenshot filed under the wrong map.
+ *
+ * Every file name carries the level it came from, and the folder decides which
+ * map the site shows it for. A Shattered Gorge export sat in the relic-seeker
+ * folder, and because the genuine Relic Seeker files were all named for flag
+ * rooms it was the only shot classified as an overview, so it became the picture
+ * for Relic Seeker on every page. Nothing failed; the wrong map simply appeared
+ * everywhere.
+ */
+for (const [slug, shots] of maps.entries()) {
+  const token = slug.replace(/-/g, "");
+  for (const shot of shots) {
+    const file = shot.path.split(/[\/]/).pop().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const named = /ctf|btn|_v\d/.test(file);
+    if (named && !file.includes(token.slice(0, 6))) {
+      problems.push(
+        `${slug}: ${shot.path.split(/[\/]/).pop()} does not look like a ${slug} screenshot. ` +
+          `Move it to its own folder or rename it.`,
+      );
+    }
+  }
+}
+
 for (const { slug, shots } of mapEntries) {
   const areas = new Set(shots.map((s) => s.area));
   if (!areas.has("blue-flagroom") || !areas.has("red-flagroom")) {
@@ -402,6 +426,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "huna b8": "huna-b8",
   "dark warlords": "dark-warlords",
   "relic seeker": "relic-seeker",
+  "shattered gorge mini v2.1": "shattered-gorge-mini",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",
   "rail fight": "rail-fight",

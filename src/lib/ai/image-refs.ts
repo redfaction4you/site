@@ -6,7 +6,7 @@
  * apart and the drift shows up as a missing picture weeks later.
  *
  * The images themselves are not in the repo; this is the record of what they are.
- * Set fingerprint 19c5a957a7fb.
+ * Set fingerprint 645b76a1711f.
  *
  * `MAP_ALIASES` is the one part worth editing by hand: it maps the map names the
  * server actually reports onto the folders here, so variants that share their
@@ -130,10 +130,12 @@ export const MAP_SHOTS: Record<string, MapShot[]> = {
     { area: "red-flagroom", key: "refs/maps/rail-fight/red-flagroom-01.jpg" },
   ],
   "relic-seeker": [
-    { area: "overview", key: "refs/maps/relic-seeker/overview-01.jpg" },
     { area: "blue-flagroom", key: "refs/maps/relic-seeker/blue-flagroom-01.jpg" },
     { area: "mid", key: "refs/maps/relic-seeker/mid-01.jpg" },
     { area: "red-flagroom", key: "refs/maps/relic-seeker/red-flagroom-01.jpg" },
+  ],
+  "shattered-gorge-mini": [
+    { area: "overview", key: "refs/maps/shattered-gorge-mini/overview-01.jpg" },
   ],
   "warlords-pro": [
     { area: "overview", key: "refs/maps/warlords-pro/overview-01.jpg" },
@@ -154,6 +156,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "huna b8": "huna-b8",
   "dark warlords": "dark-warlords",
   "relic seeker": "relic-seeker",
+  "shattered gorge mini v2.1": "shattered-gorge-mini",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",
   "rail fight": "rail-fight",
