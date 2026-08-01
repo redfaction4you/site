@@ -7,10 +7,13 @@ import {
   archiveTotals,
   latestDay,
   listColumns,
+  listOpinions,
   listPlayers,
   matchOfTheNight,
   recentMatches,
 } from "@/lib/matches/queries";
+import { NightFootageCard } from "@/components/match-footage";
+import { footageForNight } from "@/lib/match-footage";
 import { Ticker } from "@/components/ticker";
 import { getTicker } from "@/lib/matches/ticker";
 import { DISCORD_INVITE } from "@/lib/nav";
@@ -28,15 +31,29 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent, ticker] = await Promise.all([
-    getServerStatus(),
-    archiveTotals(),
-    latestDay(),
-    listPlayers(),
-    listColumns(),
-    recentMatches(6),
-    getTicker(),
-  ]);
+  const [status, totals, latest, players, columns, recent, ticker, opinions] =
+    await Promise.all([
+      getServerStatus(),
+      archiveTotals(),
+      latestDay(),
+      listPlayers(),
+      listColumns(),
+      recentMatches(6),
+      getTicker(),
+      listOpinions(1),
+    ]);
+
+  const opinion = opinions[0] ?? null;
+
+  /*
+   * Anything filmed of the most recent night.
+   *
+   * The front page had no route to footage at all, so a recording added the
+   * moment a night finished was invisible on the one page most people land on.
+   * It is the only thing here that is not a number or a paragraph, which is
+   * exactly why it belongs above a list of results rather than below one.
+   */
+  const footage = latest ? await footageForNight(latest) : [];
 
   const online = status.state === "online" ? status : null;
   const busy = online && online.players > 0;
@@ -175,6 +192,38 @@ export default async function HomePage() {
               reading rather than one of several worth scanning. */}
           {column && featured ? (
             <MatchOfTheNight match={featured} archiveDay={column.archiveDay} />
+          ) : null}
+
+          {/* Somebody filmed it, which beats anything else on this page. */}
+          {latest ? <NightFootageCard footage={footage} /> : null}
+
+          {/*
+            The columnist, who was reachable only from the news pages. A reader
+            who never opens one had no way of knowing the site has an opinion in
+            it, which is most of the point of having one.
+          */}
+          {opinion ? (
+            <section>
+              <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
+                <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+                  The analyst
+                </h2>
+                <Link
+                  href="/analyst"
+                  className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                >
+                  All
+                </Link>
+              </div>
+              <Link href={`/news/${opinion.archiveDay}`} className="group block py-1.5">
+                <span className="block text-sm leading-snug text-steel-200 group-hover:text-rust-300">
+                  {opinion.headline}
+                </span>
+                <span className="mt-0.5 block font-mono text-[0.625rem] text-steel-600">
+                  {dayLabel(opinion.archiveDay)} · opinion, written automatically
+                </span>
+              </Link>
+            </section>
           ) : null}
 
           <section>
