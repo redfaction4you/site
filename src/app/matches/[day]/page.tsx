@@ -84,8 +84,20 @@ export default async function MatchDayPage({ params }: Props) {
         </Link>
       </p>
 
-      <div className="mt-3 grid gap-8 lg:grid-cols-[1fr_13rem]">
-        <div className="min-w-0 space-y-8">
+      {/* The rail widened from 13rem when the scoreboard moved into it: six
+          columns of it do not fit in a strip sized for date chips. */}
+      {/*
+        Three blocks rather than two columns, so the source order is right on a
+        phone as well as on a desktop.
+
+        Stacked, the rail belongs after the night it describes and before the
+        archive behind it: who played tonight is content, and putting it after
+        every night on the page would bury it under results it is not about. On a
+        wide screen the rail takes the second column across both rows and the
+        nights take the first, which is the same arrangement as before.
+      */}
+      <div className="mt-3 grid gap-8 lg:grid-cols-[1fr_18rem]">
+        <div className="min-w-0">
           {/*
             The night being read, whole and above the fold.
 
@@ -150,82 +162,113 @@ export default async function MatchDayPage({ params }: Props) {
                   </Link>
                 ) : null
               }
-            >
-              {scoreboard.length ? (
-                <section>
-                  <h2 className="rule-heading">That night</h2>
-
-                  {/*
-                    Named, for the same reason the match rows are: `6 caps` and
-                    `6/6` beside a frag count are three numbers and one of them
-                    was a fraction of something never stated.
-
-                    Score is here because the table is ordered by it and was not
-                    showing it, so the fourth place on the list held 137 frags
-                    and the fifth held 157 and the ranking read as broken. In CTF
-                    it is not: a capture is worth far more than a frag, and this
-                    is the one column that explains why somebody with eleven of
-                    them outranks somebody who shot more people.
-                  */}
-                  <div className="mt-2 flex items-baseline gap-2 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
-                    <span className="w-3 shrink-0">#</span>
-                    <span className="min-w-0 flex-1">Player</span>
-                    <span className="w-9 shrink-0 text-right">Score</span>
-                    <span className="w-8 shrink-0 text-right">Frags</span>
-                    <span className="w-6 shrink-0 text-right">Caps</span>
-                    <span
-                      className="w-8 shrink-0 text-right"
-                      title="Matches they played, of the matches that night"
-                    >
-                      Played
-                    </span>
-                  </div>
-
-                  <ol>
-                    {scoreboard.map((player, index) => (
-                      <li key={player.name} className="border-b border-basalt-800">
-                        <Link
-                          href={`/players/${encodeURIComponent(player.name)}`}
-                          className="group flex items-baseline gap-2 py-1"
-                        >
-                          <span className="w-3 shrink-0 font-display text-[0.625rem] tabular-nums text-steel-600">
-                            {index + 1}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
-                            {player.name}
-                          </span>
-                          <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-100">
-                            {player.score}
-                          </span>
-                          <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
-                            {player.kills}
-                          </span>
-                          <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
-                            {player.caps}
-                          </span>
-                          {/* The denominator. People drop in and out across a
-                              night, so a frag total is partly a measure of who
-                              stayed. */}
-                          <span className="w-8 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
-                            {player.matchesPlayed}/{matches.length}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              ) : null}
-            </DayBlock>
-
+            />
           </div>
+        </div>
 
-          {/*
-            Backwards through the archive, a night per scroll.
+        {/*
+          The rail is everything about the night that is not one of its results:
+          how to reach another night, who played, and what anybody filmed.
 
-            The page used to end after one night, so the only route to the night
-            before was back out to a selector and in again. Reading an archive is
-            walking backwards through it, and the scroll should do that.
-          */}
+          The scoreboard used to sit inside the block, level with the lead story,
+          which is the one spot on the page that belongs to neither the story nor
+          the table. Here it reads as what it is.
+
+          Sticky, so it stays reachable while the scroll walks back through
+          earlier nights, which is why the scoreboard heading carries its date:
+          pinned beside a night it is not about, an unlabelled "that night" would
+          be quietly wrong.
+        */}
+        <aside className="space-y-7 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:self-start">
+          <DayRail days={days} current={day} />
+
+          {scoreboard.length ? (
+            <section>
+              <h2 className="rule-heading">
+                Who played
+                <span className="font-mono normal-case tracking-normal text-steel-600">
+                  {dayLabel(day)}
+                </span>
+              </h2>
+
+              {/*
+                Named, for the same reason the match rows are: `6 caps` and
+                `6/6` beside a frag count are three numbers and one of them was
+                a fraction of something never stated.
+
+                Score is here because the table is ordered by it and was not
+                showing it, so fourth place held 137 frags and fifth held 157 and
+                the ranking read as broken. In CTF it is not: a capture is worth
+                far more than a frag, and this is the column that explains why
+                somebody with eleven of them outranks somebody who shot more
+                people.
+              */}
+              <div className="mt-2 flex items-baseline gap-2 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
+                <span className="w-3 shrink-0">#</span>
+                <span className="min-w-0 flex-1">Player</span>
+                <span className="w-9 shrink-0 text-right">Score</span>
+                <span className="w-8 shrink-0 text-right">Frags</span>
+                <span className="w-6 shrink-0 text-right">Caps</span>
+                <span
+                  className="w-8 shrink-0 text-right"
+                  title="Matches they played, of the matches that night"
+                >
+                  Played
+                </span>
+              </div>
+
+              <ol>
+                {scoreboard.map((player, index) => (
+                  <li key={player.name} className="border-b border-basalt-800">
+                    <Link
+                      href={`/players/${encodeURIComponent(player.name)}`}
+                      className="group flex items-baseline gap-2 py-1"
+                    >
+                      <span className="w-3 shrink-0 font-display text-[0.625rem] tabular-nums text-steel-600">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
+                        {player.name}
+                      </span>
+                      <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-100">
+                        {player.score}
+                      </span>
+                      <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
+                        {player.kills}
+                      </span>
+                      <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                        {player.caps}
+                      </span>
+                      {/* The denominator. People drop in and out across a night,
+                          so a frag total is partly a measure of who stayed. */}
+                      <span className="w-8 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
+                        {player.matchesPlayed}/{matches.length}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
+
+          {/* Anything anybody filmed of this night, beside the results rather
+              than under the write-up at the bottom of the page. */}
+          <NightFootageCard
+            footage={footageForNight(day)}
+            labelFor={(coverage) =>
+              matches.find((m) => m.sourceMatchId === coverage.sourceMatchId)?.mapName
+            }
+          />
+        </aside>
+
+        {/*
+          Backwards through the archive, a night per scroll.
+
+          The page used to end after one night, so the only route to the night
+          before was back out to a selector and in again. Reading an archive is
+          walking backwards through it, and the scroll should do that.
+        */}
+        <div className="min-w-0 space-y-8 lg:col-start-1">
           {earlierNights.map((night) => (
             <DayBlock
               key={night.archiveDay}
@@ -241,19 +284,6 @@ export default async function MatchDayPage({ params }: Props) {
             </p>
           ) : null}
         </div>
-
-        <aside className="space-y-7 lg:sticky lg:top-20 lg:self-start">
-          <DayRail days={days} current={day} />
-
-          {/* Anything anybody filmed of this night, beside the results rather
-              than under the write-up at the bottom of the page. */}
-          <NightFootageCard
-            footage={footageForNight(day)}
-            labelFor={(coverage) =>
-              matches.find((m) => m.sourceMatchId === coverage.sourceMatchId)?.mapName
-            }
-          />
-        </aside>
       </div>
     </div>
   );

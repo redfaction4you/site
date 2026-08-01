@@ -16,8 +16,12 @@ import type { MatchSummary } from "@/lib/matches/queries";
  * rows below cannot stretch, so the night is now as tall as its own content.
  *
  * And the summary column was declared whether or not there was a summary, so
- * every night except the newest reserved a third of the page for nothing. It is
- * conditional now.
+ * every night except the newest reserved a third of the page for nothing.
+ *
+ * The night's scoreboard used to sit in that column, level with the lead story
+ * and above nothing, which put it in the one place on the page that belonged to
+ * neither the story nor the results. It lives in the rail now, with the other
+ * things that are about the night rather than part of its results.
  */
 export function DayBlock({
   archiveDay,
@@ -25,7 +29,6 @@ export function DayBlock({
   heading = "h2",
   stats,
   lead,
-  children,
 }: {
   archiveDay: string;
   matches: MatchSummary[];
@@ -44,8 +47,6 @@ export function DayBlock({
    * say what fits on the end of the date.
    */
   stats?: string;
-  /** The night's scoreboard, shown beside the matches. */
-  children?: React.ReactNode;
 }) {
   const Heading = heading;
   if (matches.length === 0) return null;
@@ -69,17 +70,9 @@ export function DayBlock({
         </p>
       </div>
 
-      <div
-        className={
-          "mt-2 grid gap-x-6 gap-y-4 " +
-          (children ? "lg:grid-cols-[minmax(0,36rem)_1fr]" : "")
-        }
-      >
-        <div className="min-w-0">
-          {lead ? <div className="mb-3">{lead}</div> : null}
-          <MatchRows matches={matches} archiveDay={archiveDay} />
-        </div>
-        {children ? <div className="min-w-0">{children}</div> : null}
+      <div className="mt-2 min-w-0">
+        {lead ? <div className="mb-3">{lead}</div> : null}
+        <MatchRows matches={matches} archiveDay={archiveDay} />
       </div>
     </section>
   );

@@ -71,7 +71,7 @@ export function NightFootageCard({
             src={thumbnailUrl(lead.video.youtubeId)}
             alt=""
             fill
-            sizes="208px"
+            sizes="272px"
             className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
           <span

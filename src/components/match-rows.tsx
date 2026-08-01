@@ -47,7 +47,7 @@ export function MatchRows({
      * a night with a scoreboard beside it and a night without lining their
      * columns up down the page.
      */
-    <div className="max-w-[36rem]">
+    <div className="max-w-[40rem]">
       <div className="flex items-center gap-2.5 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
         <span className="w-3.5 shrink-0" title="Order played">
           #
