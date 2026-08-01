@@ -196,8 +196,10 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     looking at, not at localhost.
   - **GitHub Actions**, `checks` on every push and `vet-live` after a deploy and
     every six hours, because the archive changes without anybody pushing.
-  It only ever covers the night pages and the archive index. `/players`,
-  `/stats` and the map pages are not cross-checked by anything yet.
+  It covers the night pages, the archive index, `/players`, `/stats` and the
+  map index, which are three cuts of the same rows and therefore have to agree:
+  the nights by evening, `/players` by person, `/matches/maps` by level. Match
+  pages, pairings and the per-map pages are not cross-checked by anything.
 - **`sanitize.ts` is a security boundary and an allowlist.** Every stored field
   is named in it. A new field appearing in the VPS export cannot leak through,
   because it simply is not copied. **Never** replace this with a spread of the

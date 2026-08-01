@@ -105,7 +105,7 @@ function tables(html) {
 
 /** "7 matches · 9 players · 2090 frags · 23 captures · 122 min" */
 function nightHeader(body) {
-  const line = /(\d[\d,]*) matches? · (\d[\d,]*) players? · (\d[\d,]*) frags · (\d[\d,]*) captures/.exec(
+  const line = /(\d[\d,]*) match(?:es)? · (\d[\d,]*) players? · (\d[\d,]*) frags · (\d[\d,]*) captures/.exec(
     body,
   );
   if (!line) return null;
@@ -220,6 +220,116 @@ async function vetNightPage(day) {
   return header;
 }
 
+/* --- the pages that total the whole archive -------------------------------- */
+
+/**
+ * `/players` and `/matches/maps` against the nights they are made of.
+ *
+ * Every night page carries the frags and captures of that night, and these two
+ * pages carry the same quantities cut a different way: by person and by level.
+ * Three cuts of one set of rows, so they have to agree, and none of the checks
+ * needs to know what the right answer is.
+ *
+ * This is the cut that was missing when the night page was found wrong. The
+ * scoreboard there was unfiltered while the header beside it was filtered, and
+ * nothing compared either against the boards, which were filtered. Any one of
+ * the three disagreeing now says so.
+ */
+async function vetTotalsPages(nights, archiveMatches) {
+  const html = await page("/players");
+  const board = tables(html).find(
+    (table) => table.headings.includes("Matches") && table.headings.includes("Frags"),
+  );
+
+  if (!board) {
+    fail("/players", "could not find the player table");
+  } else {
+    const at = (label) => board.headings.indexOf(label);
+    let frags = 0;
+    let caps = 0;
+
+    for (const row of board.rows) {
+      frags += number(row[at("Frags")]) ?? 0;
+      caps += number(row[at("Caps")]) ?? 0;
+
+      const played = number(row[at("Matches")]) ?? 0;
+      if (archiveMatches !== null && played > archiveMatches) {
+        fail(
+          "/players",
+          `${row[0]} is credited with ${played} matches from an archive of ${archiveMatches}`,
+        );
+      }
+    }
+
+    if (frags !== nights.frags) {
+      fail(
+        "/players",
+        `the players total ${frags} frags, the nights total ${nights.frags}`,
+      );
+    }
+    if (caps !== nights.captures) {
+      fail(
+        "/players",
+        `the players total ${caps} captures, the nights total ${nights.captures}`,
+      );
+    }
+
+    // `/stats` is the same set of people ranked, so it should be the same
+    // number of them.
+    const stats = text(await page("/stats"));
+    const counted = /(\d[\d,]*) players?/.exec(stats);
+    if (counted && number(counted[1]) !== board.rows.length) {
+      fail(
+        "/stats",
+        `the header says ${counted[1]} players, /players lists ${board.rows.length}`,
+      );
+    }
+    checked.push("/players", "/stats");
+  }
+
+  /*
+   * The maps index, which is the archive cut by level. Read from the cards
+   * rather than the page text so a map whose name contains a number cannot be
+   * mistaken for a count.
+   */
+  const mapsHtml = await page("/matches/maps");
+  const cards = [
+    ...mapsHtml.matchAll(/<a[^>]*href="\/matches\/map\/[^"]*"[\s\S]*?<\/a>/g),
+  ].map((match) => text(match[0]));
+
+  if (cards.length === 0) {
+    fail("/matches/maps", "could not find any maps");
+    return;
+  }
+
+  let mapMatches = 0;
+  let mapCaptures = 0;
+  for (const card of cards) {
+    const counts = /(\d[\d,]*) match(?:es)? · (\d[\d,]*) captures?/.exec(card);
+    if (!counts) {
+      fail("/matches/maps", `could not read the figures for ${card.slice(0, 40)}`);
+      continue;
+    }
+    mapMatches += number(counts[1]) ?? 0;
+    mapCaptures += number(counts[2]) ?? 0;
+  }
+
+  if (archiveMatches !== null && mapMatches !== archiveMatches) {
+    fail(
+      "/matches/maps",
+      `the maps total ${mapMatches} matches, the archive says ${archiveMatches}`,
+    );
+  }
+  if (mapCaptures !== nights.captures) {
+    fail(
+      "/matches/maps",
+      `the maps total ${mapCaptures} captures, the nights total ${nights.captures}`,
+    );
+  }
+
+  checked.push("/matches/maps");
+}
+
 /* --- the archive index ---------------------------------------------------- */
 
 async function vetIndex() {
@@ -229,7 +339,7 @@ async function vetIndex() {
   const days = [...new Set([...html.matchAll(/\/matches\/(\d{4}-\d{2}-\d{2})/g)].map((m) => m[1]))];
   if (days.length === 0) throw new Error("no nights linked from /matches");
 
-  const headline = /(\d[\d,]*) matches? · (\d[\d,]*) nights?/.exec(body);
+  const headline = /(\d[\d,]*) match(?:es)? · (\d[\d,]*) nights?/.exec(body);
   if (!headline) fail("/matches", "could not read the archive totals");
 
   checked.push("/matches");
@@ -249,9 +359,22 @@ const index = await vetIndex();
 const days = only ? [only] : index.days;
 
 let counted = 0;
+const nights = { frags: 0, captures: 0 };
 for (const day of days) {
   const header = await vetNightPage(day);
-  if (header) counted += header.matches;
+  if (!header) continue;
+  counted += header.matches;
+  nights.frags += header.frags;
+  nights.captures += header.captures;
+}
+
+/*
+ * The whole-archive pages, only on a whole-archive run. Comparing every
+ * player's career total against one night's frags would fail on arithmetic
+ * rather than on anything being wrong.
+ */
+if (!only) {
+  await vetTotalsPages(nights, index.totals?.matches ?? null);
 }
 
 /*
