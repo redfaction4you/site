@@ -29,11 +29,28 @@ export type LiveGame = {
   blueScore: number;
   teamBased: boolean;
   /**
-   * Who is on. The shape of a player entry could not be verified: the server
-   * was empty every time this was checked, so the array was always empty.
-   * Parsed defensively, and anything unrecognised is simply not shown.
+   * Who is on, and how they are doing.
+   *
+   * The shape is now verified against a live server, which it never had been:
+   * every earlier check found the server empty, so the array was always empty
+   * and the parser was written blind. It was wrong in two ways. There is no
+   * `team` field, so the side was always null, and `kills`, `deaths` and `caps`
+   * were being thrown away without anybody noticing there was nothing to
+   * display.
+   *
+   * Still parsed defensively. Anything unrecognised is simply not shown.
    */
-  players: { name: string; team: string | null; score: number | null }[];
+  players: LivePlayer[];
+};
+
+export type LivePlayer = {
+  name: string;
+  /** Red, blue, or null when the game is not team based. */
+  team: "red" | "blue" | null;
+  score: number | null;
+  kills: number | null;
+  deaths: number | null;
+  caps: number | null;
 };
 
 /** The current map, matched to its FactionFiles page and preview image. */
@@ -166,24 +183,52 @@ async function getLiveGame(host: string, port: string): Promise<LiveGame | null>
 
   if (!body?.success || !body.game) return null;
 
+  const teamBased = Boolean(body.game.is_team_based);
+  const number = (value: unknown) => (typeof value === "number" ? value : null);
+
   const players = (Array.isArray(body.players) ? body.players : [])
     .map((entry) => {
       const p = entry as Record<string, unknown>;
       const name = typeof p.name === "string" ? p.name : null;
       if (!name) return null;
+
+      /*
+       * The side, which the payload states only for blue.
+       *
+       * Observed live: every blue player carries `blue_team` in `flags` and
+       * every red player carries an empty array. There is no `red_team` marker
+       * to look for, so red is the absence of blue, which is only safe to
+       * assume while the game is team based. It is read anyway in case the
+       * server ever starts sending it.
+       */
+      const flags = Array.isArray(p.flags)
+        ? p.flags.filter((flag): flag is string => typeof flag === "string")
+        : [];
+
+      const team: "red" | "blue" | null = flags.includes("blue_team")
+        ? "blue"
+        : flags.includes("red_team")
+          ? "red"
+          : teamBased
+            ? "red"
+            : null;
+
       return {
         name,
-        team: typeof p.team === "string" ? p.team : null,
-        score: typeof p.score === "number" ? p.score : null,
+        team,
+        score: number(p.score),
+        kills: number(p.kills),
+        deaths: number(p.deaths),
+        caps: number(p.caps),
       };
     })
-    .filter((p): p is LiveGame["players"][number] => p !== null);
+    .filter((p): p is LivePlayer => p !== null);
 
   return {
     timeLeft: typeof body.game.time_left === "number" ? body.game.time_left : null,
     redScore: body.game.scores?.red ?? 0,
     blueScore: body.game.scores?.blue ?? 0,
-    teamBased: Boolean(body.game.is_team_based),
+    teamBased,
     players,
   };
 }

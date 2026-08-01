@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+
+import { LiveRefresh } from "@/components/live-refresh";
+import { LiveScoreboard } from "@/components/live-scoreboard";
 import Link from "next/link";
 
 import { dayLabel } from "@/components/match-archive";
@@ -196,12 +199,6 @@ export default async function ServerPage() {
             </p>
           ) : null}
 
-          {online?.game?.players.length ? (
-            <p className="mt-2 truncate text-xs text-steel-500">
-              {online.game.players.map((p) => p.name).join(", ")}
-            </p>
-          ) : null}
-
           {/* What rules you are joining, from the server's own flags. */}
           {online?.rules.length ? (
             <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -237,6 +234,43 @@ export default async function ServerPage() {
           ) : null}
         </dl>
       </div>
+
+      {/*
+        The match in progress, in full.
+
+        The panel above said six people were playing and gave their names in a
+        line, which is less than the site shows about a game from last Tuesday.
+        The figures were in the payload the whole time and were being discarded
+        by a parser written against a server that happened to be empty.
+      */}
+      {online?.game?.players.length ? (
+        <section className="mt-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-basalt-800 pb-1.5">
+            <h2 className="font-display text-sm font-bold text-steel-100">
+              Live scoreboard
+            </h2>
+            <LiveRefresh />
+          </div>
+
+          <div className="mt-4">
+            <LiveScoreboard
+              players={online.game.players}
+              redScore={online.game.redScore}
+              blueScore={online.game.blueScore}
+              teamBased={online.game.teamBased}
+            />
+          </div>
+
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-steel-500">
+            Straight from the server as it plays, so it moves while you read it
+            and anybody who leaves takes their row with them. It is not the
+            record: the archive is written afterwards from the server&rsquo;s own
+            export, which is the version that gets checked. Sides are named from
+            what the browser reports, and a player it does not mark as blue is
+            taken to be red.
+          </p>
+        </section>
+      ) : null}
 
       {/* Everything else is one row of short cards. */}
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
