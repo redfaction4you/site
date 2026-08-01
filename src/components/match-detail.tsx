@@ -1,9 +1,7 @@
 import Link from "next/link";
 
 import type {
-  DaySummary,
   MatchDetail,
-  MatchLink,
   MatchSummary,
   PublicScoreRow,
 } from "@/lib/matches/queries";
@@ -222,100 +220,59 @@ function EventSection({
  * A sidebar costs a fixed slice of every screen, which is exactly the width the
  * two scoreboards need to sit side by side. Across the top it costs one line.
  */
-/**
- * A step arrow that keeps its space when there is nowhere to go.
- *
- * Rendering these conditionally made the whole strip jump: match 1 had no
- * previous, so its pills sat one button to the left of every other match's, and
- * the row you were reading moved under the cursor as you stepped through the
- * night. A disabled placeholder of the same width holds the line still.
- */
-function Step({ to, label }: { to: MatchLink | null; label: string }) {
-  const shape =
-    "flex w-16 shrink-0 items-center justify-center rounded-sm border px-2 py-1 " +
-    "text-center font-display text-xs";
-
-  if (!to) {
-    return (
-      <span
-        aria-hidden="true"
-        className={`${shape} border-basalt-800 bg-basalt-900 text-steel-700`}
-      >
-        {label}
-      </span>
-    );
-  }
-
-  return (
-    <Link
-      href={`/matches/${to.archiveDay}/${to.sourceMatchId}`}
-      title={`${to.mapName}, ${dayLabel(to.archiveDay)}`}
-      className={`${shape} border-basalt-700 bg-basalt-850 text-steel-400 hover:border-basalt-600 hover:text-steel-100`}
-    >
-      {label}
-    </Link>
-  );
-}
 
 /**
- * The night's running order.
+ * The night's running order, as one strip.
  *
- * Reads as a sequence rather than a row of names: the number leads, the map
- * follows, the score trails. Fixed-width numbers mean the pills line up as a
- * column of 1 2 3 4 no matter how long the map names are.
+ * It was a wrapping grid of bordered boxes with a Prev box, a Next box and an
+ * "All 4 nights" box mixed in among the matches, so eight games became two rows
+ * of tiles that all looked like the same kind of thing whether they were a match
+ * or a navigation control. Sixty four pixels of chrome, and it read as a puzzle.
+ *
+ * One scrolling row now, matches only, in the order they were played. Previous
+ * and next are redundant with it: the strip is already the whole night and the
+ * match either side is right there. Reaching another night is the archive link,
+ * which lives with the breadcrumb where every other page keeps it.
  */
 function MatchNav({
-  days,
   siblings,
   match,
-  previous,
-  next,
 }: {
-  days: DaySummary[];
   siblings: MatchSummary[];
   match: MatchDetail;
-  previous: MatchLink | null;
-  next: MatchLink | null;
 }) {
   return (
-    <div className="mt-4 flex flex-wrap items-stretch gap-2">
-      <Step to={previous} label="Prev" />
-
-      <ol className="flex min-w-0 flex-1 flex-wrap items-stretch gap-2">
+    <nav aria-label="Matches this night" className="relative mt-3">
+      <ol className="scrollbar-none flex gap-1 overflow-x-auto pb-0.5">
         {siblings.map((sibling) => {
           const current = sibling.sourceMatchId === match.sourceMatchId;
           return (
-            <li key={sibling.id} className="min-w-0">
+            <li key={sibling.id} className="shrink-0">
               <Link
                 href={`/matches/${match.archiveDay}/${sibling.sourceMatchId}`}
                 aria-current={current ? "page" : undefined}
+                title={sibling.mapName}
                 className={
-                  "flex h-full items-center gap-2 rounded-sm border px-2.5 py-1 text-xs transition-colors " +
+                  "flex items-center gap-1.5 border-b-2 px-2 py-1 text-xs transition-colors " +
                   (current
-                    ? "border-rust-500 bg-rust-500/10"
-                    : "border-basalt-700 bg-basalt-850 hover:border-basalt-600")
+                    ? "border-rust-500 text-rust-300"
+                    : "border-transparent text-steel-400 hover:border-basalt-500 hover:text-steel-100")
                 }
               >
                 <span
                   className={
-                    "w-4 shrink-0 text-center font-display text-sm font-bold tabular-nums " +
+                    "font-display text-[0.625rem] font-bold tabular-nums " +
                     (current ? "text-rust-400" : "text-steel-600")
                   }
                 >
                   {sibling.number}
                 </span>
+                <span className="max-w-[9rem] truncate">{sibling.mapName}</span>
                 <FootageMark
                   archiveDay={match.archiveDay}
                   sourceMatchId={sibling.sourceMatchId}
                 />
-                <span
-                  className={
-                    "truncate " + (current ? "text-rust-300" : "text-steel-300")
-                  }
-                >
-                  {sibling.mapName}
-                </span>
-                <span className="shrink-0 font-mono tabular-nums text-steel-500">
+                <span className="shrink-0 font-mono tabular-nums text-steel-600">
                   {sibling.redScore}-{sibling.blueScore}
                 </span>
               </Link>
@@ -324,32 +281,20 @@ function MatchNav({
         })}
       </ol>
 
-      <Step to={next} label="Next" />
-
-      {days.length > 1 ? (
-        <Link
-          href="/matches"
-          className="shrink-0 rounded-sm border border-basalt-700 bg-basalt-850 px-2.5 py-1 font-display text-xs text-steel-400 hover:text-steel-100"
-        >
-          All {days.length} nights
-        </Link>
-      ) : null}
-    </div>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-basalt-950 to-transparent"
+      />
+    </nav>
   );
 }
 
 export async function MatchDetailView({
   match,
-  days,
   siblings,
-  previous,
-  next,
 }: {
   match: MatchDetail;
-  days: DaySummary[];
   siblings: MatchSummary[];
-  previous: MatchLink | null;
-  next: MatchLink | null;
 }) {
   // Everyone who actually played. A row on a team with nothing at all recorded
   // is somebody who never entered the game, and listing them made a two against
@@ -534,35 +479,34 @@ export async function MatchDetailView({
         </div>
       </div>
 
-      <MatchNav
-        days={days}
-        siblings={siblings}
-        match={match}
-        previous={previous}
-        next={next}
-      />
+      <MatchNav siblings={siblings} match={match} />
 
-      {/* The write-up comes first: it says what happened, and the figures below
-          are there to check it against. Prose nobody wrote is labelled as such,
-          especially on a site whose value is that its information is reliable. */}
-      {match.report ? (
-        <div className="panel mt-4 p-4">
-          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
-            {match.report
-              .split(/\n{2,}/)
-              .map((paragraph) => paragraph.trim())
-              .filter(Boolean)
-              .map((paragraph, i) => (
-                <p key={i}>{paragraph}</p>
-              ))}
-          </div>
-          <p className="mt-3 text-[0.6875rem] text-steel-600">
-            Written automatically from the scoreboard and event log
-            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
-            figures recorded on this page.
-          </p>
-        </div>
+      {/*
+        The scoreboard, immediately.
+
+        This block used to sit at 925px on a 720px screen, under a written
+        report, a capture chart and a panel of match facts, with a comment on it
+        reading "this is the reason for everything above". It was, and it was
+        the last thing anybody could see. Everything a reader opens a match page
+        for is here, so it goes first and the things derived from it follow.
+      */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {teams.map((team) => (
+          <Scoreboard
+            key={team}
+            team={team}
+            players={active.filter((p) => p.team === team)}
+            columns={CORE_COLUMNS}
+          />
+        ))}
+      </div>
+
+      {spectators.length ? (
+        <p className="mt-2 text-xs text-steel-500">
+          Spectating: {spectators.map((p) => p.name).join(", ")}
+        </p>
       ) : null}
+
 
       {/*
         How the match went, and the footage of it, side by side.
@@ -678,24 +622,6 @@ export async function MatchDetailView({
         ) : null}
       </div>
 
-      {/* Both teams side by side. This is the reason for everything above. */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {teams.map((team) => (
-          <Scoreboard
-            key={team}
-            team={team}
-            players={active.filter((p) => p.team === team)}
-            columns={CORE_COLUMNS}
-          />
-        ))}
-      </div>
-
-      {spectators.length ? (
-        <p className="mt-2 text-xs text-steel-500">
-          Spectating: {spectators.map((p) => p.name).join(", ")}
-        </p>
-      ) : null}
-
       {/* Everything the server records, without pushing it onto the front. */}
       <details className="panel mt-4">
         <summary className="cursor-pointer p-3 font-display text-xs font-semibold text-steel-200 hover:text-rust-300">
@@ -807,6 +733,35 @@ export async function MatchDetailView({
           ) : null}
         </div>
       </details>
+
+      {/*
+        The write-up, under the figures it was written from.
+
+        It used to open the page, on the reasoning that it says what happened
+        and the numbers below are there to check it against. That had it exactly
+        backwards for the people who actually use this site: the record is the
+        thing, the prose is derived from it, and a reader who came to look up a
+        scoreboard had to scroll past two hundred pixels of generated paragraphs
+        to reach it. Prose nobody wrote is still labelled as such.
+      */}
+      {match.report ? (
+        <div className="panel mt-4 p-4">
+          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
+            {match.report
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean)
+              .map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+          </div>
+          <p className="mt-3 text-[0.6875rem] text-steel-600">
+            Written automatically from the scoreboard and event log
+            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
+            figures recorded on this page.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mt-4">
         {/* Event streams, collapsed. */}
