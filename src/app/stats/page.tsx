@@ -10,6 +10,7 @@ import {
   rank,
 } from "@/lib/matches/leaderboards";
 import { listPlayers } from "@/lib/matches/queries";
+import { StatMatrix } from "@/components/stat-matrix";
 
 export const metadata: Metadata = {
   title: "Stat leaders",
@@ -77,6 +78,30 @@ export default async function StatsPage() {
             the per match and per death boards do not. Open a board for the full
             ranking and what it takes to appear on it.
           </p>
+
+          {/*
+            The whole archive at once, above the boards rather than instead of
+            them. The matrix answers where somebody places; the boards below
+            carry what they actually scored, which rank throws away. First and
+            second could be 721 and 550 or 721 and 719.
+          */}
+          <section className="pb-7">
+            <h2 className="rule-heading">
+              Everyone, everything
+              <span className="font-mono normal-case tracking-normal text-steel-600">
+                by placing
+              </span>
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
+              Where each player places on each board. Rows are in order of
+              matches played, which is attendance and not a ranking: there is
+              deliberately no total, because adding twelve placings together
+              would be the single table this page exists to refuse.
+            </p>
+            <div className="mt-3">
+              <StatMatrix players={players} />
+            </div>
+          </section>
 
           <div className="space-y-7 pb-6">
             {groups.map(({ group, boards: inGroup }) => (

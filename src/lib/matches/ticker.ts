@@ -148,9 +148,21 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     .limit(1);
 
   if (blowout && blowout.margin > 0) {
+    /*
+     * Winner first, which it was not.
+     *
+     * Printed as stored it read "Biggest win, 3-6", which is a defeat by three
+     * on the face of it. Red then blue is the right order on a match page, where
+     * the columns are labelled and a reader is looking at both sides. Under the
+     * words "biggest win" it is the wrong order, because the sentence has
+     * already named whose score comes first.
+     */
+    const winning = Math.max(blowout.redScore, blowout.blueScore);
+    const losing = Math.min(blowout.redScore, blowout.blueScore);
+
     items.push({
       label: "Biggest win",
-      text: `${blowout.redScore}-${blowout.blueScore} on ${blowout.mapName}`,
+      text: `${winning}-${losing} on ${blowout.mapName}`,
       href: `/matches/${blowout.archiveDay}/${blowout.sourceMatchId}`,
     });
   }

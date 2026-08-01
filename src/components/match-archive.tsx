@@ -27,6 +27,21 @@ export function dayLabel(day: string): string {
   }).format(date);
 }
 
+/**
+ * `30 Jul`, for rails where the full label does not fit.
+ *
+ * No year and no weekday. Both are noise in a list of the last few nights, and
+ * the full form is a click away on every one of them.
+ */
+export function shortDayLabel(day: string): string {
+  const date = new Date(`${day}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
 export function duration(from: Date | null, to: Date | null): string {
   if (!from || !to) return "-";
   const seconds = Math.max(0, Math.round((to.getTime() - from.getTime()) / 1000));

@@ -68,6 +68,15 @@ export type Board = {
   key: string;
   group: BoardGroup;
   label: string;
+  /**
+   * The label at matrix width, where twelve boards share one header row.
+   *
+   * Written out rather than truncated, because "Frags per…" and "Frags per…"
+   * are the same string and two different boards. Every one is also given its
+   * full label as a tooltip and as a link, so the short form never has to carry
+   * the meaning on its own.
+   */
+  short: string;
   /** One line on what the number means. Shown under the heading. */
   blurb: string;
   /** Null means this player has nothing to rank here. */
@@ -156,6 +165,7 @@ export const BOARDS: Board[] = [
     key: "frags",
     group: "fighting",
     label: "Frags",
+    short: "Frags",
     blurb: "Total kills across every match on record.",
     value: (p) => p.kills,
     format: (v) => `${v}`,
@@ -167,6 +177,7 @@ export const BOARDS: Board[] = [
     key: "captures",
     group: "flag",
     label: "Captures",
+    short: "Caps",
     blurb: "Flags taken home. The only stat that actually wins matches.",
     value: (p) => p.caps,
     format: (v) => `${v}`,
@@ -178,6 +189,7 @@ export const BOARDS: Board[] = [
     key: "accuracy",
     group: "fighting",
     label: "Accuracy",
+    short: "Acc",
     blurb: "Shots that hit, as a share of shots fired.",
     // Withheld rather than clamped when the counters contradict each other. A
     // clamp would put a broken record at the top of the board on 100%, which is
@@ -199,6 +211,7 @@ export const BOARDS: Board[] = [
     key: "flag-hold",
     group: "flag",
     label: "Time carrying",
+    short: "Hold",
     blurb: "How long they have held an enemy flag, in total.",
     value: (p) => (p.flagHoldMs > 0 ? p.flagHoldMs : null),
     format: (v) => clock(v),
@@ -210,6 +223,7 @@ export const BOARDS: Board[] = [
     key: "returns",
     group: "flag",
     label: "Flag returns",
+    short: "Returns",
     blurb: "Own flag recovered before the other side could score with it.",
     value: (p) => (p.flagReturns > 0 ? p.flagReturns : null),
     format: (v) => `${v}`,
@@ -221,6 +235,7 @@ export const BOARDS: Board[] = [
     key: "streak",
     group: "fighting",
     label: "Best streak",
+    short: "Streak",
     blurb: "Most frags in a row without dying, in a single match.",
     value: (p) => (p.bestStreak > 0 ? p.bestStreak : null),
     format: (v) => `${v}`,
@@ -232,6 +247,7 @@ export const BOARDS: Board[] = [
     key: "solo-caps",
     group: "flag",
     label: "Solo captures",
+    short: "Solo",
     blurb: "Flags carried the whole way without a hand-off.",
     value: (p) => (p.soloCaps > 0 ? p.soloCaps : null),
     format: (v) => `${v}`,
@@ -243,6 +259,7 @@ export const BOARDS: Board[] = [
     key: "fastest-cap",
     group: "flag",
     label: "Fastest capture",
+    short: "Fastest",
     blurb: "Quickest a flag has gone from their hands to their base.",
     value: (p) => p.fastestCaptureMs,
     format: (v) => `${(v / 1000).toFixed(1)}s`,
@@ -255,6 +272,7 @@ export const BOARDS: Board[] = [
     key: "damage",
     group: "fighting",
     label: "Damage dealt",
+    short: "Damage",
     blurb: "Total damage given, which rewards pressure that never lands a frag.",
     value: (p) => (p.damageGiven > 0 ? Math.round(p.damageGiven) : null),
     format: (v) => v.toLocaleString("en-GB"),
@@ -266,6 +284,7 @@ export const BOARDS: Board[] = [
     key: "frags-per-match",
     group: "fighting",
     label: "Frags per match",
+    short: "Frags/match",
     blurb: "Rewards playing well rather than playing often.",
     value: (p) => (p.matchesPlayed > 0 ? p.kills / p.matchesPlayed : null),
     format: (v) => v.toFixed(1),
@@ -277,6 +296,7 @@ export const BOARDS: Board[] = [
     key: "captures-per-match",
     group: "flag",
     label: "Captures per match",
+    short: "Caps/match",
     blurb: "How often they take a flag home, regardless of how many nights they play.",
     value: (p) => (p.matchesPlayed > 0 ? p.caps / p.matchesPlayed : null),
     format: (v) => v.toFixed(2),
@@ -288,6 +308,7 @@ export const BOARDS: Board[] = [
     key: "frags-per-death",
     group: "fighting",
     label: "Frags per death",
+    short: "Frags/death",
     blurb: "Kills divided by deaths. Rewards staying alive, not just shooting.",
     value: (p) => (p.deaths > 0 ? p.kills / p.deaths : p.kills > 0 ? p.kills : null),
     format: (v) => v.toFixed(2),
