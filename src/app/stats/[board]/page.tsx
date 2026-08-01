@@ -10,6 +10,7 @@ import {
   contextFor,
   rank,
 } from "@/lib/matches/leaderboards";
+import { ArchiveNav } from "@/components/archive-nav";
 import { listPlayers } from "@/lib/matches/queries";
 import { StatStrip } from "@/components/stat-strip";
 
@@ -87,6 +88,8 @@ export default async function BoardPage({ params }: Props) {
           ) : null}
         </p>
       </div>
+
+      <ArchiveNav active="/stats" className="mt-3" />
 
       <p className="mt-6 font-display text-[0.625rem] font-bold uppercase tracking-[0.24em] text-steel-500">
         {BOARD_GROUP_LABEL[board.group]}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ArchiveNav } from "@/components/archive-nav";
 import { UNSOUND_SHOOTING_NOTE } from "@/lib/matches/accuracy";
 import { listPlayers, recentForm } from "@/lib/matches/queries";
 import { FormRun } from "@/components/form-run";
@@ -43,16 +44,11 @@ export default async function PlayersPage() {
         Everyone who has played a recorded match, and how they did across all of them.
       </p>
 
-      {/* This page is who played. Pairings is who they played it with, which is
-          the question the totals below cannot answer. */}
-      <p className="mt-4">
-        <Link
-          href="/players/pairings"
-          className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
-        >
-          Who plays with whom
-        </Link>
-      </p>
+      {/* The standalone link to pairings lived here, which meant the one route
+          to it was a sentence on one page. It is an entry in the strip now,
+          alongside everything else the archive has that the masthead's six
+          sections do not mention. */}
+      <ArchiveNav active="/players" className="mt-5" />
 
       {players.length === 0 ? (
         <div className="panel mt-10 p-8 text-center">

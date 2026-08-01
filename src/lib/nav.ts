@@ -56,5 +56,27 @@ export const NAV: NavItem[] = [
  */
 export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
 
+/**
+ * The archive's own pages, under the top level nav.
+ *
+ * The header carries six sections and stops there, which was right while each
+ * section was one page and became wrong as the archive grew a second layer.
+ * Pairings, the map pages and the stat boards are all reachable only by
+ * stumbling on a link inside something else, which is no way to find out a site
+ * has them.
+ *
+ * Every sports site solves this the same way, with a section strip under the
+ * masthead: Scores, Schedule, Standings, Stats, Teams, Players. This is that
+ * strip, and it appears on the pages it covers rather than site wide, because a
+ * catalogue page has no business advertising the match archive's furniture.
+ */
+export const ARCHIVE_NAV: NavItem[] = [
+  { href: "/matches", label: "Nights" },
+  { href: "/matches/maps", label: "Maps" },
+  { href: "/players", label: "Players" },
+  { href: "/players/pairings", label: "Pairings" },
+  { href: "/stats", label: "Stat boards" },
+];
+
 export const DISCORD_INVITE =
   process.env.NEXT_PUBLIC_DISCORD_INVITE ?? "https://discord.gg/";

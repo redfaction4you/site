@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ArchiveNav } from "@/components/archive-nav";
 import { ColumnImage } from "@/components/column-image";
 import { DayBlock } from "@/components/day-block";
-import { DayRail } from "@/components/day-rail";
 import { NightFootageCard } from "@/components/match-footage";
+import { NightStrip } from "@/components/night-strip";
 import { dayLabel } from "@/components/match-archive";
 import { footageForNight } from "@/lib/match-videos";
 import {
@@ -25,7 +26,7 @@ type Props = { params: Promise<{ day: string }> };
  * The point of the stack is that scrolling walks backwards through the archive
  * rather than dead-ending after one night. It is bounded because every extra
  * night is another query and another set of thumbnails, and nobody scrolls
- * through a season. The rail is how you reach anything further back.
+ * through a season. The strip across the top is how you reach anything further back.
  */
 const STACKED_NIGHTS = 4;
 
@@ -84,8 +85,11 @@ export default async function MatchDayPage({ params }: Props) {
         </Link>
       </p>
 
-      {/* The rail widened from 13rem when the scoreboard moved into it: six
-          columns of it do not fit in a strip sized for date chips. */}
+      <ArchiveNav active="/matches" className="mt-2" />
+
+      {/* Every night on record, across the top rather than down the side. */}
+      <NightStrip days={days} current={day} className="mt-3" />
+
       {/*
         Three blocks rather than two columns, so the source order is right on a
         phone as well as on a desktop.
@@ -96,7 +100,7 @@ export default async function MatchDayPage({ params }: Props) {
         wide screen the rail takes the second column across both rows and the
         nights take the first, which is the same arrangement as before.
       */}
-      <div className="mt-3 grid gap-8 lg:grid-cols-[1fr_18rem]">
+      <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_18rem]">
         <div className="min-w-0">
           {/*
             The night being read, whole and above the fold.
@@ -167,8 +171,10 @@ export default async function MatchDayPage({ params }: Props) {
         </div>
 
         {/*
-          The rail is everything about the night that is not one of its results:
-          how to reach another night, who played, and what anybody filmed.
+          The rail is what is about the night without being one of its
+          results: who played, and what anybody filmed. Reaching another night
+          moved to the strip across the top, which does that job in a band
+          rather than in a column.
 
           The scoreboard used to sit inside the block, level with the lead story,
           which is the one spot on the page that belongs to neither the story nor
@@ -180,8 +186,6 @@ export default async function MatchDayPage({ params }: Props) {
           be quietly wrong.
         */}
         <aside className="space-y-7 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:self-start">
-          <DayRail days={days} current={day} />
-
           {scoreboard.length ? (
             <section>
               <h2 className="rule-heading">

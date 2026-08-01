@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ArchiveNav } from "@/components/archive-nav";
 import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
 import { allPairings } from "@/lib/matches/queries";
 
@@ -100,7 +101,9 @@ export default async function PairingsPage() {
         figure below is counted from who was actually on which side in each
         match, and most people appear in both tables.
       */}
-      <p className="mt-4 max-w-2xl text-sm leading-relaxed text-steel-400">
+      <ArchiveNav active="/players/pairings" className="mt-5" />
+
+      <p className="mt-5 max-w-2xl text-sm leading-relaxed text-steel-400">
         Red and blue are shirt colours on this server, not teams, and they get
         reshuffled between matches. Everything here is counted from who was on
         which side in each match, which is why most people appear in both tables.

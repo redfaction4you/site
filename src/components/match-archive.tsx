@@ -42,6 +42,15 @@ export function shortDayLabel(day: string): string {
   }).format(date);
 }
 
+/** `Thu`. The weekday alone, for the night strip's top line. */
+export function weekdayLabel(day: string): string {
+  const date = new Date(`${day}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(date);
+}
+
 export function duration(from: Date | null, to: Date | null): string {
   if (!from || !to) return "-";
   const seconds = Math.max(0, Math.round((to.getTime() - from.getTime()) / 1000));
