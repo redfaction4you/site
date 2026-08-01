@@ -16,7 +16,7 @@ import {
 } from "@/lib/matches/accuracy";
 import { tookPart } from "@/lib/matches/participation";
 import { MatchFootageList } from "@/components/match-footage";
-import { footageForMatch } from "@/lib/match-videos";
+import { footageForMatch } from "@/lib/match-footage";
 import { FootageMark } from "@/components/footage-mark";
 import { CaptureTrack } from "@/components/capture-track";
 
@@ -338,7 +338,7 @@ function MatchNav({
   );
 }
 
-export function MatchDetailView({
+export async function MatchDetailView({
   match,
   days,
   siblings,
@@ -415,7 +415,7 @@ export function MatchDetailView({
   // Team accuracy adds up only the players whose counters agree with themselves.
   // One broken row would otherwise carry the whole side's figure past 100% and
   // make the sound records look wrong too.
-  const footage = footageForMatch(match.archiveDay, match.sourceMatchId);
+  const footage = await footageForMatch(match.archiveDay, match.sourceMatchId);
 
   const soundShooters = active.filter((p) => shootingIsSound(p.shotsHit, p.shotsFired));
   const shotsFired = soundShooters.reduce((sum, p) => sum + p.shotsFired, 0);

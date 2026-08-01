@@ -8,7 +8,7 @@ import { DayBlock } from "@/components/day-block";
 import { NightFootageCard } from "@/components/match-footage";
 import { NightStrip } from "@/components/night-strip";
 import { dayLabel } from "@/components/match-archive";
-import { footageForNight } from "@/lib/match-videos";
+import { footageForNight } from "@/lib/match-footage";
 import {
   getColumn,
   listDays,
@@ -258,7 +258,7 @@ export default async function MatchDayPage({ params }: Props) {
           {/* Anything anybody filmed of this night, beside the results rather
               than under the write-up at the bottom of the page. */}
           <NightFootageCard
-            footage={footageForNight(day)}
+            footage={await footageForNight(day)}
             labelFor={(coverage) =>
               matches.find((m) => m.sourceMatchId === coverage.sourceMatchId)?.mapName
             }

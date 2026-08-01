@@ -12,9 +12,15 @@
  * Then say which matches it covers, by archive day and the server's match id.
  * The id is the number in the match URL: /matches/2026-07-30/12 is match 12.
  *
- * In code rather than the database, following the same rule as `videos.ts` and
- * `nav.ts`: a list this size is one pull request to change and needs no upload
- * form. Move it to Postgres when hand editing starts to hurt, not before.
+ * This list is the seed. Anything added through `/link` lands in the
+ * `match_videos` table instead, and `match-footage.ts` merges the two on read,
+ * so entries here keep working and nothing had to be migrated to make the page
+ * possible.
+ *
+ * The lookups below stay pure and take the list to search. That is not
+ * decoration: this module is loaded directly by `node --test`, which has no
+ * bundler and cannot resolve the `@/` alias, so the database half has to live in
+ * its own module or the tests stop being able to load this one at all.
  *
  * **Nothing is claimed about whose view it is.** These are recorded either from a
  * player's own screen or from the spectator camera that follows whoever is in
@@ -105,10 +111,11 @@ export type MatchFootage = { video: MatchVideo; coverage: Coverage };
 export function footageForMatch(
   archiveDay: string,
   sourceMatchId: number,
+  videos: MatchVideo[] = MATCH_VIDEOS,
 ): MatchFootage[] {
   const found: MatchFootage[] = [];
 
-  for (const video of MATCH_VIDEOS) {
+  for (const video of videos) {
     for (const coverage of video.covers) {
       if (coverage.archiveDay === archiveDay && coverage.sourceMatchId === sourceMatchId) {
         found.push({ video, coverage });
@@ -126,10 +133,13 @@ export function footageForMatch(
  * of the night it covers, because the night page is an invitation to watch the
  * evening rather than a specific game.
  */
-export function footageForNight(archiveDay: string): MatchFootage[] {
+export function footageForNight(
+  archiveDay: string,
+  videos: MatchVideo[] = MATCH_VIDEOS,
+): MatchFootage[] {
   const found = new Map<string, MatchFootage>();
 
-  for (const video of MATCH_VIDEOS) {
+  for (const video of videos) {
     for (const coverage of video.covers) {
       if (coverage.archiveDay !== archiveDay) continue;
       const existing = found.get(video.youtubeId);

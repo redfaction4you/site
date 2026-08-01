@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ColumnImage } from "@/components/column-image";
 import { MatchFootageList } from "@/components/match-footage";
 import { OpinionColumn } from "@/components/opinion-column";
-import { footageForNight } from "@/lib/match-videos";
+import { footageForNight } from "@/lib/match-footage";
 import { dayLabel } from "@/components/match-archive";
 import { NightMatches } from "@/components/night-matches";
 import {
@@ -147,7 +147,7 @@ export default async function ColumnPage({ params }: Props) {
 
         {/* Anything anybody filmed of this night, under the writing about it. */}
         <MatchFootageList
-          footage={footageForNight(day)}
+          footage={await footageForNight(day)}
           heading="Footage from this night"
           // Which match each recording is, since "watch" three times over says
           // nothing about which is which.

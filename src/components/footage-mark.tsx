@@ -1,4 +1,4 @@
-import { footageForMatch } from "@/lib/match-videos";
+import { footageForMatch } from "@/lib/match-footage";
 
 /**
  * A mark on a match that somebody filmed.
@@ -12,7 +12,7 @@ import { footageForMatch } from "@/lib/match-videos";
  * to the page the video sits on. A second target inside the first is a smaller
  * thing to hit and a worse place to land.
  */
-export function FootageMark({
+export async function FootageMark({
   archiveDay,
   sourceMatchId,
   className = "",
@@ -21,7 +21,7 @@ export function FootageMark({
   sourceMatchId: number;
   className?: string;
 }) {
-  if (footageForMatch(archiveDay, sourceMatchId).length === 0) return null;
+  if ((await footageForMatch(archiveDay, sourceMatchId)).length === 0) return null;
 
   return (
     <span
