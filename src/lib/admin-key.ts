@@ -28,9 +28,19 @@ const COOKIE = "rf4u_admin";
 /** A year. Long enough that nobody meets the key twice on the same machine. */
 const MAX_AGE = 60 * 60 * 24 * 365;
 
+/**
+ * Eight characters, not sixteen.
+ *
+ * A minimum at all because this is a public endpoint and a four character
+ * password is guessable by anybody who finds the page. Low enough that a
+ * password somebody actually chose is accepted, since one that has to be stored
+ * in a manager to be usable ends up pasted somewhere worse.
+ */
+const MIN_LENGTH = 8;
+
 function secret(): string | null {
   const value = process.env.RF4U_ADMIN_KEY?.trim();
-  return value && value.length >= 16 ? value : null;
+  return value && value.length >= MIN_LENGTH ? value : null;
 }
 
 /** What the cookie should contain for a given secret. */

@@ -40,7 +40,7 @@ export default async function AdminPage({ searchParams }: Props) {
         <p className="mt-4 text-sm leading-relaxed text-steel-400">
           No key is configured, so this page is closed to everybody including
           whoever deployed it. Set <code className="text-steel-200">RF4U_ADMIN_KEY</code>{" "}
-          in the environment to at least sixteen characters, then open{" "}
+          in the environment to at least eight characters, then open{" "}
           <code className="text-steel-200">/admin?key=...</code> once on each
           device you want to use it from.
         </p>
