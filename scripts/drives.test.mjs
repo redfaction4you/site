@@ -145,6 +145,79 @@ test("repeat carries by the same player are one total, not two carriers", () => 
   assert.equal(drives[0].carriers.length, 1);
   assert.equal(drives[0].solo, true);
   assert.equal(drives[0].carriers[0].carryMs, 10_000 + 6_000);
+  // Solo, because no teammate touched it, and not a run: the flag was on the
+  // floor between 20 and 24 and that gap is inside the journey.
+  assert.equal(drives[0].unbroken, false);
+});
+
+/* --- what a fastest capture is measured on -------------------------------- */
+
+test("a run that never touched the ground is unbroken", () => {
+  const drives = reconstructDrives(
+    [pickup(10, "Skuldug", "blue")],
+    [capture(30, "red", "Skuldug")],
+  );
+
+  assert.equal(drives[0].unbroken, true);
+  assert.equal(drives[0].journeyMs, 20_000);
+
+  const credit = creditDrives(drives);
+  assert.equal(credit.get("skuldug").fastestSoloCaptureMs, 20_000);
+});
+
+test("a dropped and recovered flag sets no capture time", () => {
+  /*
+   * Match 10, as recorded. Medeo took the blue flag at 00:37, was killed at
+   * 01:00, took it off the ground at 01:02, capped at 01:05. Solo throughout,
+   * and 25 of those seconds are the flag lying on the floor. It is still a
+   * capture and still credited as solo; it is not a time anybody ran.
+   */
+  const drives = reconstructDrives(
+    [
+      pickup(37, "Medeo", "blue"),
+      drop(60, "Medeo", "blue", 23_000),
+      pickup(62, "Medeo", "blue"),
+    ],
+    [capture(65, "red", "Medeo")],
+  );
+
+  const credit = creditDrives(drives);
+  assert.equal(drives[0].solo, true);
+  assert.equal(drives[0].unbroken, false);
+  assert.equal(credit.get("medeo").soloCaps, 1, "still a solo capture");
+  assert.equal(
+    credit.get("medeo").fastestSoloCaptureMs,
+    null,
+    "but not a capture time",
+  );
+});
+
+test("a relayed drive sets no capture time either", () => {
+  const drives = reconstructDrives(
+    [
+      pickup(10, "Romek", "blue"),
+      drop(25, "Romek", "blue", 15_000),
+      pickup(26, "Skuldug", "blue"),
+    ],
+    [capture(30, "red", "Skuldug")],
+  );
+
+  const credit = creditDrives(drives);
+  assert.equal(drives[0].unbroken, false);
+  assert.equal(credit.get("skuldug").fastestSoloCaptureMs, null);
+  assert.equal(credit.get("romek").fastestSoloCaptureMs, null);
+});
+
+test("a capper with no recorded pickup sets no capture time", () => {
+  // The capture is credited, because it happened. The time is not, because the
+  // journey was reconstructed from a gap in the log.
+  const drives = reconstructDrives([], [capture(30, "red", "Skuldug")]);
+
+  const credit = creditDrives(drives);
+  assert.equal(drives[0].solo, true);
+  assert.equal(drives[0].unbroken, false);
+  assert.equal(credit.get("skuldug").soloCaps, 1);
+  assert.equal(credit.get("skuldug").fastestSoloCaptureMs, null);
 });
 
 test("three carriers still name only the longest as lead", () => {

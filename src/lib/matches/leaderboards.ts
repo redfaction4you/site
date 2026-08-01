@@ -243,31 +243,34 @@ export const BOARDS: Board[] = [
     qualifies: () => true,
     requirement: null,
   },
-  {
-    key: "solo-caps",
-    group: "flag",
-    label: "Solo captures",
-    short: "Solo",
-    blurb: "Flags carried the whole way without a hand-off.",
-    value: (p) => (p.soloCaps > 0 ? p.soloCaps : null),
-    format: (v) => `${v}`,
-    direction: "high",
-    qualifies: () => true,
-    requirement: null,
-  },
-  {
-    key: "fastest-cap",
-    group: "flag",
-    label: "Fastest capture",
-    short: "Fastest",
-    blurb: "Quickest a flag has gone from their hands to their base.",
-    value: (p) => p.fastestCaptureMs,
-    format: (v) => `${(v / 1000).toFixed(1)}s`,
-    // The one board where a smaller number wins.
-    direction: "low",
-    qualifies: (p) => (p.fastestCaptureMs ?? 0) > 0,
-    requirement: null,
-  },
+  /*
+   * There is no solo captures board, and the word is not used on the site.
+   *
+   * It counted flags no teammate touched, which is not what it sounded like: a
+   * player killed at the door who takes the flag off the floor himself and walks
+   * it in was solo, and the blurb, "carried the whole way without a hand-off",
+   * made that worse by describing something else. A reader said the word made
+   * them think base to base. They were right, and there is no wording that
+   * rescues a stat whose plain reading is a different stat.
+   *
+   * Base to base is the measurement worth keeping, and it is kept as a time
+   * rather than a count: the fastest unbroken run, on the map it was set on.
+   * `soloCaps` still exists in the data because the drive reconstruction needs
+   * it and the vet checks it against the capture total. Nothing renders it.
+   */
+  /*
+   * There is no fastest run board here, and that is deliberate.
+   *
+   * A run is a distance as much as a time. Huna b8 and Rail Fight are not the
+   * same length, so ranking one player's 9.6 seconds above another's 12.1 across
+   * different maps says who played the shorter map, and a board sorted by it
+   * presents that as a ranking of players. The record is real and worth showing;
+   * it belongs on the map it was set on, where the distance is a constant, and
+   * that is where it now lives.
+   *
+   * Same reasoning as the pairing win rate that is withheld below five matches:
+   * the number exists, the comparison does not.
+   */
   {
     key: "damage",
     group: "fighting",

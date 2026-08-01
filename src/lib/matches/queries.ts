@@ -1020,6 +1020,20 @@ export type MapMatchRow = {
   playerCount: number;
 };
 
+/**
+ * A record set on one map, with enough to link back to where it happened.
+ *
+ * Every one of these is a single match rather than an average, which is what
+ * makes it safe at this sample size: "the most captures anybody has managed here
+ * in one game" is a fact about one game however few there are.
+ */
+export type MapBest = {
+  name: string;
+  value: number;
+  archiveDay: string;
+  sourceMatchId: number;
+};
+
 export type MapRecord = {
   matches: MapMatchRow[];
   totals: {
@@ -1029,6 +1043,20 @@ export type MapRecord = {
     undecided: number;
     overtime: number;
     captures: number;
+    /** Every capture on the map, so a per-match figure can be honest about it. */
+    playerCount: number;
+  };
+  /**
+   * What this map has seen at its best, which is the thing a map page can say
+   * that no other page can. A run is a distance as much as a time, so the
+   * fastest one belongs here rather than in a table that ranks a short map
+   * above a long one.
+   */
+  bests: {
+    fastestRun: MapBest | null;
+    mostCaps: MapBest | null;
+    mostFrags: MapBest | null;
+    bestStreak: MapBest | null;
   };
   players: {
     name: string;
@@ -1037,6 +1065,13 @@ export type MapRecord = {
     kills: number;
     deaths: number;
     caps: number;
+    flagReturns: number;
+    bestStreak: number;
+    shotsHit: number;
+    shotsFired: number;
+    unsoundShootingMatches: number;
+    /** Their quickest unbroken run on this map, in ms. */
+    fastestRunMs: number | null;
   }[];
 };
 
@@ -1070,6 +1105,13 @@ export const getMapRecord = cache(async function getMapRecord(
         undecided: 0,
         overtime: 0,
         captures: 0,
+        playerCount: 0,
+      },
+      bests: {
+        fastestRun: null,
+        mostCaps: null,
+        mostFrags: null,
+        bestStreak: null,
       },
       players: [],
     };
@@ -1101,6 +1143,17 @@ export const getMapRecord = cache(async function getMapRecord(
         kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
         deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
         caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+        flagReturns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
+        bestStreak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
+        // The same accuracy rule as everywhere else: matches whose counters
+        // contradict themselves are left out of the figure rather than allowed
+        // to inflate it, and the count rides along so the page can say so.
+        shotsHit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+        shotsFired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+        unsoundShootingMatches: sql<number>`count(*) filter (where not (${SOUND_SHOOTING}))::int`,
+        // Their best run here. Null for anybody who has never carried one the
+        // whole way on this map, which is most people on most maps.
+        fastestRunMs: sql<number | null>`min(${matchPlayers.fastestSoloCaptureMs})::int`,
       })
       .from(matchPlayers)
       .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
@@ -1115,6 +1168,71 @@ export const getMapRecord = cache(async function getMapRecord(
 
   const byMatch = new Map(counts.map((row) => [row.matchId, row.playerCount]));
 
+  /*
+   * Every single-match high on this map, in one pass over its rows.
+   *
+   * Read here rather than as four `order by ... limit 1` queries: a map is a few
+   * dozen player rows and this is one round trip instead of four. Each one keeps
+   * the match it happened in, because a record with nowhere to go is a claim a
+   * reader cannot check.
+   */
+  const performances = await db
+    .select({
+      name: DISPLAY_NAME,
+      matchId: matchPlayers.matchId,
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      caps: matchPlayers.caps,
+      kills: matchPlayers.kills,
+      maxStreak: matchPlayers.maxStreak,
+      fastestRunMs: matchPlayers.fastestSoloCaptureMs,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
+    .where(and(eq(matches.mapName, mapName), TOOK_PART, MATCH_COMPLETED))
+    .groupBy(
+      IDENTITY_KEY,
+      matchPlayers.matchId,
+      matches.archiveDay,
+      matches.sourceMatchId,
+      matchPlayers.caps,
+      matchPlayers.kills,
+      matchPlayers.maxStreak,
+      matchPlayers.fastestSoloCaptureMs,
+    );
+
+  /**
+   * The best of one column, or null when nothing on this map has one.
+   *
+   * Ties keep the first seen rather than picking between them, the same trade
+   * the night scoreboard's top player makes: inventing an order the record does
+   * not have would be worse than showing either.
+   */
+  const bestOf = (
+    pick: (row: (typeof performances)[number]) => number | null,
+    better: (candidate: number, standing: number) => boolean,
+  ): MapBest | null => {
+    let best: MapBest | null = null;
+    for (const row of performances) {
+      const value = pick(row);
+      if (value === null || value <= 0) continue;
+      if (best && !better(value, best.value)) continue;
+      best = {
+        name: row.name,
+        value,
+        archiveDay: row.archiveDay,
+        sourceMatchId: row.sourceMatchId,
+      };
+    }
+    return best;
+  };
+
+  const highest = (a: number, b: number) => a > b;
+
   return {
     matches: rows.map((row) => ({
       ...row,
@@ -1128,6 +1246,15 @@ export const getMapRecord = cache(async function getMapRecord(
         .length,
       overtime: rows.filter((row) => row.overtime).length,
       captures: rows.reduce((sum, row) => sum + row.redScore + row.blueScore, 0),
+      playerCount: players.length,
+    },
+    bests: {
+      // The one board that reads the other way round, and the reason the record
+      // is kept per map at all: a run is a distance as much as a time.
+      fastestRun: bestOf((row) => row.fastestRunMs, (a, b) => a < b),
+      mostCaps: bestOf((row) => row.caps, highest),
+      mostFrags: bestOf((row) => row.kills, highest),
+      bestStreak: bestOf((row) => row.maxStreak, highest),
     },
     players,
   };

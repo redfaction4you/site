@@ -57,13 +57,35 @@ test("the highest value comes first on a high board", () => {
   assert.equal(entries[0].rank, 1);
 });
 
-test("fastest capture ranks the other way round", () => {
+test("a board where less is better ranks the other way round", () => {
+  /*
+   * Written against the fastest capture board, which was the only one that
+   * ranked this way and has since been removed: a run is a distance as much as
+   * a time, so it belongs on the map it was set on rather than in a table that
+   * puts a short map above a long one. The rule it was testing is still in the
+   * ranking code, and a map's own fastest run is ranked by it, so the case is
+   * kept with a board defined here rather than deleted with the one that used
+   * to carry it.
+   */
+  const lowWins = {
+    key: "test-low",
+    group: "flag",
+    label: "Quickest something",
+    short: "Quickest",
+    blurb: "Lower is better.",
+    value: (p) => p.fastestCaptureMs,
+    format: (v) => `${(v / 1000).toFixed(1)}s`,
+    direction: "low",
+    qualifies: (p) => (p.fastestCaptureMs ?? 0) > 0,
+    requirement: null,
+  };
+
   const entries = rank(
     [
       player({ name: "slow", fastestCaptureMs: 40_000 }),
       player({ name: "quick", fastestCaptureMs: 9_000 }),
     ],
-    board("fastest-cap"),
+    lowWins,
   );
 
   assert.equal(entries[0].player.name, "quick");

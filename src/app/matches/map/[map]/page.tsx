@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 
 import { ArchiveNav } from "@/components/archive-nav";
 import { MapShot } from "@/components/map-shot";
+import { MapBests } from "@/components/map-bests";
 import { dayLabel, matchTime } from "@/components/match-archive";
+import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { mapBySlug, mapSlug } from "@/lib/matches/maps";
 import { getMapRecord, listMapNames } from "@/lib/matches/queries";
 
@@ -52,6 +54,7 @@ export default async function MapPage({ params }: Props) {
   const record = await getMapRecord(mapName);
   const { totals } = record;
   const decided = totals.redWins + totals.blueWins;
+  const anyRuns = record.players.some((player) => player.fastestRunMs !== null);
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-12">
@@ -74,7 +77,11 @@ export default async function MapPage({ params }: Props) {
           <p className="mt-1.5 font-mono text-xs text-steel-500">
             {totals.matches} {totals.matches === 1 ? "match" : "matches"} ·{" "}
             {totals.captures} captures
+            {totals.matches > 0
+              ? ` · ${(totals.captures / totals.matches).toFixed(1)} a match`
+              : ""}
             {totals.overtime > 0 ? ` · ${totals.overtime} to overtime` : ""}
+            {totals.playerCount > 0 ? ` · ${totals.playerCount} players` : ""}
           </p>
           {/*
             Which side wins here, which is the one thing a map page can say that
@@ -92,6 +99,14 @@ export default async function MapPage({ params }: Props) {
           ) : null}
         </div>
       </div>
+
+      {/*
+        What this map has seen, which is the thing this page can say that no
+        other page can. The fastest run is here rather than on a stat board for
+        the reason the board says: a run is a distance as much as a time, and
+        ranking Huna against Rail Fight ranks the maps.
+      */}
+      <MapBests bests={record.bests} className="mt-8" />
 
       <section className="mt-9">
         <h2 className="rule-heading">Matches here</h2>
@@ -168,14 +183,28 @@ export default async function MapPage({ params }: Props) {
             who has played it most.
           </p>
 
-          <div className="mt-3 max-w-[34rem]">
+          <div className="mt-3 max-w-[46rem] overflow-x-auto">
             <div className="flex items-baseline gap-2 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
               <span className="w-3 shrink-0">#</span>
               <span className="min-w-0 flex-1">Player</span>
               <span className="w-10 shrink-0 text-right">Played</span>
               <span className="w-10 shrink-0 text-right">Score</span>
               <span className="w-9 shrink-0 text-right">Frags</span>
+              <span className="w-9 shrink-0 text-right">Deaths</span>
               <span className="w-8 shrink-0 text-right">Caps</span>
+              <span className="w-9 shrink-0 text-right">Returns</span>
+              <span className="w-10 shrink-0 text-right">Acc</span>
+              <span className="w-9 shrink-0 text-right">Streak</span>
+              {/* Only where somebody has one. A map nobody has run clean should
+                  not carry a column of dashes. */}
+              {anyRuns ? (
+                <span
+                  className="w-11 shrink-0 text-right"
+                  title="Their quickest capture here, carried the whole way without the flag touching the ground"
+                >
+                  Best run
+                </span>
+              ) : null}
             </div>
 
             <ol>
@@ -200,9 +229,51 @@ export default async function MapPage({ params }: Props) {
                     <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
                       {player.kills}
                     </span>
-                    <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
-                      {player.caps}
+                    <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-500">
+                      {player.deaths}
                     </span>
+                    <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                      {player.caps || <span className="text-steel-700">&ndash;</span>}
+                    </span>
+                    <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                      {player.flagReturns || (
+                        <span className="text-steel-700">&ndash;</span>
+                      )}
+                    </span>
+                    <span
+                      className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400"
+                      title={
+                        player.unsoundShootingMatches > 0
+                          ? `${UNSOUND_SHOOTING_NOTE} ${player.unsoundShootingMatches} of their matches here are left out of this figure.`
+                          : undefined
+                      }
+                    >
+                      {(() => {
+                        const value = accuracyOf(player.shotsHit, player.shotsFired);
+                        return value === null ? (
+                          <span className="text-steel-700">&ndash;</span>
+                        ) : (
+                          `${(value * 100).toFixed(1)}%`
+                        );
+                      })()}
+                      {player.unsoundShootingMatches > 0 ? (
+                        <span className="text-steel-700">*</span>
+                      ) : null}
+                    </span>
+                    <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                      {player.bestStreak || (
+                        <span className="text-steel-700">&ndash;</span>
+                      )}
+                    </span>
+                    {anyRuns ? (
+                      <span className="w-11 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
+                        {player.fastestRunMs ? (
+                          `${(player.fastestRunMs / 1000).toFixed(1)}s`
+                        ) : (
+                          <span className="text-steel-700">&ndash;</span>
+                        )}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               ))}

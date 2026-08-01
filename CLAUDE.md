@@ -219,6 +219,28 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   the newest valid one, and never lets a newer invalid one displace an older
   valid one. Weapon stats obey the same rule. **Do not put `shotsHit` or
   `shotsFired` back into `MAX_FIELDS`.**
+- **A capture, a solo capture and a run are three different things, and only
+  the third is timed.** A capture is who touched it down. A solo capture is one
+  nobody else carried, which still allows the same player being killed at the
+  door and taking the flag off the floor themselves. A run is stand to capture,
+  one carrier, the flag never on the ground, and it is the only one of the three
+  where the flag's time and a player's time are the same measurement. `unbroken`
+  in `drives.ts` is the test, and `fastest_solo_capture_ms` is set from nothing
+  else. **The word "solo" is not used anywhere a reader can see it**: it was on
+  a stat board reading "carried the whole way without a hand-off", a reader said
+  it made them think base to base, and no wording rescues a stat whose plain
+  reading is a different stat. The board is gone and the count is data now.
+- **A run belongs to the map it was set on.** Huna b8's best runs sit between
+  8.7 and 13.4 seconds and Warlords Pro (No Fog)'s between 27 and 56, so a board
+  ranking runs across maps ranks the maps and calls it a ranking of players.
+  `/matches/map/[map]` carries the record; there is deliberately no cross-map
+  fastest board, the same trade as the pairing win rate withheld below five
+  matches.
+- **Drive credit is derived at ingest, so a rule change leaves the archive
+  behind.** `npm run drives:recompute` reruns the reconstruction over stored
+  events and rewrites only the five derived columns; without `-- --go` it prints
+  what would change. The VPS re-sending recent days fixes those and nothing
+  else.
 - **`fastest_capture_ms` is not the length of a run and nothing reads it.** The
   server times the carrier's last leg, so a flag dropped and recovered by the
   same player reports the recovery: Medeo carried the blue flag for 27.8 seconds

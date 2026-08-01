@@ -25,6 +25,7 @@
     "refs:label": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/refs-label.mjs",
     "vet": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-archive.mjs",
     "vet:pages": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-pages.mjs",
+    "drives:recompute": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/recompute-drives.mjs",
     "vet:queries": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/query-guard.mjs"
   },
   "dependencies": {

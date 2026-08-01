@@ -33,6 +33,22 @@ export type Drive = {
   /** True when one person carried it the whole way. */
   solo: boolean;
   /**
+   * True when it never touched the ground: one player, one carry, stand to
+   * capture.
+   *
+   * Stricter than `solo`, and the difference is a real one that was being
+   * papered over. A drive where the same player is killed at the door, respawns
+   * or is revived and takes the flag off the floor is still solo, because no
+   * teammate touched it, but it is not a run: part of that journey is the flag
+   * lying still. Medeo's capture in match 10 took the blue flag at 00:37, was
+   * killed at 01:00, took it off the ground at 01:02 and capped at 01:05, and
+   * calling that a 27.8 second run flatters it in one direction while the
+   * server's 2.785 flatters it in the other.
+   *
+   * This is what a fastest capture is measured on, and nothing else is.
+   */
+  unbroken: boolean;
+  /**
    * How long the flag took to get home, from leaving its stand to the capture.
    *
    * The flag's journey rather than anybody's possession, and the difference
@@ -234,6 +250,20 @@ export function reconstructDrives(
           carriers,
           leadCarrier: carriers[0]?.name ?? null,
           solo: carriers.length <= 1,
+          /*
+           * One closed segment and the capper is the person who held it.
+           *
+           * A second segment means the flag was dropped, whoever picked it up.
+           * No segments at all means the log lost the pickup, and a journey
+           * reconstructed from a gap is not something to put a stopwatch on:
+           * the capper is added to the carriers in that case so the capture is
+           * still credited, which is right, but the time is not claimed.
+           */
+          unbroken:
+            leftStandAt !== null &&
+            segments.length === 1 &&
+            segments[0]?.name === step.player &&
+            step.at > leftStandAt,
         });
 
         segments = [];
@@ -253,7 +283,7 @@ export type DriveCredit = {
   /** Total time carrying on drives that ended in a capture. */
   winningCarryMs: number;
   /**
-   * The quickest flag journey this player completed alone, or null.
+   * The quickest unbroken run this player made, or null.
    *
    * The replacement for the server's `fastest_capture_ms`, which could not be
    * used honestly. That field is one scalar per player per match with no link to
@@ -263,10 +293,15 @@ export type DriveCredit = {
    * that one, because the player genuinely had a single unrelayed capture: the
    * number simply was not the length of a run.
    *
-   * This is the flag's own journey, stand to capture, on drives one person
-   * carried the whole way. Those are the only captures where the flag's time and
-   * a player's time are the same thing, which is the entire reason the stat can
-   * be attributed to anybody.
+   * Only `unbroken` drives count, which is stand to capture, one player, flag
+   * never on the floor. A drive that was dropped and recovered is a true
+   * measurement of something, but it is not a time anybody ran, and it is the
+   * kind of number that quietly takes a record: the journey includes however
+   * long the flag spent lying still.
+   *
+   * Those are the only captures where the flag's time and a player's time are
+   * the same thing, which is the entire reason the stat can be attributed to
+   * anybody at all.
    */
   fastestSoloCaptureMs: number | null;
 };
@@ -296,7 +331,7 @@ export function creditDrives(drives: Drive[]): Map<string, DriveCredit> {
       if (drive.solo) {
         capper.soloCaps++;
         // A journey of zero means the log lost the pickup, not an instant run.
-        if (drive.journeyMs > 0) {
+        if (drive.unbroken && drive.journeyMs > 0) {
           capper.fastestSoloCaptureMs =
             capper.fastestSoloCaptureMs === null
               ? drive.journeyMs

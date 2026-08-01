@@ -112,7 +112,7 @@ const EXTRA_COLUMNS: ScoreColumn[] = [
   { key: "leadCarries", label: "Lead carries" },
   {
     key: "fastestCaptureMs",
-    label: "Best cap",
+    label: "Best run",
     format: (r) => (r.fastestCaptureMs ? seconds(r.fastestCaptureMs) : "-"),
   },
 ];

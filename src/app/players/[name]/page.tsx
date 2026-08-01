@@ -343,7 +343,7 @@ export default async function PlayerPage({ params }: Props) {
             value={String(player.caps)}
             hint={
               player.relayCaps > 0
-                ? `${player.soloCaps} solo, ${player.relayCaps} relay`
+                ? `${player.relayCaps} finished a teammate's run`
                 : undefined
             }
           />
@@ -358,9 +358,16 @@ export default async function PlayerPage({ params }: Props) {
             title="Drives they carried furthest and a teammate finished"
           />
           <Figure label="Time carrying" value={seconds(player.flagHoldMs)} />
+          {/*
+            Base to base, carried the whole way, flag never on the floor. The
+            strictest of the three things a capture can be and the only one worth
+            a stopwatch, which is why it is a time here and a record on the map
+            pages, where the distance is a constant.
+          */}
           <Figure
-            label="Fastest cap"
+            label="Best run"
             value={player.fastestCaptureMs ? seconds(player.fastestCaptureMs) : "-"}
+            title="Their quickest capture carried from the enemy stand without the flag touching the ground. Different maps are different lengths, so each map keeps its own record."
           />
         </StatGroup>
 
