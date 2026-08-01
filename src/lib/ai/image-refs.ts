@@ -6,7 +6,7 @@
  * apart and the drift shows up as a missing picture weeks later.
  *
  * The images themselves are not in the repo; this is the record of what they are.
- * Set fingerprint 645b76a1711f.
+ * Set fingerprint 044c48152c01.
  *
  * `MAP_ALIASES` is the one part worth editing by hand: it maps the map names the
  * server actually reports onto the folders here, so variants that share their
@@ -137,6 +137,9 @@ export const MAP_SHOTS: Record<string, MapShot[]> = {
   "shattered-gorge-mini": [
     { area: "overview", key: "refs/maps/shattered-gorge-mini/overview-01.jpg" },
   ],
+  "tesseract": [
+    { area: "overview", key: "refs/maps/tesseract/overview-01.jpg" },
+  ],
   "warlords-pro": [
     { area: "overview", key: "refs/maps/warlords-pro/overview-01.jpg" },
     { area: "blue-flagroom", key: "refs/maps/warlords-pro/blue-flagroom-01.jpg" },
@@ -156,6 +159,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "huna b8": "huna-b8",
   "dark warlords": "dark-warlords",
   "relic seeker": "relic-seeker",
+  tesseract: "tesseract",
   "shattered gorge mini v2.1": "shattered-gorge-mini",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",

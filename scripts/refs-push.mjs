@@ -426,6 +426,7 @@ export const MAP_ALIASES: Record<string, string> = {
   "huna b8": "huna-b8",
   "dark warlords": "dark-warlords",
   "relic seeker": "relic-seeker",
+  tesseract: "tesseract",
   "shattered gorge mini v2.1": "shattered-gorge-mini",
   "warlords pro (no amp)": "warlords-pro",
   "warlords pro (no fog)": "warlords-pro",
