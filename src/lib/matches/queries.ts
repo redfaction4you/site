@@ -1138,6 +1138,8 @@ export const getMapRecord = cache(async function getMapRecord(
   }
 
   const [counts, players] = await Promise.all([
+    // counts-everything: headcounts for the matches selected above, which are
+    // already the ones that counted.
     db
       .select({
         matchId: matchPlayers.matchId,
@@ -2100,6 +2102,7 @@ export const listIdentities = cache(async function listIdentities(): Promise<
    * satisfy it, and this page is read a few times a year.
    */
   const [groups, named] = await Promise.all([
+    // counts-everything: the people, for the page that renames them.
     db
       .select({
         identityKey: IDENTITY_KEY,

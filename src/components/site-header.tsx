@@ -51,6 +51,25 @@ export async function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          {/*
+            One box for the whole archive, in the one place that is on every
+            page. A plain form with a GET action, so it needs no JavaScript, the
+            browser's own history remembers what was searched, and every result
+            page is a URL somebody can paste.
+
+            Narrow on purpose: it is a way in, not the point of the header, and
+            it grows when it has focus so a long name is still readable while
+            being typed.
+          */}
+          <form action="/search" className="hidden sm:block">
+            <input
+              type="search"
+              name="q"
+              placeholder="Search"
+              aria-label="Search the archive"
+              className="w-28 rounded-sm border border-basalt-700 bg-basalt-900 px-2.5 py-1 text-xs text-steel-200 transition-all placeholder:text-steel-600 focus:w-52 focus:border-rust-500 focus:outline-none"
+            />
+          </form>
           <ThemeToggle />
           <UserMenu session={session} />
         </div>
@@ -74,6 +93,14 @@ export async function SiteHeader() {
             {item.label}
           </Link>
         ))}
+        {/* The box is hidden at this width, so the link stands in for it rather
+            than leaving a phone with no way to search at all. */}
+        <Link
+          href="/search"
+          className="shrink-0 rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-rust-400 hover:text-rust-300"
+        >
+          Search
+        </Link>
       </nav>
 
       <div className="hazard" aria-hidden="true" />

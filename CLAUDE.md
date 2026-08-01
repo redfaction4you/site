@@ -47,7 +47,24 @@ npm run ai:quota     # what each Gemini key can do today; -- --images too
 npm run vet          # the archive against itself
 npm run vet:queries  # every match query filters, or says why not
 npm run vet:pages    # a rendered page against itself; -- --base <url>
+npm run drives:recompute  # rerun drive credit over stored events; -- --go
 ```
+
+## Search (`src/lib/search.ts`, `/search`)
+
+One box for the whole archive: players grouped as people, nights by date in
+either form, a match by its scoreline either way round, maps, and anything
+written. Queried live rather than indexed, because an index that drifts is a
+search that quietly stops finding last night.
+
+- **The parsing lives in `search-query.ts` and is tested.** A date read wrongly
+  returns the wrong night with nothing to show for it, and `5-3` mistaken for a
+  date returns nothing at all. Dates are day first, matching the rest of the
+  site.
+- **A form with a GET action, not client state.** It works without JavaScript
+  and every search is a URL, the same reasoning as the filters.
+- Search results count matches the way every other page does, which the query
+  guard now enforces per query rather than per statement.
 
 ## Stack
 

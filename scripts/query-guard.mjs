@@ -133,11 +133,35 @@ export async function unguarded() {
     if (!TABLES.some((table) => source.includes(table))) continue;
 
     for (const query of queriesIn(source)) {
-      if (query.text.includes(FILTER) || query.text.includes(OPT_OUT)) continue;
+      /*
+       * One answer per query, not one per statement.
+       *
+       * A `Promise.all` of six reads is a single statement, so a single mention
+       * of the filter anywhere inside it used to satisfy the whole block. The
+       * search page was written that way and the guard passed it while one of
+       * its queries counted cancelled matches, which is the exact bug this file
+       * exists to catch, hiding inside the file that catches it.
+       *
+       * Counting rather than parsing: every read of a match table has to be
+       * answered by either a filter or a written reason, so there must be at
+       * least as many answers as there are reads. It cannot tell which answer
+       * belongs to which query, and it does not need to: a statement with three
+       * reads and two answers is wrong however they are paired.
+       */
+      const reads = TABLES.reduce(
+        (total, table) => total + query.text.split(table).length - 1,
+        0,
+      );
+      const answers =
+        query.text.split(FILTER).length - 1 + query.text.split(OPT_OUT).length - 1;
+
+      if (answers >= reads) continue;
+
       problems.push({
         file: path.relative(path.join(ROOT, ".."), file).replaceAll("\\", "/"),
         line: lineOf(source, query.at),
         name: nameOf(query.text),
+        detail: `${reads} match ${reads === 1 ? "query" : "queries"}, ${answers} answered`,
       });
     }
   }
@@ -154,7 +178,10 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
 
   console.log(`\n${problems.length} unguarded match ${problems.length === 1 ? "query" : "queries"}:\n`);
   for (const problem of problems) {
-    console.log(`  ${problem.file}:${problem.line}  ${problem.name}`);
+    console.log(
+      `  ${problem.file}:${problem.line}  ${problem.name}` +
+        (problem.detail ? `  (${problem.detail})` : ""),
+    );
   }
   console.log(
     `\nEach one either filters with ${FILTER}, or carries a comment saying ` +
