@@ -73,6 +73,16 @@ function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Below this a match did not finish, so it is not written about.
+ *
+ * Half of the ten minute regulation, matching `MIN_PLAUSIBLE_SECONDS` in vet.ts
+ * and deliberately generous: a tighter bound would be a number fitted to the
+ * one cancelled match seen so far and would start excluding real games the day
+ * somebody runs a shorter format.
+ */
+const MIN_COMPLETED_SECONDS = 300;
+
 export type NightFacts = {
   archiveDay: string;
   matchCount: number;
@@ -115,7 +125,26 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
       kills: matches.kills,
     })
     .from(matches)
-    .where(and(eq(matches.archiveDay, archiveDay), eq(matches.status, "final")))
+    /*
+     * Completed matches only, and `final` does not mean completed.
+     *
+     * The server labels an abandoned start `final` exactly like a game that ran
+     * its full ten minutes, so a match cancelled after thirty seconds reached a
+     * column and was written about as a real nil nil result. Duration is the
+     * only thing that separates them: every completed match on record ran 600
+     * seconds or more, and the cancelled one ran 30.
+     *
+     * Filtered at the source rather than described to the writer as suspect. A
+     * cancelled match is not a match that went badly, it is an event that did
+     * not happen, and there is nothing true to say about it.
+     */
+    .where(
+      and(
+        eq(matches.archiveDay, archiveDay),
+        eq(matches.status, "final"),
+        sql`extract(epoch from (${matches.endedAt} - ${matches.startedAt})) >= ${MIN_COMPLETED_SECONDS}`,
+      ),
+    )
     .orderBy(asc(matches.startedAt));
 
   if (rows.length === 0) return null;

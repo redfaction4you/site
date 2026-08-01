@@ -50,7 +50,25 @@ export type VettableMatch = {
     relayCaps: number;
   }[];
   captures: { team: string; playerName: string | null }[];
+  /** How long it actually ran. Null when the server sent no clock. */
+  durationSeconds: number | null;
 };
+
+/**
+ * Below this a match did not finish.
+ *
+ * Regulation here is ten minutes and the archive says so exactly: every
+ * completed match on record ran 600 seconds, with overtime running on to 640,
+ * 718, 763, 870. There is nothing in between. A match that ran 30 seconds was
+ * cancelled and restarted, and it arrives labelled `final` like every other, so
+ * status cannot be the test.
+ *
+ * Half of regulation rather than just under it, deliberately. A tighter bound
+ * would be a number fitted to the two values seen so far, and it would start
+ * failing the day somebody runs a five minute match on purpose. Everything this
+ * is meant to catch, an abandoned start, is far below it.
+ */
+const MIN_PLAUSIBLE_SECONDS = 300;
 
 /**
  * Below this an unrelayed capture time is not describing a flag run.
@@ -85,6 +103,28 @@ function vetMatch(match: VettableMatch): Anomaly[] {
    * home. They are recorded separately, so a disagreement means one of them is
    * wrong and anything written from either is suspect.
    */
+  /*
+   * A match that did not last is not a match.
+   *
+   * The server sends abandoned starts labelled `final`, identically to games
+   * that ran their full ten minutes, so nothing downstream could tell them
+   * apart. One arrived at 30 seconds, nil nil, and was written about as a real
+   * result. Detection existed for eight other kinds of wrong and not for the one
+   * a reader spotted first.
+   */
+  if (
+    match.durationSeconds !== null &&
+    match.durationSeconds < MIN_PLAUSIBLE_SECONDS
+  ) {
+    found.push({
+      check: "match-too-short",
+      severity: "error",
+      detail:
+        `${where}: ran ${match.durationSeconds}s, which is too short to have finished. ` +
+        `Regulation is ten minutes, so this was almost certainly cancelled and restarted.`,
+    });
+  }
+
   const scoreboardCaps = players.reduce((total, p) => total + p.caps, 0);
   if (scoreboardCaps !== match.captures.length) {
     found.push({

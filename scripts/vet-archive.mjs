@@ -40,7 +40,8 @@ let notes = 0;
 
 for (const { day } of days) {
   const matches = await sql`
-    select id, source_match_id, map_name, red_score, blue_score, winner
+    select id, source_match_id, map_name, red_score, blue_score, winner,
+           extract(epoch from (ended_at - started_at))::int as duration_seconds
     from matches where archive_day = ${day} and status = 'final'
     order by started_at`;
 
@@ -58,6 +59,7 @@ for (const { day } of days) {
     redScore: m.red_score,
     blueScore: m.blue_score,
     winner: m.winner,
+    durationSeconds: m.duration_seconds,
     players: players
       .filter((p) => p.match_id === m.id)
       .map((p) => ({

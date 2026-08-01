@@ -1629,6 +1629,9 @@ export const nightForVetting = cache(async function nightForVetting(
       redScore: matches.redScore,
       blueScore: matches.blueScore,
       winner: matches.winner,
+      // How long it ran, which is the only reliable way to tell a completed
+      // match from an abandoned one: both arrive labelled `final`.
+      durationSeconds: sql<number | null>`extract(epoch from (${matches.endedAt} - ${matches.startedAt}))::int`,
     })
     .from(matches)
     .where(and(eq(matches.archiveDay, archiveDay), eq(matches.status, "final")))
@@ -1671,6 +1674,7 @@ export const nightForVetting = cache(async function nightForVetting(
     redScore: row.redScore,
     blueScore: row.blueScore,
     winner: row.winner,
+    durationSeconds: row.durationSeconds,
     players: players.filter((p) => p.matchId === row.id),
     captures: captures.filter((c) => c.matchId === row.id),
   }));

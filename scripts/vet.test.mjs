@@ -206,3 +206,61 @@ test("the summary counts both kinds", () => {
 test("an empty night is clean rather than an error", () => {
   assert.deepEqual(vetNight("2026-07-29", []), []);
 });
+
+test("a match too short to have finished is an error", () => {
+  // The server labels an abandoned start `final` exactly like a completed game,
+  // so duration is the only thing that separates them. One arrived at 30
+  // seconds, nil nil, and was written about as a real result.
+  const [anomaly] = vetNight("2026-07-31", [
+    {
+      sourceMatchId: 20,
+      mapName: "Ankh b12",
+      redScore: 0,
+      blueScore: 0,
+      winner: null,
+      durationSeconds: 30,
+      players: [],
+      captures: [],
+    },
+  ]).filter((a) => a.check === "match-too-short");
+
+  assert.ok(anomaly, "a 30 second match was not flagged");
+  assert.equal(anomaly.severity, "error");
+});
+
+test("a full length match and an overtime one are both fine", () => {
+  for (const durationSeconds of [600, 870]) {
+    const flagged = vetNight("2026-07-31", [
+      {
+        sourceMatchId: 1,
+        mapName: "Huna b8",
+        redScore: 3,
+        blueScore: 2,
+        winner: "red",
+        durationSeconds,
+        players: [],
+        captures: [],
+      },
+    ]).filter((a) => a.check === "match-too-short");
+
+    assert.equal(flagged.length, 0, `${durationSeconds}s was wrongly flagged`);
+  }
+});
+
+test("a match with no clock is not accused of being short", () => {
+  // Null is missing, not zero. Guessing either way would invent a fact.
+  const flagged = vetNight("2026-07-31", [
+    {
+      sourceMatchId: 2,
+      mapName: "Ankh b12",
+      redScore: 1,
+      blueScore: 0,
+      winner: "red",
+      durationSeconds: null,
+      players: [],
+      captures: [],
+    },
+  ]).filter((a) => a.check === "match-too-short");
+
+  assert.equal(flagged.length, 0);
+});
