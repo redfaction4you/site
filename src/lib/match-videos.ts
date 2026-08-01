@@ -75,6 +75,12 @@ export const MATCH_VIDEOS: MatchVideo[] = [
     youtubeId: "f2ZZT_ZbHOY",
     covers: [{ archiveDay: "2026-07-29", sourceMatchId: 9 }],
   },
+  {
+    // Tesseract, the only match of the night that went to overtime and finished
+    // one nil. Identified from the archive rather than from the video.
+    youtubeId: "HHOoYaB12Rs",
+    covers: [{ archiveDay: "2026-07-31", sourceMatchId: 18 }],
+  },
 ];
 
 export function thumbnailUrl(youtubeId: string): string {
