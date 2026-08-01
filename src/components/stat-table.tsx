@@ -18,18 +18,29 @@ import {
  * twelve columns meant using a finger.
  *
  * What every serious stats page does instead is show the values and let you
- * sort. That is the whole design: a value you can read, a bar behind it for the
- * shape, and a column heading you can click.
+ * sort.
+ *
+ * A first attempt put a bar behind every figure, as a share of that column's
+ * leader. It was thrown out: twelve columns of independently scaled fills, each
+ * ending at a different point with no shared baseline, is a ragged field of grey
+ * blocks. It reads as noise, and worse, it reads as noise that means something.
+ * A bar earns its place in a top five list where five fills descend from one
+ * edge and the shape is the point. In a wide table of unrelated units it is
+ * decoration pretending to be data.
+ *
+ * So this is the table the reference sports sites use, and nothing else: aligned
+ * figures, a band per row so the eye can cross twelve columns without a finger,
+ * the sorted column tinted **as a column** so the sort reads as one vertical
+ * block rather than as scattered marks, and the leader of each column in bold.
+ * The chrome all runs with the grid rather than against it.
  *
  * **Sorting is a link, not client state.** Same rule the catalogue follows:
  * every sorted view is a real URL somebody can paste into Discord, it works
  * before any JavaScript loads, and it costs no bundle. The arrow marks the
  * column in force.
  *
- * **The bar is scaled to the leader of its own column**, so a row is read across
- * for shape and a column down for standing. Every column has a different unit,
- * which is exactly why nothing here is compared between columns and there is no
- * total: adding a frag count to a capture count is not a number.
+ * Nothing is compared between columns and there is no total, because adding a
+ * frag count to a capture count is not a number.
  *
  * **A figure below a board's qualification bar is still shown**, muted and
  * marked, rather than hidden. Accuracy over forty shots is a real thing that
@@ -105,13 +116,6 @@ export function StatTable({
     return direction === "desc" ? right - left : left - right;
   });
 
-  /** How full a cell's bar is, as a share of that column's leader. */
-  function share(board: Board, value: number, leader: number | null): number {
-    if (leader === null || leader <= 0 || value <= 0) return 0;
-    const raw = board.direction === "low" ? leader / value : value / leader;
-    return Math.max(0, Math.min(100, raw * 100));
-  }
-
   return (
     <div className="panel overflow-x-auto">
       <table className="w-full">
@@ -152,7 +156,12 @@ export function StatTable({
                         : "ascending"
                       : "none"
                   }
-                  className="whitespace-nowrap border-b border-basalt-700 px-2 py-1 text-right font-display text-[0.5625rem] uppercase tracking-wider"
+                  className={
+                    "whitespace-nowrap border-b border-basalt-700 px-2 py-1 text-right font-display text-[0.5625rem] uppercase tracking-wider " +
+                    // The band starts at the heading, so the sorted column is
+                    // one shape from top to bottom.
+                    (current ? "bg-rust-500/[0.07]" : "")
+                  }
                 >
                   <Link
                     href={`/stats?sort=${board.key}&dir=${next}`}
@@ -178,7 +187,16 @@ export function StatTable({
           {rows.map((player) => {
             const key = player.name.toLowerCase();
             return (
-              <tr key={player.name} className="border-b border-basalt-800">
+              <tr
+                key={player.name}
+                /*
+                  A band per row, which is the whole reason a wide table is
+                  readable. Twelve columns without one means tracking a player
+                  across the page with a finger, which is what the previous
+                  version made you do.
+                */
+                className="border-b border-basalt-800 odd:bg-steel-500/[0.04] hover:bg-rust-500/[0.07]"
+              >
                 <td className="whitespace-nowrap px-2 py-1">
                   <Link
                     href={`/players/${encodeURIComponent(player.name)}`}
@@ -194,58 +212,42 @@ export function StatTable({
                   const leader = column?.leader ?? null;
                   const qualifies = board.qualifies(player);
                   const leads = value !== null && qualifies && value === leader;
-
-                  if (value === null) {
-                    return (
-                      <td
-                        key={board.key}
-                        className="px-2 py-1 text-right font-mono text-[0.6875rem] tabular-nums text-steel-700"
-                        title={`Nothing recorded for ${board.label}`}
-                      >
-                        &ndash;
-                      </td>
-                    );
-                  }
+                  // The sorted column is tinted whole, so the sort reads as one
+                  // vertical block rather than as a mark on each row.
+                  const sorted = board.key === active.key;
 
                   return (
                     <td
                       key={board.key}
-                      className="relative overflow-hidden px-2 py-1 text-right font-mono text-[0.6875rem] tabular-nums"
-                      title={
-                        qualifies
-                          ? `${player.name}, ${board.label}: ${board.format(value, player)}`
-                          : `${player.name}, ${board.label}: ${board.format(value, player)}. Below the bar for this board, so it is not ranked. ${board.requirement ?? ""}`
-                      }
-                    >
-                      {/*
-                        The bar the boards use, at cell width. It is the reason
-                        this reads as a picture rather than as a spreadsheet:
-                        the eye gets the shape of a column without reading a
-                        single number.
-                      */}
-                      <span
-                        aria-hidden="true"
-                        className={
-                          "absolute inset-y-0 right-0 " +
-                          (leads ? "bg-rust-500/20" : "bg-steel-500/10")
-                        }
-                        style={{ width: `${share(board, value, leader)}%` }}
-                      />
-                      <span
-                        className={
-                          "relative " +
-                          (!qualifies
+                      className={
+                        "px-2 py-1 text-right font-mono text-[0.6875rem] tabular-nums " +
+                        (sorted ? "bg-rust-500/[0.07] " : "") +
+                        (value === null
+                          ? "text-steel-700"
+                          : !qualifies
                             ? "text-steel-600"
                             : leads
-                              ? "font-semibold text-rust-200"
+                              ? "font-semibold text-rust-300"
                               : "text-steel-200")
-                        }
-                      >
-                        {board.format(value, player)}
-                        {!qualifies ? (
-                          <span className="text-steel-700">*</span>
-                        ) : null}
-                      </span>
+                      }
+                      title={
+                        value === null
+                          ? `Nothing recorded for ${board.label}`
+                          : qualifies
+                            ? `${player.name}, ${board.label}: ${board.format(value, player)}${leads ? " — leads this board" : ""}`
+                            : `${player.name}, ${board.label}: ${board.format(value, player)}. Below the bar for this board, so it is not ranked. ${board.requirement ?? ""}`
+                      }
+                    >
+                      {value === null ? (
+                        <>&ndash;</>
+                      ) : (
+                        <>
+                          {board.format(value, player)}
+                          {!qualifies ? (
+                            <span className="text-steel-700">*</span>
+                          ) : null}
+                        </>
+                      )}
                     </td>
                   );
                 })}

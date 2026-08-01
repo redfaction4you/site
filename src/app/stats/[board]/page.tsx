@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import {
   BOARDS,
   BOARD_GROUP_LABEL,
-  barShare,
   boardByKey,
   contextFor,
   rank,
@@ -132,24 +131,14 @@ export default async function BoardPage({ params }: Props) {
                 >
                   <Link
                     href={`/players/${encodeURIComponent(entry.player.name)}`}
-                    className="group relative flex items-baseline gap-3 overflow-hidden px-3 py-2"
+                    className="group flex items-baseline gap-3 px-3 py-2 hover:bg-rust-500/[0.07]"
                   >
-                    {/* The same fill as the index, so a board looks like itself
-                        whichever page you meet it on. */}
-                    <span
-                      aria-hidden="true"
-                      className={
-                        "absolute inset-y-0 left-0 " +
-                        (entry.rank === 1 ? "bg-rust-500/15" : "bg-steel-500/10")
-                      }
-                      style={{ width: `${barShare(entry.value, entries, board)}%` }}
-                    />
-                    <span className="relative w-5 shrink-0 font-display text-xs tabular-nums text-steel-600">
+                    <span className="w-5 shrink-0 font-display text-xs tabular-nums text-steel-600">
                       {entry.rank}
                     </span>
                     <span
                       className={
-                        "relative min-w-0 flex-1 truncate text-sm group-hover:text-rust-300 " +
+                        "min-w-0 flex-1 truncate text-sm group-hover:text-rust-300 " +
                         (entry.rank === 1
                           ? "font-semibold text-steel-100"
                           : "text-steel-200")
@@ -157,10 +146,10 @@ export default async function BoardPage({ params }: Props) {
                     >
                       {entry.player.name}
                     </span>
-                    <span className="relative w-16 shrink-0 text-right font-mono text-xs tabular-nums text-steel-500">
+                    <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums text-steel-500">
                       {context.format(context.of(entry.player))}
                     </span>
-                    <span className="relative w-24 shrink-0 text-right font-mono text-sm tabular-nums text-steel-100">
+                    <span className="w-24 shrink-0 text-right font-mono text-sm tabular-nums text-steel-100">
                       {entry.display}
                     </span>
                   </Link>

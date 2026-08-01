@@ -6,7 +6,6 @@ import {
   BOARD_GROUPS,
   BOARD_GROUP_BLURB,
   BOARD_GROUP_LABEL,
-  barShare,
   rank,
 } from "@/lib/matches/leaderboards";
 import { ArchiveNav } from "@/components/archive-nav";
@@ -103,9 +102,9 @@ export default async function StatsPage({ searchParams }: Props) {
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
               Every figure the archive holds, for everybody. Click a column to
               sort by it, which is a link rather than a control, so the sorted
-              view is a real page you can send somebody. A bar behind a figure is
-              its share of that column&rsquo;s leader, and nothing is compared across
-              columns because a frag and a capture are not the same unit.
+              view is a real page you can send somebody. The column in force is
+              tinted and the leader of each is in bold. Nothing is compared
+              across columns, because a frag and a capture are not the same unit.
             </p>
 
             <div className="mt-3">
@@ -157,25 +156,8 @@ export default async function StatsPage({ searchParams }: Props) {
                           <li key={entry.player.name}>
                             <Link
                               href={`/players/${encodeURIComponent(entry.player.name)}`}
-                              className="group relative flex items-baseline gap-2.5 overflow-hidden px-1 py-1"
+                              className="group flex items-baseline gap-2.5 rounded-sm px-1 py-1 hover:bg-rust-500/[0.07]"
                             >
-                              {/*
-                                The gap, as a fill behind the row rather than a
-                                bar under it. A bar under each entry read the
-                                same and cost a second line every time, which
-                                turned twelve boards into three screens of
-                                scrolling.
-                              */}
-                              <span
-                                aria-hidden="true"
-                                className={
-                                  "absolute inset-y-0 left-0 " +
-                                  (entry.rank === 1
-                                    ? "bg-rust-500/15"
-                                    : "bg-steel-500/10")
-                                }
-                                style={{ width: `${barShare(entry.value, entries, board)}%` }}
-                              />
                               {/*
                                 A tie repeats the rank rather than inventing an
                                 order, which is what the comment here always
@@ -183,12 +165,12 @@ export default async function StatsPage({ searchParams }: Props) {
                                 blank, and a blank in a numbered column reads as
                                 a fault rather than as a tie.
                               */}
-                              <span className="relative w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-600">
+                              <span className="w-3 shrink-0 font-display text-[0.6875rem] tabular-nums text-steel-600">
                                 {entry.rank}
                               </span>
                               <span
                                 className={
-                                  "relative min-w-0 flex-1 truncate text-xs group-hover:text-rust-300 " +
+                                  "min-w-0 flex-1 truncate text-xs group-hover:text-rust-300 " +
                                   (entry.rank === 1
                                     ? "font-semibold text-steel-100"
                                     : "text-steel-200")
@@ -196,7 +178,7 @@ export default async function StatsPage({ searchParams }: Props) {
                               >
                                 {entry.player.name}
                               </span>
-                              <span className="relative shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                              <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
                                 {entry.display}
                               </span>
                             </Link>
