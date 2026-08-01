@@ -14,7 +14,14 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
-import { MATCH_COMPLETED, SOUND_SHOOTING, TOOK_PART } from "@/lib/matches/queries";
+import {
+  MATCH_COMPLETED,
+  SOUND_SHOOTING,
+  TOOK_PART,
+  canonicalNames,
+} from "@/lib/matches/queries";
+import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
+import { playerIdentities } from "@/lib/db/schema";
 import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
 import type { PickableMatch, Team } from "./match-pick";
@@ -143,15 +150,25 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
 
   if (rows.length === 0) return null;
 
-  // Totals for the night, per player, across every match they appeared in.
-  //
-  // The matches above were filtered and these totals were not, so the writer was
-  // handed a frag count for the night that the night's own page no longer
-  // agreed with. A column quoting a total nobody can find on the scoreboard
-  // beside it is worse than one that says less.
+  /*
+   * Totals for the night, per person, across every match they appeared in.
+   *
+   * Per person and not per name, which is what this counted before. One player
+   * on this server has appeared as Skuldug, s9!nX, s9 and Chill Hippo, and
+   * grouping on the name handed the writer two of them as two players: the
+   * column for 31 July says "s9!nX pushed past ED ASSMASTER" in one paragraph
+   * and "s9, built on two captures" in the next, about the same person. Every
+   * page had been grouping by identity for a week and the writing had not.
+   *
+   * The matches above were also filtered while these totals were not, so the
+   * writer was handed a frag count for the night that the night's own page no
+   * longer agreed with. A column quoting a total nobody can find on the
+   * scoreboard beside it is worse than one that says less.
+   */
   const totals = await db
     .select({
-      name: sql<string>`min(${matchPlayers.name})`,
+      key: IDENTITY_KEY,
+      name: DISPLAY_NAME,
       matches: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
       kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
@@ -168,9 +185,24 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    .groupBy(IDENTITY_KEY)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
+
+  /*
+   * Named the way every page names them, rather than by the name they used most
+   * that evening. The writer calling somebody s9!nX under a scoreboard that says
+   * Skuldug is the same split in a different place.
+   */
+  const named = await canonicalNames();
+  const people = totals.map(({ key, ...row }) => ({
+    ...row,
+    name: named.get(key) ?? row.name,
+  }));
 
   /*
    * Squad sizes and capture order per match, for the illustration.
@@ -183,7 +215,9 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     .select({
       matchId: matchPlayers.matchId,
       team: matchPlayers.team,
-      count: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+      // People rather than names here too, or a squad of three where one player
+      // changed name mid-evening is drawn as four figures.
+      count: sql<number>`count(distinct ${IDENTITY_KEY})::int`,
       names: sql<string[]>`array_agg(distinct ${matchPlayers.name} order by ${matchPlayers.name})`,
     })
     .from(matchPlayers)
@@ -300,7 +334,7 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
   lines.push("");
 
   lines.push("Player totals across the whole night:");
-  for (const p of totals) {
+  for (const p of people) {
     const accuracy = p.fired > 0 ? `${((p.hit / p.fired) * 100).toFixed(1)}%` : "n/a";
     lines.push(
       `  ${p.name}: played ${p.matches}, ${p.kills} frags, ${p.deaths} deaths, ` +
@@ -321,19 +355,19 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
    */
   const leaderOf = (
     label: string,
-    value: (row: (typeof totals)[number]) => number,
-    format: (row: (typeof totals)[number]) => string,
+    value: (row: (typeof people)[number]) => number,
+    format: (row: (typeof people)[number]) => string,
   ) => {
-    const best = totals.reduce((a, b) => (value(b) > value(a) ? b : a));
+    const best = people.reduce((a, b) => (value(b) > value(a) ? b : a));
     // A tie is not a lead. Saying one of two equal players "led" is false, and it
     // is the kind of false that reads as authoritative.
-    const tied = totals.filter((row) => value(row) === value(best));
+    const tied = people.filter((row) => value(row) === value(best));
     return tied.length > 1
       ? `  ${label}: tied between ${tied.map((row) => row.name).join(" and ")} on ${format(best)}`
       : `  ${label}: ${best.name} with ${format(best)}`;
   };
 
-  if (totals.length > 0) {
+  if (people.length > 0) {
     lines.push("");
     lines.push(
       "Who led what tonight. These are the only superlatives you may use. Do not",

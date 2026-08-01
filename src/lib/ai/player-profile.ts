@@ -15,7 +15,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matchPlayers, matches } from "@/lib/db/schema";
+import { matchPlayers, matches, playerIdentities } from "@/lib/db/schema";
 import {
   MIN_MATCHES_FOR_PAIR_RATE,
   buildPairings,
@@ -25,8 +25,10 @@ import {
   MATCH_COMPLETED,
   SOUND_SHOOTING,
   TOOK_PART,
+  canonicalNames,
   fetchAppearances,
 } from "@/lib/matches/queries";
+import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import { generate } from "./generate";
 
 const SYSTEM = `You write two paragraph player profiles for a Red Faction
@@ -99,8 +101,8 @@ export async function buildProfileFacts(
   // Everyone's totals, so this player can be placed against the field.
   const everyone = await db
     .select({
-      nameKey: sql<string>`lower(${matchPlayers.name})`,
-      name: sql<string>`min(${matchPlayers.name})`,
+      key: IDENTITY_KEY,
+      name: DISPLAY_NAME,
       matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
       kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
@@ -120,19 +122,40 @@ export async function buildProfileFacts(
     // are quoted back to the reader beside /players, which counts only the
     // matches that counted. Two pages describing the same player with different
     // numbers is the whole failure this rule exists to prevent.
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(and(TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`);
+    /*
+     * Per person, like every board this profile is ranked against. Grouped on
+     * the name, somebody who has played under three of them was three players
+     * holding a third of a record each: under the threshold for a profile, and
+     * ranked against a field that counted them three times.
+     */
+    .groupBy(IDENTITY_KEY);
 
-  const me = everyone.find((row) => row.nameKey === nameKey);
+  /*
+   * Found by the name the profile was asked for, whichever of their names that
+   * is, and then described by the name the site knows them by.
+   */
+  const named = await canonicalNames();
+  const people = everyone.map(({ key, ...row }) => ({
+    ...row,
+    nameKey: (named.get(key) ?? row.name).toLocaleLowerCase("en-US"),
+    name: named.get(key) ?? row.name,
+  }));
+
+  const me = people.find((row) => row.nameKey === nameKey);
   if (!me || me.matchesPlayed < MIN_MATCHES_FOR_PROFILE) return null;
 
-  const accuracy = (row: (typeof everyone)[number]) =>
+  const accuracy = (row: (typeof people)[number]) =>
     row.fired > 0 ? row.hit / row.fired : 0;
 
   const lines: string[] = [];
   lines.push(`Player: ${me.name}`);
   lines.push(`Matches played: ${me.matchesPlayed}`);
-  lines.push(`There are ${everyone.length} players on record in total.`);
+  lines.push(`There are ${people.length} players on record in total.`);
   lines.push("");
   lines.push("Their totals, and where that ranks across all players:");
 
@@ -141,24 +164,24 @@ export async function buildProfileFacts(
     lines.push(`  ${label}: ${mine}${suffix} (ranked ${r.rank} of ${r.of})`);
   };
 
-  place("Frags", everyone.map((r) => r.kills), me.kills);
-  place("Deaths", everyone.map((r) => r.deaths), me.deaths);
-  place("Captures", everyone.map((r) => r.caps), me.caps);
-  place("Flag returns", everyone.map((r) => r.flagReturns), me.flagReturns);
-  place("Best streak", everyone.map((r) => r.bestStreak), me.bestStreak);
+  place("Frags", people.map((r) => r.kills), me.kills);
+  place("Deaths", people.map((r) => r.deaths), me.deaths);
+  place("Captures", people.map((r) => r.caps), me.caps);
+  place("Flag returns", people.map((r) => r.flagReturns), me.flagReturns);
+  place("Best streak", people.map((r) => r.bestStreak), me.bestStreak);
   place(
     "Lead carries (carried the flag furthest on a run a teammate finished)",
-    everyone.map((r) => r.leadCarries),
+    people.map((r) => r.leadCarries),
     me.leadCarries,
   );
 
-  const accuracyRank = rankOf(everyone.map(accuracy), accuracy(me));
+  const accuracyRank = rankOf(people.map(accuracy), accuracy(me));
   lines.push(
     `  Accuracy: ${(accuracy(me) * 100).toFixed(1)}% (ranked ${accuracyRank.rank} of ${accuracyRank.of})`,
   );
 
   const ratio = me.deaths > 0 ? me.kills / me.deaths : me.kills;
-  const ratios = everyone.map((r) => (r.deaths > 0 ? r.kills / r.deaths : r.kills));
+  const ratios = people.map((r) => (r.deaths > 0 ? r.kills / r.deaths : r.kills));
   const ratioRank = rankOf(ratios, ratio);
   lines.push(
     `  Frags per death: ${ratio.toFixed(2)} (ranked ${ratioRank.rank} of ${ratioRank.of})`,

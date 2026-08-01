@@ -30,9 +30,10 @@
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matchPlayers, matches } from "@/lib/db/schema";
+import { matchPlayers, matches, playerIdentities } from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
 import { MIN_COMPLETED_SECONDS } from "@/lib/matches/completion";
+import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import {
   MATCH_COMPLETED,
   TOOK_PART,
@@ -252,11 +253,17 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   // Who played on the night this piece follows, so it can be about them rather
   // than about the archive in general.
   const tonight = await db
-    .select({ name: sql<string>`min(${matchPlayers.name})` })
+    .select({ key: IDENTITY_KEY, name: DISPLAY_NAME })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    // Per person. Grouping on the name listed somebody twice on the one night
+    // they changed it, and this list is what the piece is allowed to write about.
+    .groupBy(IDENTITY_KEY)
     .orderBy(desc(sql`sum(${matchPlayers.score})`));
 
   /*
@@ -314,12 +321,16 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   // How each player has been going lately, so form can be talked about at all.
   const form = await db
     .select({
-      name: sql<string>`min(${matchPlayers.name})`,
+      name: DISPLAY_NAME,
       played: sql<number>`count(*)::int`,
       won: sql<number>`count(*) filter (where ${matches.winner} = ${matchPlayers.team})::int`,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
     .where(
       and(
         eq(matches.status, "final"),
@@ -328,7 +339,9 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
         lte(matches.archiveDay, archiveDay),
       ),
     )
-    .groupBy(sql`lower(${matchPlayers.name})`)
+    // Per person, matching every board on the site. Grouping on the name gave
+    // the piece two form lines for one player who had changed it.
+    .groupBy(IDENTITY_KEY)
     .orderBy(desc(sql`count(*)`));
 
   const lines: string[] = [];

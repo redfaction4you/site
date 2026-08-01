@@ -724,9 +724,10 @@ export const getPlayerProfile = cache(async function getPlayerProfile(name: stri
  * request, where React's `cache` has no scope to work in.
  */
 export async function fetchAppearances(upToDay?: string): Promise<Appearance[]> {
-  return db
+  const rows = await db
     .select({
       matchId: matchPlayers.matchId,
+      key: IDENTITY_KEY,
       name: matchPlayers.name,
       team: matchPlayers.team,
       winner: matches.winner,
@@ -738,6 +739,19 @@ export async function fetchAppearances(upToDay?: string): Promise<Appearance[]> 
         ? and(TOOK_PART, MATCH_COMPLETED, lte(matches.archiveDay, upToDay))
         : and(TOOK_PART, MATCH_COMPLETED),
     );
+
+  /*
+   * Named per person before the pairing code sees them.
+   *
+   * `pairings.ts` is built on names and stays that way: it is pure, it is tested
+   * against plain strings, and a pairing is a fact about two people rather than
+   * two rows. What it needs is for one person to arrive under one name, which is
+   * not what the archive stores. Somebody who has played as Skuldug, s9!nX and
+   * s9 was three partners in that module, so "played together" counts were split
+   * three ways and neither half cleared the bar for a win rate.
+   */
+  const named = await canonicalNames();
+  return rows.map(({ key, ...row }) => ({ ...row, name: named.get(key) ?? row.name }));
 }
 
 /** Every partnership and rivalry on record. One query, computed in memory. */
@@ -849,6 +863,7 @@ export const getPlayerRecord = cache(async function getPlayerRecord(
   const roster = await db
     .select({
       matchId: matchPlayers.matchId,
+      key: IDENTITY_KEY,
       name: matchPlayers.name,
       team: matchPlayers.team,
     })
@@ -863,27 +878,44 @@ export const getPlayerRecord = cache(async function getPlayerRecord(
       ),
     );
 
-  const byMatch = new Map<string, { name: string; team: string }[]>();
+  /*
+   * Everybody named the way the site names them, and the player themselves
+   * recognised by identity rather than by spelling.
+   *
+   * The match list is identity aware, so a page reached as Skuldug includes the
+   * matches they played as s9!nX. The roster was excluding "the player" by
+   * comparing the requested name against each row's name, which does not match
+   * on those nights: they were listed as their own teammate, and the record read
+   * "alongside s9, Haze202, SiD" for a match s9 played in as the person whose
+   * page it is.
+   */
+  const named = await canonicalNames();
+  const nameOf = (entry: { key: string; name: string }) =>
+    named.get(entry.key) ?? entry.name;
+
+  const byMatch = new Map<string, { key: string; name: string; team: string }[]>();
   for (const entry of roster) {
     byMatch.set(entry.matchId, [...(byMatch.get(entry.matchId) ?? []), entry]);
   }
 
-  const key = name.toLowerCase();
+  // Every identity that has ever used this name, which is how `playedBy` picks
+  // the matches in the first place.
+  const mine = new Set(
+    roster
+      .filter((entry) => entry.name.toLowerCase() === name.toLowerCase())
+      .map((entry) => entry.key),
+  );
 
   return rows.map((row) => {
     const everyone = byMatch.get(row.matchId) ?? [];
     return {
       ...row,
       alongside: everyone
-        .filter(
-          (entry) => entry.team === row.team && entry.name.toLowerCase() !== key,
-        )
-        .map((entry) => entry.name),
+        .filter((entry) => entry.team === row.team && !mine.has(entry.key))
+        .map(nameOf),
       // Anybody on a different side, rather than "on the other of two". A match
       // with a stray third side would otherwise silently drop those players.
-      against: everyone
-        .filter((entry) => entry.team !== row.team)
-        .map((entry) => entry.name),
+      against: everyone.filter((entry) => entry.team !== row.team).map(nameOf),
     };
   });
 });

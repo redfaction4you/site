@@ -22,7 +22,12 @@ import {
   opinionPieces,
   playerProfiles,
 } from "@/lib/db/schema";
-import { MATCH_COMPLETED, TOOK_PART } from "@/lib/matches/queries";
+import {
+  MATCH_COMPLETED,
+  TOOK_PART,
+  canonicalNames,
+} from "@/lib/matches/queries";
+import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
@@ -384,9 +389,9 @@ const PROFILE_REWRITE_STEP = 12;
 export async function backfillProfiles(): Promise<number> {
   if (!configuredProvider()) return 0;
 
-  const current = await db
+  const counts = await db
     .select({
-      nameKey: sql<string>`lower(${matchPlayers.name})`,
+      key: IDENTITY_KEY,
       matchCount: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
     })
     .from(matchPlayers)
@@ -395,7 +400,25 @@ export async function backfillProfiles(): Promise<number> {
     // from, so a profile is neither held back nor rewritten by a match that did
     // not count towards the threshold it is being measured against.
     .where(and(TOOK_PART, MATCH_COMPLETED))
-    .groupBy(sql`lower(${matchPlayers.name})`);
+    /*
+     * Per person, which is what the threshold is about and what the profile is
+     * written from. Counted per name, somebody who has played ten matches under
+     * three names had three counts of eight, three and two, none of which
+     * reaches nine, so they never got a profile at all.
+     */
+    .groupBy(IDENTITY_KEY);
+
+  /*
+   * Keyed by the name the site knows each person by, lowercased, which is what
+   * `buildProfileFacts` looks a profile up with and what the player page asks
+   * for. The table's key is still a name; what changed is that it is now one
+   * name per person rather than one per spelling.
+   */
+  const named = await canonicalNames();
+  const current = counts.map(({ key, ...row }) => ({
+    ...row,
+    nameKey: (named.get(key) ?? "").toLocaleLowerCase("en-US"),
+  }));
 
   const existing = await db
     .select({
