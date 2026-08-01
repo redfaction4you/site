@@ -45,7 +45,12 @@ export type VettableMatch = {
     caps: number;
     shotsHit: number;
     shotsFired: number;
-    fastestCaptureMs: number | null;
+    /**
+     * The reconstructed drive, stand to capture, on runs carried alone. Not the
+     * server's `fastest_capture_ms`, which is a different measurement: see the
+     * check below and `drives.ts`.
+     */
+    fastestSoloCaptureMs: number | null;
     soloCaps: number;
     relayCaps: number;
   }[];
@@ -76,22 +81,18 @@ export type VettableMatch = {
 const MIN_PLAUSIBLE_SECONDS = 300;
 
 /**
- * Below this an unrelayed capture time is not describing a flag run.
+ * Below this a solo capture time is not describing a flag run.
  *
  * Five seconds, and the number is a claim about the game rather than a fit to
- * the data. An unrelayed capture means one player took the flag off the enemy
- * stand and carried it to their own, and there is no CTF map where that journey
- * takes less than a few seconds. Two seconds was the previous figure and it was
- * chosen badly: it let 2.2 seconds through, which is the value that was actually
- * on the site being wrong.
+ * the data. A solo drive means one player took the flag off the enemy stand and
+ * carried it to their own, and there is no CTF map where that journey takes less
+ * than a few seconds. Two seconds was the previous figure and it was chosen
+ * badly: it let 2.2 seconds through, which is the value that was actually on the
+ * site being wrong.
  *
  * The recorded distribution agrees without having been consulted first. Nothing
- * unrelayed falls between 2.2 and 11.1 seconds, so the floor sits in an empty
- * gap rather than cutting through real runs.
- *
- * Relays are exempt and always were. A relay hands the flag over beside the
- * stand, so the last carrier's fraction of a second is a true measurement of a
- * hand-off rather than a claim about a run.
+ * solo falls between 2.2 and 11.1 seconds, so the floor sits in an empty gap
+ * rather than cutting through real runs.
  */
 const IMPLAUSIBLE_SOLO_CAPTURE_MS = 5000;
 
@@ -175,15 +176,28 @@ function vetMatch(match: VettableMatch): Anomaly[] {
 
     /*
      * The 2.2 second capture, caught where it enters rather than where it is
-     * printed. Relayed captures are exempt and always were: the tiny number is
-     * real, it just measures a hand-off rather than a run.
+     * printed.
+     *
+     * Measured on the reconstructed drive rather than on the server's
+     * `fastest_capture_ms`, which reports the carrier's last leg. A flag dropped
+     * and recovered by the same player therefore arrives as a fraction of the
+     * run: Medeo took the blue flag at 00:37 in match 10, was killed at 01:00,
+     * took it off the ground at 01:02 and capped at 01:05. The server called
+     * that a 2.785 second capture, the drive was 27.8 seconds, and this check
+     * called the honest reconstruction an anomaly for a month.
+     *
+     * No relay exemption any more, and that is a widening rather than a
+     * loosening. It existed because the old field could not tell a hand-off from
+     * a run, so anybody who had ever relayed had to be skipped entirely; a
+     * genuinely impossible solo drive by a player who also relayed once went
+     * unchecked. A solo drive is unambiguous, so every one of them is checked.
      */
-    const ms = player.fastestCaptureMs ?? 0;
-    if (ms > 0 && ms < IMPLAUSIBLE_SOLO_CAPTURE_MS && player.relayCaps === 0) {
+    const ms = player.fastestSoloCaptureMs ?? 0;
+    if (ms > 0 && ms < IMPLAUSIBLE_SOLO_CAPTURE_MS) {
       found.push({
         check: "implausible-solo-capture",
         severity: "error",
-        detail: `${where}: ${player.name} is recorded with an unrelayed capture in ${(ms / 1000).toFixed(2)}s`,
+        detail: `${where}: ${player.name} is recorded carrying a flag from the enemy stand to a capture, alone, in ${(ms / 1000).toFixed(2)}s`,
       });
     }
 

@@ -219,6 +219,15 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   the newest valid one, and never lets a newer invalid one displace an older
   valid one. Weapon stats obey the same rule. **Do not put `shotsHit` or
   `shotsFired` back into `MAX_FIELDS`.**
+- **`fastest_capture_ms` is not the length of a run and nothing reads it.** The
+  server times the carrier's last leg, so a flag dropped and recovered by the
+  same player reports the recovery: Medeo carried the blue flag for 27.8 seconds
+  in match 10 across a death and a pickup off the ground, and the field says
+  2.785. `drives.ts` reconstructs the flag's own journey instead, and
+  `fastest_solo_capture_ms` is what every read path uses — the boards, the
+  ticker, the match page and the vet. The raw field is still stored and still
+  exported in the day document, because that is what the server sent, and it is
+  the only place it appears.
 - **A row can still arrive bad with nothing better to choose**, so the read
   guard stays as well. **`src/lib/matches/accuracy.ts` is the single rule.** `accuracyOf` returns
   null where the record contradicts itself, every read path uses it, and the

@@ -48,7 +48,7 @@ for (const { day } of days) {
   const ids = matches.map((m) => m.id);
   const players = await sql`
     select match_id, name, team, spectator, kills, deaths, caps,
-           shots_hit, shots_fired, fastest_capture_ms, solo_caps, relay_caps
+           shots_hit, shots_fired, fastest_solo_capture_ms, solo_caps, relay_caps
     from match_players where match_id = any(${ids})`;
   const captures = await sql`
     select match_id, team, player_name from match_captures where match_id = any(${ids})`;
@@ -71,7 +71,7 @@ for (const { day } of days) {
         caps: p.caps,
         shotsHit: p.shots_hit,
         shotsFired: p.shots_fired,
-        fastestCaptureMs: p.fastest_capture_ms,
+        fastestSoloCaptureMs: p.fastest_solo_capture_ms,
         soloCaps: p.solo_caps,
         relayCaps: p.relay_caps,
       })),

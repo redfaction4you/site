@@ -360,7 +360,18 @@ export const getMatch = cache(async function getMatch(
       flagReturns: matchPlayers.flagReturns,
       flagCarrierKills: matchPlayers.flagCarrierKills,
       captureAssists: matchPlayers.captureAssists,
-      fastestCaptureMs: matchPlayers.fastestCaptureMs,
+      /*
+       * The reconstructed drive, not the server's own figure, exactly as the
+       * boards in `playerTotalColumns` already do it.
+       *
+       * `fastest_capture_ms` times the carrier's last leg, so a flag dropped and
+       * recovered by the same player reports the recovery rather than the run.
+       * Medeo took the blue flag at 00:37 in match 10, was killed at 01:00, took
+       * it off the ground at 01:02 and capped at 01:05: a 27.8 second solo drive,
+       * printed on this page as a 2.8 second capture. The boards were moved off
+       * that field when it was found and this column was left on it.
+       */
+      fastestCaptureMs: matchPlayers.fastestSoloCaptureMs,
       soloCaps: matchPlayers.soloCaps,
       relayCaps: matchPlayers.relayCaps,
       leadCarries: matchPlayers.leadCarries,
@@ -1824,7 +1835,9 @@ export const nightForVetting = cache(async function nightForVetting(
       caps: matchPlayers.caps,
       shotsHit: matchPlayers.shotsHit,
       shotsFired: matchPlayers.shotsFired,
-      fastestCaptureMs: matchPlayers.fastestCaptureMs,
+      // The reconstruction, which is what a capture time claim is checked
+      // against. `scripts/vet-archive.mjs` selects the same columns by hand.
+      fastestSoloCaptureMs: matchPlayers.fastestSoloCaptureMs,
       soloCaps: matchPlayers.soloCaps,
       relayCaps: matchPlayers.relayCaps,
     })

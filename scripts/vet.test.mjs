@@ -23,7 +23,7 @@ function player(overrides = {}) {
     caps: 1,
     shotsHit: 100,
     shotsFired: 700,
-    fastestCaptureMs: 12000,
+    fastestSoloCaptureMs: 12000,
     soloCaps: 1,
     relayCaps: 0,
     ...overrides,
@@ -57,7 +57,7 @@ test("catches the 2.2 second capture", () => {
   // seconds apart.
   const found = vetNight("2026-07-29", [
     match({
-      players: [player({ fastestCaptureMs: 2203, relayCaps: 0 })],
+      players: [player({ fastestSoloCaptureMs: 2203 })],
       captures: [{ team: "red", playerName: "Romek" }],
     }),
   ]);
@@ -65,17 +65,63 @@ test("catches the 2.2 second capture", () => {
   assert.ok(checks(found).includes("implausible-solo-capture"));
 });
 
-test("does not flag a fast relay, which is real", () => {
-  // A relay hands the flag over beside the stand, so 184ms is a genuine
-  // measurement of a hand-off rather than a claim about a run.
+test("a relay carries no solo drive time, so nothing is claimed about it", () => {
+  // A relay hands the flag over beside the stand, and the last carrier's
+  // fraction of a second is a true measurement of a hand-off rather than a claim
+  // about a run. The reconstruction records no solo drive at all for it, which
+  // is why this check no longer needs to exempt relayers by name.
   const found = vetNight("2026-07-29", [
     match({
-      players: [player({ fastestCaptureMs: 184, soloCaps: 0, relayCaps: 1 })],
+      players: [
+        player({ fastestSoloCaptureMs: null, soloCaps: 0, relayCaps: 1 }),
+      ],
       captures: [{ team: "red", playerName: "Romek" }],
     }),
   ]);
 
   assert.ok(!checks(found).includes("implausible-solo-capture"));
+});
+
+test("a fast solo drive by somebody who also relayed is still checked", () => {
+  /*
+   * The old rule read the server's `fastest_capture_ms` and could not tell a
+   * hand-off from a run, so it skipped anybody who had ever relayed. That let an
+   * impossible solo drive through whenever the same player had also finished
+   * somebody else's. The reconstruction is unambiguous, so the exemption is
+   * gone and this case is now caught.
+   */
+  const found = vetNight("2026-07-29", [
+    match({
+      players: [
+        player({ caps: 2, soloCaps: 1, relayCaps: 1, fastestSoloCaptureMs: 900 }),
+      ],
+      captures: [
+        { team: "red", playerName: "Romek" },
+        { team: "red", playerName: "Romek" },
+      ],
+      redScore: 2,
+    }),
+  ]);
+
+  assert.ok(checks(found).includes("implausible-solo-capture"));
+});
+
+test("the recovered flag that was called an anomaly for a month", () => {
+  /*
+   * Match 10, exactly as recorded. Medeo took the blue flag at 00:37, was killed
+   * at 01:00, took it off the ground at 01:02 and capped at 01:05. The server
+   * reported 2.785 seconds, being the last leg, and the archive reconstructed
+   * the drive at 27.8 seconds. Reading the server's figure, this check called a
+   * correct record wrong every time it ran.
+   */
+  const found = vetNight("2026-07-30", [
+    match({
+      players: [player({ fastestSoloCaptureMs: 27842 })],
+      captures: [{ team: "red", playerName: "Romek" }],
+    }),
+  ]);
+
+  assert.deepEqual(checks(found), []);
 });
 
 test("notices when a side was reshuffled between matches", () => {
