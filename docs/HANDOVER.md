@@ -167,6 +167,58 @@ Cloudflare). See `CLAUDE.md` for the redeploy gotcha.
 
 ---
 
+## The interface pass, 31 July 2026
+
+The archive pages were rebuilt around what the data is rather than what fitted
+in a box. Four decisions in it are load bearing.
+
+**One row shape for a match, in `src/components/match-rows.tsx`.** There were
+two renderings of the same five fields and they drifted: the news page had
+labelled its columns after somebody could not tell a kick-off time from a score,
+and the archive page, which is where people arrive, never got the fix. The score
+column's heading is its own legend, `Red / Blue` in their colours, because red
+and blue are shirt colours here and an unlabelled pair cannot be decoded.
+
+**The match tiles were not spread out on purpose.** The tile grid was a grid
+child of the taller summary column beside it, so its rows stretched to fill it:
+sixty pixels of nothing between each, which read as a design decision and was a
+default. A night went from about 700px to 263px on the same type sizes. Nothing
+was made smaller.
+
+**Stat boards have their own pages** at `/stats/[board]`, which `boardByKey` had
+been exported for since the boards were written. Five places of nine players told
+four people nothing and gave them nowhere to go. Each board page also names who
+its qualification bar excludes and how close they are, because a rule that
+silently removes somebody is a quieter version of a wrong number.
+
+**Player pages carry a record, not a history**, in the shape a fight record uses:
+result, running record after that match, score from their side, who it was with,
+who it was against, and how many a side. On a server that reshuffles sides every
+match, a scoreline is not a fact about anybody until you know who was on the
+other end of it. `/matches/map/[slug]` is new and is what the map column links
+to; it deliberately does not live at `/maps/[slug]`, which belongs to the
+catalogue, because "give me the file" and "how does it play" are different
+errands.
+
+**Profiles now need nine matches and rewrite every twelve**, up from three and
+three. Three matches is one evening, so a profile described how somebody happened
+to play on a Tuesday and then sat on their page as though it described them. The
+rewrite step matters more for quota than the threshold: at three, a six player
+night meant a rewrite for nearly everybody every couple of weeks, drawing on the
+same allowance the match reports need. Two players sit below nine today and their
+stored profiles are hidden until they get there, not deleted.
+
+**`src/lib/ai/lore.ts` is the one thing on the site not derived from the record.**
+Hand written background: that the strongest players are deliberately split across
+sides, and short notes on who is a capper and who is a defender. It exists
+because Stanley Mesh kept reading the pairing record as a series of oversights
+and needling people about why the two best players are never together, when they
+are split on purpose. Reading that off the data alone, the wrong answer is the
+obvious one. **None of it is checkable against the archive**, which is why it is
+confined to the one part of the site labelled as opinion, why it is short enough
+for a person to read in full and correct, and why the prompt tells him it is
+context and never evidence. Do not feed it to anything that reports.
+
 ## Outstanding
 
 **Map overviews.** Five maps have them. The user has more coming and said they

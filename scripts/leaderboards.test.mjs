@@ -14,8 +14,11 @@ import assert from "node:assert/strict";
 
 import {
   BOARDS,
+  MIN_BAR_SHARE,
+  barShare,
   boardByKey,
   clock,
+  contextFor,
   rank,
 } from "../src/lib/matches/leaderboards.ts";
 
@@ -139,6 +142,87 @@ test("an empty field produces an empty board rather than throwing", () => {
   for (const b of BOARDS) {
     assert.deepEqual(rank([], b), []);
   }
+});
+
+/* --- bars ---------------------------------------------------------------- */
+
+test("the leader's bar is full and the rest are a share of it", () => {
+  const entries = rank(
+    [
+      player({ name: "top", kills: 100 }),
+      player({ name: "half", kills: 50 }),
+    ],
+    board("frags"),
+  );
+
+  assert.equal(barShare(entries[0].value, entries, board("frags")), 100);
+  assert.equal(barShare(entries[1].value, entries, board("frags")), 50);
+});
+
+test("a low board's bar runs the other way, so the fastest is the longest", () => {
+  const quick = board("fastest-cap");
+  const entries = rank(
+    [
+      player({ name: "slow", fastestCaptureMs: 40_000 }),
+      player({ name: "quick", fastestCaptureMs: 10_000 }),
+    ],
+    quick,
+  );
+
+  assert.equal(entries[0].player.name, "quick");
+  assert.equal(barShare(entries[0].value, entries, quick), 100);
+  assert.equal(barShare(entries[1].value, entries, quick), 25);
+});
+
+test("a board where everybody is level fills every bar rather than emptying them", () => {
+  // The direction used to be inferred by asking whether the first entry held the
+  // smallest value, which is true of a low board and equally true of a board
+  // where nobody is ahead. That read a flat frags board as an inverted one.
+  const frags = board("frags");
+  const entries = rank(
+    [player({ name: "a", kills: 40 }), player({ name: "b", kills: 40 })],
+    frags,
+  );
+
+  assert.equal(barShare(entries[0].value, entries, frags), 100);
+  assert.equal(barShare(entries[1].value, entries, frags), 100);
+});
+
+test("a bar is never invisible and never overflows", () => {
+  const frags = board("frags");
+  const entries = rank(
+    [player({ name: "top", kills: 900 }), player({ name: "none", kills: 0 })],
+    frags,
+  );
+
+  assert.equal(barShare(entries[1].value, entries, frags), MIN_BAR_SHARE);
+  assert.ok(barShare(entries[0].value, entries, frags) <= 100);
+});
+
+test("an empty board asks for no bar rather than dividing by nothing", () => {
+  for (const b of BOARDS) {
+    assert.equal(barShare(1, [], b), 0);
+  }
+});
+
+/* --- the sample behind a figure ------------------------------------------ */
+
+test("every board can say what its figure was measured over", () => {
+  for (const b of BOARDS) {
+    const context = contextFor(b);
+    const value = context.of(player());
+    assert.equal(typeof value, "number", `${b.key} has no numeric sample`);
+    assert.ok(context.format(value).length > 0, `${b.key} formats its sample to nothing`);
+    assert.ok(context.label.length > 0);
+  }
+});
+
+test("accuracy is sampled in shots, because shots are what its bar counts", () => {
+  // The board page sorts the people it excludes by this, closest to qualifying
+  // first, which only works while it is the same quantity the bar is set in.
+  const context = contextFor(board("accuracy"));
+  assert.equal(context.of(player({ shotsFired: 2000 })), 2000);
+  assert.equal(context.format(2000), "2,000");
 });
 
 /* --- formatting ---------------------------------------------------------- */

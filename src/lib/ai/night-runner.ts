@@ -294,8 +294,15 @@ const MAX_PROFILES_PER_RUN = 2;
  * key, so those rewrites were spending the same budget the match reports need,
  * and the reports are the thing readers actually notice missing. A profile after
  * seven matches and the same profile after eight is not new information.
+ *
+ * Twelve rather than three, decided 31 July 2026. Three was still a rewrite
+ * roughly every other week per player, and the same argument applies further up
+ * the scale: a profile at twelve matches and the same profile at fifteen say the
+ * same thing in different words, and each one costs a request from the allowance
+ * the match reports draw on. Twelve is about a month of play here, which is
+ * roughly how often somebody's game actually changes.
  */
-const PROFILE_REWRITE_STEP = 3;
+const PROFILE_REWRITE_STEP = 12;
 
 export async function backfillProfiles(): Promise<number> {
   if (!configuredProvider()) return 0;

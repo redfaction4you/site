@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { dayLabel, matchTime } from "@/components/match-archive";
+import { dayLabel } from "@/components/match-archive";
 import { FormRun } from "@/components/form-run";
+import { PlayerRecord } from "@/components/player-record";
 import { MIN_MATCHES_FOR_PROFILE } from "@/lib/ai/player-profile";
 import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
 import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
 import {
   getPlayer,
-  getPlayerMatches,
   getPlayerPairings,
   getPlayerProfile,
+  getPlayerRecord,
   listPlayers,
 } from "@/lib/matches/queries";
 
@@ -154,7 +155,7 @@ export default async function PlayerPage({ params }: Props) {
 
   const [player, history, profile, everyone, pairings] = await Promise.all([
     getPlayer(decoded),
-    getPlayerMatches(decoded),
+    getPlayerRecord(decoded),
     getPlayerProfile(decoded),
     listPlayers(),
     getPlayerPairings(decoded),
@@ -502,115 +503,31 @@ export default async function PlayerPage({ params }: Props) {
       ) : null}
 
       <section className="mt-12">
-        <h2 className="font-display text-lg font-bold text-steel-100">Match history</h2>
-        <div className="panel mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                {[
-                  "Date",
-                  "Map",
-                  "Team",
-                  "Result",
-                  "Score",
-                  "Frags",
-                  "Deaths",
-                  "Caps",
-                  "Acc",
-                ].map(
-                  (h, i) => (
-                    <th
-                      key={h}
-                      className={
-                        "px-3 py-2 font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 " +
-                        (i < 2 ? "text-left" : "text-right")
-                      }
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((row) => (
-                <tr
-                  key={`${row.archiveDay}-${row.sourceMatchId}-${row.team}`}
-                  className="border-t border-basalt-700"
-                >
-                  <td className="whitespace-nowrap px-3 py-2 text-steel-400">
-                    <Link
-                      href={`/matches/${row.archiveDay}/${row.sourceMatchId}`}
-                      className="hover:text-rust-300"
-                    >
-                      {row.archiveDay}
-                    </Link>
-                    <span className="ml-2 text-xs text-steel-600">
-                      {matchTime(row.startedAt)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/matches/${row.archiveDay}/${row.sourceMatchId}`}
-                      className="text-steel-200 hover:text-rust-300"
-                    >
-                      {row.mapName}
-                    </Link>
-                  </td>
-                  <td
-                    className={
-                      "px-3 py-2 text-right font-display text-xs uppercase tracking-wider " +
-                      (row.team === "red"
-                        ? "text-rust-400"
-                        : row.team === "blue"
-                          ? "text-oxide-400"
-                          : "text-steel-500")
-                    }
-                  >
-                    {row.team}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {row.won === null ? (
-                      <span className="text-steel-500">-</span>
-                    ) : row.won ? (
-                      <span className="text-signal-green">won</span>
-                    ) : (
-                      <span className="text-steel-500">lost</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
-                    {row.redScore}–{row.blueScore}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-200">
-                    {row.kills}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
-                    {row.deaths}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
-                    {row.caps}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
-                    {(() => {
-                      const value = accuracyOf(row.shotsHit, row.shotsFired);
-                      return value === null ? (
-                        <span
-                          title={
-                            row.shotsFired > 0 ? UNSOUND_SHOOTING_NOTE : undefined
-                          }
-                        >
-                          -
-                        </span>
-                      ) : (
-                        percent(value)
-                      );
-                    })()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="font-display text-lg font-bold text-steel-100">
+            Match record
+          </h2>
+          <p className="font-mono text-xs text-steel-500">
+            {wins} won · {losses} lost
+            {history.length - wins - losses > 0
+              ? ` · ${history.length - wins - losses} with no result`
+              : ""}
+          </p>
         </div>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
+          Every match, newest first. The record column is what it stood at after
+          that match. Sides are reshuffled between matches, so who it was with and
+          who it was against is counted per match and is the part that makes a
+          scoreline mean something.
+        </p>
+
+        <PlayerRecord history={history} />
+
+        <p className="mt-3 text-xs leading-relaxed text-steel-600">
+          A score reads their side first. <span className="text-oxide-400">ot</span>{" "}
+          marks a match that went to overtime, and n/r a match the server recorded
+          no winner for, which moves neither column of the record.
+        </p>
       </section>
 
       <p className="mt-8 text-xs leading-relaxed text-steel-500">

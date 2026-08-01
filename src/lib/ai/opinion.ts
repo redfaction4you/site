@@ -34,6 +34,7 @@ import { matchPlayers, matches } from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
 import { TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
+import { loreFor } from "./lore";
 import { verifyDraft, verifyNote } from "./verify";
 import { generate } from "./generate";
 
@@ -160,7 +161,15 @@ Hard rules:
   not teams and must never be written about as though they were.
 - Never invent history, rivalries, past seasons, records or motives. Two players
   being often on the same side is attendance, not a friendship or a partnership
-  they chose.
+  they chose. The one exception is the BACKGROUND block, which is history the
+  people here have told you; you may use what it says and nothing beyond it.
+- The BACKGROUND block is context and never evidence. It explains what you are
+  looking at. It cannot support a claim about the record, and a role described
+  there is what somebody is known for rather than something the data shows.
+- Sides are picked to be even. Do not treat a pairing that has never happened as
+  an oversight or a failure of imagination when the background says the strongest
+  players are split on purpose. Wanting to see it anyway is fair, and is a
+  different sentence from wondering why nobody has thought of it.
 - Never guess a player's gender. Use they and them for everyone, without
   exception, however the name reads to you. Never write he, she, his or her.
 - Refer to players exactly by the names given, including odd capitalisation.
@@ -309,6 +318,21 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   );
   lines.push(`On tonight: ${tonight.map((row) => row.name).join(", ")}.`);
   lines.push("");
+
+  /*
+   * The background, before the numbers rather than after them.
+   *
+   * It is what the numbers have to be read through: the pairing record is
+   * mostly a record of deliberate balancing, and a column that does not know
+   * that reads it as a series of accidents. Handed over first for the same
+   * reason the superlatives are precomputed, which is that a model given the
+   * rows and left to infer the reason infers the obvious one.
+   */
+  const lore = loreFor(form.map((row) => row.name));
+  if (lore) {
+    lines.push(lore);
+    lines.push("");
+  }
 
   lines.push("How each player has gone across the season:");
   for (const row of form) {

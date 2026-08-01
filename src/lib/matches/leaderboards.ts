@@ -81,7 +81,43 @@ export type Board = {
    */
   qualifies: (player: RankablePlayer) => boolean;
   requirement: string | null;
+  /**
+   * The sample the ranked figure came out of, shown on the board's own page.
+   *
+   * A rate with no sample beside it is the same trap qualification exists to
+   * close, one step further along: 20.1% reads as a fact until you know whether
+   * it came from four hundred shots or four thousand. It also makes the bar
+   * legible, since the people held back by it are held back by exactly this
+   * number, and the board can then say who they are and how close they are.
+   *
+   * Matches played is the right answer for most boards and is the default, so
+   * this is only set where something else is.
+   */
+  context?: BoardContext;
 };
+
+/**
+ * A second figure per player, sized so the board can sort by it as well as
+ * print it. Sorting is the reason this is a number and a formatter rather than
+ * a string: "who is closest to qualifying" is the useful order for the people a
+ * board leaves out, and it cannot be recovered from "1,240".
+ */
+export type BoardContext = {
+  label: string;
+  of: (player: RankablePlayer) => number;
+  format: (value: number) => string;
+};
+
+/** What every board's sample is, unless it says otherwise. */
+export const MATCHES_CONTEXT: BoardContext = {
+  label: "Matches",
+  of: (player) => player.matchesPlayed,
+  format: (value) => `${value}`,
+};
+
+export function contextFor(board: Board): BoardContext {
+  return board.context ?? MATCHES_CONTEXT;
+}
 
 /** Minutes and seconds, for durations that run to minutes. */
 export function clock(ms: number): string {
@@ -151,6 +187,13 @@ export const BOARDS: Board[] = [
     direction: "high",
     qualifies: (p) => p.shotsFired >= MIN_SHOTS_FOR_ACCURACY,
     requirement: `At least ${MIN_SHOTS_FOR_ACCURACY} shots fired, so a lucky handful cannot top the table.`,
+    // The only board whose bar is measured in something other than matches, so
+    // the only one that has to say what it is measured in.
+    context: {
+      label: "Shots",
+      of: (p) => p.shotsFired,
+      format: (v) => Math.round(v).toLocaleString("en-GB"),
+    },
   },
   {
     key: "flag-hold",
@@ -310,4 +353,42 @@ export function rank(players: RankablePlayer[], board: Board): RankedEntry[] {
 /** Looks a board up by its key, for the per-board pages. */
 export function boardByKey(key: string): Board | null {
   return BOARDS.find((board) => board.key === key) ?? null;
+}
+
+/**
+ * The shortest a bar is allowed to be, as a percentage.
+ *
+ * A bar of nothing reads as a rendering fault rather than as a small number.
+ */
+export const MIN_BAR_SHARE = 4;
+
+/**
+ * How long an entry's bar should be, as a share of the leader's.
+ *
+ * Measured against the top of the board rather than against zero, because every
+ * board here has a different unit and the question a reader actually has is the
+ * same on all of them: how far off the top is this.
+ *
+ * The direction comes from the board rather than from the numbers. It used to be
+ * inferred, by checking whether the first entry held the smallest value, which is
+ * true of a low board and also true of a board where everybody is level. The
+ * board already knows which way round it runs, so it should be the one asked.
+ */
+export function barShare(
+  value: number,
+  entries: RankedEntry[],
+  board: Board,
+): number {
+  const leader = entries[0]?.value;
+  if (leader === undefined || !Number.isFinite(leader) || !Number.isFinite(value)) {
+    return 0;
+  }
+  if (leader <= 0) return 0;
+
+  // On a low board the leader holds the smallest value, so the ratio inverts.
+  // A shorter bar for the faster capture would say the opposite of what happened.
+  const raw =
+    board.direction === "low" ? (value > 0 ? leader / value : 0) : value / leader;
+
+  return Math.max(MIN_BAR_SHARE, Math.min(100, raw * 100));
 }

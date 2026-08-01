@@ -621,6 +621,8 @@ export const getPlayerPairings = cache(async function getPlayerPairings(
 });
 
 export type PlayerMatchRow = {
+  /** The archive's own id, for joining the rest of the match's roster on. */
+  matchId: string;
   archiveDay: string;
   sourceMatchId: number;
   mapName: string;
@@ -628,6 +630,7 @@ export type PlayerMatchRow = {
   startedAt: Date | null;
   team: string;
   won: boolean | null;
+  overtime: boolean;
   redScore: number;
   blueScore: number;
   score: number;
@@ -649,6 +652,7 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
 ): Promise<PlayerMatchRow[]> {
   const rows = await db
     .select({
+      matchId: matches.id,
       archiveDay: matches.archiveDay,
       sourceMatchId: matches.sourceMatchId,
       mapName: matches.mapName,
@@ -656,6 +660,7 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
       startedAt: matches.startedAt,
       team: matchPlayers.team,
       winner: matches.winner,
+      overtime: matches.overtime,
       redScore: matches.redScore,
       blueScore: matches.blueScore,
       score: matchPlayers.score,
@@ -676,6 +681,222 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
     // is not a loss.
     won: winner ? winner === row.team : null,
   }));
+});
+
+export type PlayerRecordRow = PlayerMatchRow & {
+  /** Everybody else on their side that match. */
+  alongside: string[];
+  /** Everybody on the other side. */
+  against: string[];
+};
+
+/**
+ * One player's matches with the room they were played in.
+ *
+ * The match history table could say what somebody scored and not who they were
+ * scoring it against, which on a server where sides are reshuffled every match
+ * is most of the story: two frags against the two best players in the archive
+ * and two against nobody in particular are the same row otherwise.
+ *
+ * A second query rather than a join, because a join would return one row per
+ * player per match and the caller wants one row per match. Two round trips for
+ * a player's whole career is cheap; the archive is hundreds of rows, not
+ * millions.
+ *
+ * Named columns, as everywhere: `identity_key` is stored and never served, and
+ * a select of everything is how it would leak.
+ */
+export const getPlayerRecord = cache(async function getPlayerRecord(
+  name: string,
+): Promise<PlayerRecordRow[]> {
+  const rows = await getPlayerMatches(name);
+  if (rows.length === 0) return [];
+
+  const roster = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      name: matchPlayers.name,
+      team: matchPlayers.team,
+    })
+    .from(matchPlayers)
+    .where(
+      and(
+        inArray(
+          matchPlayers.matchId,
+          rows.map((row) => row.matchId),
+        ),
+        TOOK_PART,
+      ),
+    );
+
+  const byMatch = new Map<string, { name: string; team: string }[]>();
+  for (const entry of roster) {
+    byMatch.set(entry.matchId, [...(byMatch.get(entry.matchId) ?? []), entry]);
+  }
+
+  const key = name.toLowerCase();
+
+  return rows.map((row) => {
+    const everyone = byMatch.get(row.matchId) ?? [];
+    return {
+      ...row,
+      alongside: everyone
+        .filter(
+          (entry) => entry.team === row.team && entry.name.toLowerCase() !== key,
+        )
+        .map((entry) => entry.name),
+      // Anybody on a different side, rather than "on the other of two". A match
+      // with a stray third side would otherwise silently drop those players.
+      against: everyone
+        .filter((entry) => entry.team !== row.team)
+        .map((entry) => entry.name),
+    };
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   Maps.
+
+   A match already knows which level it was played on, and that was a string on
+   a row and nothing else: no way to ask what a map plays like, whether it is
+   the one that always goes to overtime, or who is good on it. These are the
+   same aggregates the player and night pages use, grouped the other way.
+   --------------------------------------------------------------------------- */
+
+/** Every map with a match on record, most played first. */
+export const listMapNames = cache(async function listMapNames(): Promise<
+  { mapName: string; matchCount: number }[]
+> {
+  return db
+    .select({
+      mapName: matches.mapName,
+      matchCount: sql<number>`count(*)::int`,
+    })
+    .from(matches)
+    .groupBy(matches.mapName)
+    .orderBy(sql`count(*) desc`, asc(matches.mapName));
+});
+
+export type MapMatchRow = {
+  matchId: string;
+  archiveDay: string;
+  sourceMatchId: number;
+  startedAt: Date | null;
+  redScore: number;
+  blueScore: number;
+  winner: string | null;
+  overtime: boolean;
+  status: string;
+  playerCount: number;
+};
+
+export type MapRecord = {
+  matches: MapMatchRow[];
+  totals: {
+    matches: number;
+    redWins: number;
+    blueWins: number;
+    undecided: number;
+    overtime: number;
+    captures: number;
+  };
+  players: {
+    name: string;
+    matchesPlayed: number;
+    score: number;
+    kills: number;
+    deaths: number;
+    caps: number;
+  }[];
+};
+
+/** Everything the archive knows about one map. */
+export const getMapRecord = cache(async function getMapRecord(
+  mapName: string,
+): Promise<MapRecord> {
+  const rows = await db
+    .select({
+      matchId: matches.id,
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      startedAt: matches.startedAt,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      winner: matches.winner,
+      overtime: matches.overtime,
+      status: matches.status,
+    })
+    .from(matches)
+    .where(eq(matches.mapName, mapName))
+    .orderBy(desc(matches.startedAt));
+
+  if (rows.length === 0) {
+    return {
+      matches: [],
+      totals: {
+        matches: 0,
+        redWins: 0,
+        blueWins: 0,
+        undecided: 0,
+        overtime: 0,
+        captures: 0,
+      },
+      players: [],
+    };
+  }
+
+  const [counts, players] = await Promise.all([
+    db
+      .select({
+        matchId: matchPlayers.matchId,
+        playerCount: sql<number>`count(*)::int`,
+      })
+      .from(matchPlayers)
+      .where(
+        and(
+          inArray(
+            matchPlayers.matchId,
+            rows.map((row) => row.matchId),
+          ),
+          TOOK_PART,
+        ),
+      )
+      .groupBy(matchPlayers.matchId),
+
+    db
+      .select({
+        name: sql<string>`min(${matchPlayers.name})`,
+        matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+        score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
+        kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
+        deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
+        caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+      })
+      .from(matchPlayers)
+      .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+      .where(and(eq(matches.mapName, mapName), TOOK_PART))
+      .groupBy(sql`lower(${matchPlayers.name})`)
+      .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`),
+  ]);
+
+  const byMatch = new Map(counts.map((row) => [row.matchId, row.playerCount]));
+
+  return {
+    matches: rows.map((row) => ({
+      ...row,
+      playerCount: byMatch.get(row.matchId) ?? 0,
+    })),
+    totals: {
+      matches: rows.length,
+      redWins: rows.filter((row) => row.winner === "red").length,
+      blueWins: rows.filter((row) => row.winner === "blue").length,
+      undecided: rows.filter((row) => row.winner !== "red" && row.winner !== "blue")
+        .length,
+      overtime: rows.filter((row) => row.overtime).length,
+      captures: rows.reduce((sum, row) => sum + row.redScore + row.blueScore, 0),
+    },
+    players,
+  };
 });
 
 /**

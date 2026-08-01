@@ -5,7 +5,9 @@ import { notFound } from "next/navigation";
 import { ColumnImage } from "@/components/column-image";
 import { DayBlock } from "@/components/day-block";
 import { DayRail } from "@/components/day-rail";
-import { dayLabel, matchTime } from "@/components/match-archive";
+import { NightFootageCard } from "@/components/match-footage";
+import { dayLabel } from "@/components/match-archive";
+import { footageForNight } from "@/lib/match-videos";
 import {
   getColumn,
   listDays,
@@ -83,7 +85,7 @@ export default async function MatchDayPage({ params }: Props) {
       </p>
 
       <div className="mt-3 grid gap-8 lg:grid-cols-[1fr_13rem]">
-        <div className="min-w-0 space-y-12">
+        <div className="min-w-0 space-y-8">
           {/*
             The night being read, whole and above the fold.
 
@@ -93,99 +95,128 @@ export default async function MatchDayPage({ params }: Props) {
             third match to the sixth meant scrolling between them.
           */}
           <div>
-            <DayBlock archiveDay={day} matches={matches} heading="h1">
-              <div className="space-y-5">
-                {/* The night at a glance, beside the matches rather than above
-                    them, so both fit one screen. */}
-                <dl className="grid grid-cols-2 gap-3">
-                  {(
-                    [
-                      ["Players", totals.players],
-                      ["Frags", totals.frags],
-                      ["Captures", totals.captures],
-                      ["Minutes", sessionMinutes ?? "-"],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div key={label}>
-                      <dt className="figure-label">{label}</dt>
-                      <dd className="figure-value mt-0.5 font-mono text-lg">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-                {first ? (
-                  <p className="text-xs text-steel-600">
-                    First match {matchTime(first)}.
-                  </p>
-                ) : null}
+            <DayBlock
+              archiveDay={day}
+              matches={matches}
+              heading="h1"
+              /* Four figures that were a two by two grid of labelled cells and a
+                 sentence about the first kick-off, which between them cost more
+                 height than the six matches they described. The kick-off is a
+                 column on those matches now, so it says itself. */
+              stats={[
+                `${totals.players} players`,
+                `${totals.frags} frags`,
+                `${totals.captures} captures`,
+                sessionMinutes === null ? null : `${sessionMinutes} min`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              /*
+                The night's story, above its results and with the picture at a
+                size somebody can see.
 
-                {scoreboard.length ? (
-                  <section>
-                    <h2 className="rule-heading">That night</h2>
-                    <ol className="mt-2">
-                      {scoreboard.map((player, index) => (
-                        <li key={player.name} className="border-b border-basalt-900">
-                          <Link
-                            href={`/players/${encodeURIComponent(player.name)}`}
-                            className="group flex items-baseline gap-2 py-1"
-                          >
-                            <span className="w-3 shrink-0 font-display text-[0.625rem] tabular-nums text-steel-700">
-                              {index + 1}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-xs text-steel-300 group-hover:text-rust-300">
-                              {player.name}
-                            </span>
-                            <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
-                              {player.kills}
-                            </span>
-                            <span className="w-10 shrink-0 text-right font-mono text-[0.5625rem] tabular-nums text-steel-600">
-                              {player.caps} {player.caps === 1 ? "cap" : "caps"}
-                            </span>
-                            {/* The denominator. People drop in and out across a
-                                night, so a frag total is partly a measure of who
-                                stayed. */}
-                            <span className="w-7 shrink-0 text-right font-mono text-[0.5625rem] tabular-nums text-steel-700">
-                              {player.matchesPlayed}/{matches.length}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                ) : null}
-              </div>
+                It was a strip at the foot of the block: a twenty pixel
+                thumbnail, the headline truncated to one line, under everything
+                else on the page. Every sports page puts the lead at the top of
+                the main column with the image attached to it, because the
+                story is what makes a table of scores worth reading. This is the
+                one picture the site generates every night and it was furniture.
+              */
+              lead={
+                column ? (
+                  <Link
+                    href={`/news/${day}`}
+                    className="group flex items-start gap-3 border-b border-basalt-800 pb-3"
+                  >
+                    <ColumnImage
+                      imageKey={column.imageKey}
+                      model={column.imageModel}
+                      headline={column.headline}
+                      className="hidden w-40 shrink-0 sm:block"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="figure-label block text-rust-500">
+                        The write-up
+                      </span>
+                      {/* Wraps rather than truncating. A headline cut in half is
+                          a worse invitation than no headline. */}
+                      <span className="mt-1 block font-display text-lg font-bold leading-snug text-steel-100 group-hover:text-rust-300">
+                        {column.headline}
+                      </span>
+                      <span className="mt-1.5 block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 group-hover:text-rust-300">
+                        Read the night
+                      </span>
+                    </span>
+                  </Link>
+                ) : null
+              }
+            >
+              {scoreboard.length ? (
+                <section>
+                  <h2 className="rule-heading">That night</h2>
+
+                  {/*
+                    Named, for the same reason the match rows are: `6 caps` and
+                    `6/6` beside a frag count are three numbers and one of them
+                    was a fraction of something never stated.
+
+                    Score is here because the table is ordered by it and was not
+                    showing it, so the fourth place on the list held 137 frags
+                    and the fifth held 157 and the ranking read as broken. In CTF
+                    it is not: a capture is worth far more than a frag, and this
+                    is the one column that explains why somebody with eleven of
+                    them outranks somebody who shot more people.
+                  */}
+                  <div className="mt-2 flex items-baseline gap-2 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
+                    <span className="w-3 shrink-0">#</span>
+                    <span className="min-w-0 flex-1">Player</span>
+                    <span className="w-9 shrink-0 text-right">Score</span>
+                    <span className="w-8 shrink-0 text-right">Frags</span>
+                    <span className="w-6 shrink-0 text-right">Caps</span>
+                    <span
+                      className="w-8 shrink-0 text-right"
+                      title="Matches they played, of the matches that night"
+                    >
+                      Played
+                    </span>
+                  </div>
+
+                  <ol>
+                    {scoreboard.map((player, index) => (
+                      <li key={player.name} className="border-b border-basalt-800">
+                        <Link
+                          href={`/players/${encodeURIComponent(player.name)}`}
+                          className="group flex items-baseline gap-2 py-1"
+                        >
+                          <span className="w-3 shrink-0 font-display text-[0.625rem] tabular-nums text-steel-600">
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
+                            {player.name}
+                          </span>
+                          <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-steel-100">
+                            {player.score}
+                          </span>
+                          <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-steel-300">
+                            {player.kills}
+                          </span>
+                          <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                            {player.caps}
+                          </span>
+                          {/* The denominator. People drop in and out across a
+                              night, so a frag total is partly a measure of who
+                              stayed. */}
+                          <span className="w-8 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600">
+                            {player.matchesPlayed}/{matches.length}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ) : null}
             </DayBlock>
 
-            {/*
-              The write-up, as a line rather than a card.
-
-              It had a twelve rem illustration and four lines of standfirst,
-              which added most of a screen to a block whose whole point is that a
-              night fits one. The full piece is one click away on the news page
-              and does not need reproducing here; what this has to do is say a
-              write-up exists and get out of the way.
-            */}
-            {column ? (
-              <Link
-                href={`/news/${day}`}
-                className="plate group mt-4 flex items-center gap-3 p-3"
-              >
-                <ColumnImage
-                  imageKey={column.imageKey}
-                  model={column.imageModel}
-                  headline={column.headline}
-                  className="hidden w-20 shrink-0 sm:block"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="figure-label block text-rust-500">The write-up</span>
-                  <span className="mt-0.5 block truncate font-display text-sm font-bold text-steel-100 group-hover:text-rust-300">
-                    {column.headline}
-                  </span>
-                </span>
-                <span className="shrink-0 font-display text-[0.625rem] uppercase tracking-widest text-rust-400 group-hover:text-rust-300">
-                  Read
-                </span>
-              </Link>
-            ) : null}
           </div>
 
           {/*
@@ -211,8 +242,17 @@ export default async function MatchDayPage({ params }: Props) {
           ) : null}
         </div>
 
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+        <aside className="space-y-7 lg:sticky lg:top-20 lg:self-start">
           <DayRail days={days} current={day} />
+
+          {/* Anything anybody filmed of this night, beside the results rather
+              than under the write-up at the bottom of the page. */}
+          <NightFootageCard
+            footage={footageForNight(day)}
+            labelFor={(coverage) =>
+              matches.find((m) => m.sourceMatchId === coverage.sourceMatchId)?.mapName
+            }
+          />
         </aside>
       </div>
     </div>

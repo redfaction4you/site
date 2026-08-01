@@ -59,8 +59,20 @@ Hard rules:
 - Do not open with the player's name every time. Vary it.
 - If the record is thin, say less. One honest paragraph beats two padded ones.`;
 
-/** Below this a profile is a description of one night, not of a player. */
-export const MIN_MATCHES_FOR_PROFILE = 3;
+/**
+ * Below this a profile is a description of one night, not of a player.
+ *
+ * Was three, which is one evening: a profile written there described how
+ * somebody happened to play on a Tuesday and then sat on their page as though it
+ * described them. Nine is roughly two or three nights, enough that a run of good
+ * or bad games is not the whole account.
+ *
+ * The page enforces this as well as the writer, because a stored profile can
+ * fall below the bar later: when rows that were never really played stopped
+ * counting, two players dropped a match each. Raising this number hides those
+ * profiles rather than deleting them, and they come back as the record grows.
+ */
+export const MIN_MATCHES_FOR_PROFILE = 9;
 
 type Ranked = { rank: number; of: number; value: number };
 
