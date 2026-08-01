@@ -233,10 +233,16 @@ export async function backfillColumnImages(): Promise<number> {
 }
 
 /**
- * Posts any column that has not been announced yet.
+ * Posts the newest column that has not been announced yet.
  *
  * Separate from writing so a Discord outage cannot cost us the column, and so
  * an unannounced column is retried on the next sync rather than lost.
+ *
+ * **One per run.** It used to take three, which is invisible in steady state
+ * because a night produces one column, and not invisible at all the first time
+ * the webhook is configured: three nights of backlog arrived in the channel at
+ * once. One at a time means a backlog drains at the pace of the sync instead of
+ * landing as a wall, and a normal night still posts within minutes.
  */
 export async function announcePendingColumns(): Promise<number> {
   const pending = await db
@@ -250,7 +256,7 @@ export async function announcePendingColumns(): Promise<number> {
     .from(nightColumns)
     .where(isNull(nightColumns.postedAt))
     .orderBy(desc(nightColumns.archiveDay))
-    .limit(3);
+    .limit(1);
 
   let posted = 0;
 
