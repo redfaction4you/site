@@ -39,7 +39,7 @@ function clock(elapsed: number): string {
 
 const TEAM_TEXT: Record<string, string> = {
   red: "text-rust-400",
-  blue: "text-oxide-400",
+  blue: "text-cobalt-400",
 };
 
 /** Player names link to their record. Used everywhere a name appears. */
@@ -441,7 +441,7 @@ export async function MatchDetailView({
               <span
                 className={
                   match.winner === "blue"
-                    ? "text-oxide-400"
+                    ? "text-cobalt-400"
                     : "text-steel-500 opacity-70"
                 }
               >
@@ -467,7 +467,7 @@ export async function MatchDetailView({
                     (match.winner === "red"
                       ? "bg-rust-500/15 text-rust-300"
                       : match.winner === "blue"
-                        ? "bg-oxide-400/15 text-oxide-300"
+                        ? "bg-cobalt-400/15 text-cobalt-300"
                         : "bg-basalt-700/60 text-steel-300")
                   }
                 >

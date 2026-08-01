@@ -158,7 +158,7 @@ export function CaptureTrack({
                 key={index}
                 className={
                   "absolute inset-y-0 " +
-                  (segment.ahead === "red" ? "bg-rust-500/70" : "bg-oxide-400/70")
+                  (segment.ahead === "red" ? "bg-rust-500/70" : "bg-cobalt-500/70")
                 }
                 style={{
                   left: `${segment.from * 100}%`,
@@ -195,7 +195,7 @@ export function CaptureTrack({
                 <span
                   className={
                     "font-mono text-[0.625rem] leading-none tabular-nums " +
-                    (red ? "text-rust-300" : "text-oxide-300") +
+                    (red ? "text-rust-300" : "text-cobalt-300") +
                     (red ? " order-1" : " order-3")
                   }
                 >
@@ -204,7 +204,7 @@ export function CaptureTrack({
                 <span
                   className={
                     "order-2 my-1 block w-px flex-1 " +
-                    (red ? "bg-rust-500/50" : "bg-oxide-400/50")
+                    (red ? "bg-rust-500/50" : "bg-cobalt-400/50")
                   }
                 />
                 {/* The decisive capture is bigger and ringed. It was the one
@@ -215,7 +215,7 @@ export function CaptureTrack({
                     (index === decidedBy ? "h-3.5 w-3.5 ring-2 " : "h-2.5 w-2.5 ") +
                     (red
                       ? "order-3 border-rust-300 bg-rust-500 ring-rust-500/30"
-                      : "order-1 border-oxide-300 bg-oxide-500 ring-oxide-400/30")
+                      : "order-1 border-cobalt-300 bg-cobalt-500 ring-cobalt-400/30")
                   }
                 />
               </div>
@@ -241,7 +241,7 @@ export function CaptureTrack({
               </span>
               <span className="text-steel-700">-</span>
               <span
-                className={blueScore > redScore ? "text-oxide-300" : "text-steel-600"}
+                className={blueScore > redScore ? "text-cobalt-300" : "text-steel-600"}
               >
                 {blueScore}
               </span>
@@ -268,7 +268,7 @@ export function CaptureTrack({
             <span
               className={
                 "w-9 shrink-0 font-display text-[0.625rem] font-semibold uppercase tracking-wider " +
-                (capture.team === "red" ? "text-rust-400" : "text-oxide-400")
+                (capture.team === "red" ? "text-rust-400" : "text-cobalt-400")
               }
             >
               {capture.team}

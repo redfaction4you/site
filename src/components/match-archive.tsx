@@ -71,7 +71,7 @@ function TeamScore({
     <span className="font-mono text-lg tabular-nums">
       <span className={winner === "red" ? "text-rust-400" : "text-steel-400"}>{red}</span>
       <span className="mx-1.5 text-steel-600">–</span>
-      <span className={winner === "blue" ? "text-oxide-400" : "text-steel-400"}>
+      <span className={winner === "blue" ? "text-cobalt-400" : "text-steel-400"}>
         {blue}
       </span>
     </span>

@@ -41,7 +41,7 @@ export default async function MapsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-12">
+    <div className="mx-auto max-w-6xl px-4 pb-12">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
         <h1 className="eyebrow">Competitive CTF maps</h1>
         <p className="font-mono text-xs text-steel-600">

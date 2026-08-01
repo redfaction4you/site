@@ -63,7 +63,7 @@ export function MatchOfTheNight({
             </span>
             <span className="mx-1 text-steel-700">-</span>
             <span
-              className={match.winner === "blue" ? "text-oxide-400" : "text-steel-500"}
+              className={match.winner === "blue" ? "text-cobalt-400" : "text-steel-500"}
             >
               {match.blueScore}
             </span>

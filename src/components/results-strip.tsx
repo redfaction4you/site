@@ -87,7 +87,7 @@ export function ResultsStrip({
                 <span
                   className={
                     match.winner === "blue"
-                      ? "font-semibold text-oxide-400"
+                      ? "font-semibold text-cobalt-400"
                       : "text-steel-500"
                   }
                 >

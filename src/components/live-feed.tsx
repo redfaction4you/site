@@ -79,7 +79,7 @@ export function LiveFeed({ match }: { match: LiveMatch }) {
                 <span
                   className={
                     "w-8 shrink-0 font-display text-[0.5625rem] font-bold uppercase tracking-wider " +
-                    (event.flagOwner === "blue" ? "text-rust-400" : "text-oxide-400")
+                    (event.flagOwner === "blue" ? "text-rust-400" : "text-cobalt-400")
                   }
                 >
                   {event.flagOwner === "blue" ? "Red" : "Blue"}

@@ -42,6 +42,7 @@ import {
   MIN_COMPLETED_SECONDS,
   matchCompleted,
 } from "@/lib/matches/completion";
+import { shootingIsSound } from "@/lib/matches/accuracy";
 import type { VettableMatch } from "@/lib/matches/vet";
 
 /**
@@ -1012,6 +1013,7 @@ export type MapMatchRow = {
   archiveDay: string;
   sourceMatchId: number;
   startedAt: Date | null;
+  endedAt: Date | null;
   redScore: number;
   blueScore: number;
   winner: string | null;
@@ -1045,6 +1047,14 @@ export type MapRecord = {
     captures: number;
     /** Every capture on the map, so a per-match figure can be honest about it. */
     playerCount: number;
+    /** Evenings it has come up, which is not the same as matches. */
+    nights: number;
+    /** Mean match length in seconds, or null where no match carries a clock. */
+    averageSeconds: number | null;
+    /** Mean players in a match here, to one decimal. */
+    averagePlayers: number | null;
+    /** The widest margin anybody has won by here. */
+    biggestWin: { margin: number; archiveDay: string; sourceMatchId: number } | null;
   };
   /**
    * What this map has seen at its best, which is the thing a map page can say
@@ -1057,6 +1067,9 @@ export type MapRecord = {
     mostCaps: MapBest | null;
     mostFrags: MapBest | null;
     bestStreak: MapBest | null;
+    mostReturns: MapBest | null;
+    /** Best accuracy in one match here, over a floor. Stored as a fraction. */
+    bestAccuracy: MapBest | null;
   };
   players: {
     name: string;
@@ -1085,6 +1098,7 @@ export const getMapRecord = cache(async function getMapRecord(
       archiveDay: matches.archiveDay,
       sourceMatchId: matches.sourceMatchId,
       startedAt: matches.startedAt,
+      endedAt: matches.endedAt,
       redScore: matches.redScore,
       blueScore: matches.blueScore,
       winner: matches.winner,
@@ -1106,12 +1120,18 @@ export const getMapRecord = cache(async function getMapRecord(
         overtime: 0,
         captures: 0,
         playerCount: 0,
+        nights: 0,
+        averageSeconds: null,
+        averagePlayers: null,
+        biggestWin: null,
       },
       bests: {
         fastestRun: null,
         mostCaps: null,
         mostFrags: null,
         bestStreak: null,
+        mostReturns: null,
+        bestAccuracy: null,
       },
       players: [],
     };
@@ -1185,6 +1205,9 @@ export const getMapRecord = cache(async function getMapRecord(
       caps: matchPlayers.caps,
       kills: matchPlayers.kills,
       maxStreak: matchPlayers.maxStreak,
+      flagReturns: matchPlayers.flagReturns,
+      shotsHit: matchPlayers.shotsHit,
+      shotsFired: matchPlayers.shotsFired,
       fastestRunMs: matchPlayers.fastestSoloCaptureMs,
     })
     .from(matchPlayers)
@@ -1202,6 +1225,9 @@ export const getMapRecord = cache(async function getMapRecord(
       matchPlayers.caps,
       matchPlayers.kills,
       matchPlayers.maxStreak,
+      matchPlayers.flagReturns,
+      matchPlayers.shotsHit,
+      matchPlayers.shotsFired,
       matchPlayers.fastestSoloCaptureMs,
     );
 
@@ -1233,6 +1259,33 @@ export const getMapRecord = cache(async function getMapRecord(
 
   const highest = (a: number, b: number) => a > b;
 
+  /**
+   * Enough shooting for an accuracy to describe anybody.
+   *
+   * The same trade the accuracy board makes, and the failure it exists to
+   * prevent: without a floor the best accuracy on a map is whoever fired four
+   * shots in a game they joined at the end. Two hundred in a single match is
+   * about a fifth of a busy one here.
+   */
+  const ENOUGH_SHOTS = 200;
+
+  const durations = rows
+    .map((row) =>
+      row.startedAt && row.endedAt
+        ? Math.round((row.endedAt.getTime() - row.startedAt.getTime()) / 1000)
+        : null,
+    )
+    .filter((seconds): seconds is number => seconds !== null);
+
+  const margins = rows
+    .filter((row) => row.winner === "red" || row.winner === "blue")
+    .map((row) => ({
+      margin: Math.abs(row.redScore - row.blueScore),
+      archiveDay: row.archiveDay,
+      sourceMatchId: row.sourceMatchId,
+    }))
+    .sort((a, b) => b.margin - a.margin);
+
   return {
     matches: rows.map((row) => ({
       ...row,
@@ -1247,6 +1300,16 @@ export const getMapRecord = cache(async function getMapRecord(
       overtime: rows.filter((row) => row.overtime).length,
       captures: rows.reduce((sum, row) => sum + row.redScore + row.blueScore, 0),
       playerCount: players.length,
+      nights: new Set(rows.map((row) => row.archiveDay)).size,
+      // Averaged over the matches that carry a clock rather than over all of
+      // them, so a missing end time shortens nothing.
+      averageSeconds: durations.length
+        ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+        : null,
+      averagePlayers: rows.length
+        ? rows.reduce((sum, row) => sum + (byMatch.get(row.matchId) ?? 0), 0) / rows.length
+        : null,
+      biggestWin: margins[0] ?? null,
     },
     bests: {
       // The one board that reads the other way round, and the reason the record
@@ -1255,6 +1318,14 @@ export const getMapRecord = cache(async function getMapRecord(
       mostCaps: bestOf((row) => row.caps, highest),
       mostFrags: bestOf((row) => row.kills, highest),
       bestStreak: bestOf((row) => row.maxStreak, highest),
+      mostReturns: bestOf((row) => row.flagReturns, highest),
+      bestAccuracy: bestOf(
+        (row) =>
+          row.shotsFired >= ENOUGH_SHOTS && shootingIsSound(row.shotsHit, row.shotsFired)
+            ? row.shotsHit / row.shotsFired
+            : null,
+        highest,
+      ),
     },
     players,
   };

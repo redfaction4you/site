@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { MapBest } from "@/lib/matches/queries";
 
 /**
- * What one map has seen at its best.
+ * What one map has seen at its best, and who did it.
  *
  * Every figure is a single match rather than an average, which is what makes it
  * safe at this sample size: the most captures anybody has managed here in one
@@ -16,9 +16,11 @@ import type { MapBest } from "@/lib/matches/queries";
  * presents it as a ranking of players. Held against one map the comparison is
  * sound, because the distance is the same for everybody in it.
  *
- * Each record links to the match it was set in. A record with nowhere to go is a
- * claim a reader cannot check, and every number here can be walked back to a
- * scoreboard.
+ * **The player is the point, not the number.** These read as records, and a
+ * record is somebody's. The first version set the name in ten pixel grey under
+ * the figure and gave each card a separate "the match" link, which is three
+ * sizes of nothing and a link that says nothing. The whole card is the link now,
+ * and the name is the second thing read after the value.
  */
 export function MapBests({
   bests,
@@ -29,6 +31,8 @@ export function MapBests({
     mostCaps: MapBest | null;
     mostFrags: MapBest | null;
     bestStreak: MapBest | null;
+    mostReturns: MapBest | null;
+    bestAccuracy: MapBest | null;
   };
   className?: string;
 }) {
@@ -60,6 +64,23 @@ export function MapBests({
       format: (value: number) => `${value}`,
       title: "The most frags anybody has strung together here without dying.",
     },
+    {
+      label: "Most returns",
+      best: bests.mostReturns,
+      format: (value: number) => `${value}`,
+      title:
+        "Flags brought back in one match here. Returns are inferred rather " +
+        "than reported, so a player is credited only when they were uniquely " +
+        "closest to the dropped flag.",
+    },
+    {
+      label: "Best accuracy",
+      best: bests.bestAccuracy,
+      format: (value: number) => `${(value * 100).toFixed(1)}%`,
+      title:
+        "In one match here, over a floor of 200 shots. Without a floor this " +
+        "is whoever fired twice.",
+    },
   ].filter((entry) => entry.best !== null);
 
   // Nothing to show on a map whose only matches predate the event log, which is
@@ -70,23 +91,29 @@ export function MapBests({
     <section className={className}>
       <h2 className="rule-heading">Records here</h2>
 
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {shown.map((entry) => {
           const best = entry.best!;
           return (
-            <li key={entry.label} className="plate p-2.5" title={entry.title}>
-              <span className="figure-label block text-steel-500">{entry.label}</span>
-              <span className="mt-1 block font-mono text-xl leading-none tabular-nums text-steel-100">
-                {entry.format(best.value)}
-              </span>
-              <span className="mt-1.5 block truncate text-xs text-steel-300">
-                {best.name}
-              </span>
+            <li key={entry.label}>
               <Link
                 href={`/matches/${best.archiveDay}/${best.sourceMatchId}`}
-                className="mt-0.5 block font-mono text-[0.625rem] text-steel-600 hover:text-rust-300"
+                title={entry.title}
+                className="plate group flex items-baseline justify-between gap-3 p-2.5 transition-colors hover:border-t-rust-500"
               >
-                the match
+                <span className="min-w-0">
+                  <span className="figure-label block text-steel-500">
+                    {entry.label}
+                  </span>
+                  {/* The name at reading size. It is the answer to the question
+                      the label asks, and it was the smallest thing on the card. */}
+                  <span className="mt-1 block truncate text-sm text-steel-100 group-hover:text-rust-300">
+                    {best.name}
+                  </span>
+                </span>
+                <span className="shrink-0 font-mono text-2xl leading-none tabular-nums text-steel-100">
+                  {entry.format(best.value)}
+                </span>
               </Link>
             </li>
           );

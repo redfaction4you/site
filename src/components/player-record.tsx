@@ -151,7 +151,7 @@ export function PlayerRecord({ history }: { history: PlayerRecordRow[] }) {
                     (match.team === "red"
                       ? "text-rust-400"
                       : match.team === "blue"
-                        ? "text-oxide-400"
+                        ? "text-cobalt-400"
                         : "text-steel-500")
                   }
                 >

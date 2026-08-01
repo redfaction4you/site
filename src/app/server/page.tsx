@@ -257,7 +257,7 @@ export default async function ServerPage() {
                   <p className="mt-1 font-mono text-lg leading-none tabular-nums">
                     <span className="text-rust-400">{online.game.redScore}</span>
                     <span className="mx-1.5 text-steel-600">-</span>
-                    <span className="text-oxide-400">{online.game.blueScore}</span>
+                    <span className="text-cobalt-400">{online.game.blueScore}</span>
                   </p>
                 ) : null}
               </div>

@@ -70,7 +70,7 @@ export function MatchRows({
         <span className="w-16 shrink-0 text-right tracking-normal">
           <span className="text-rust-400">Red</span>
           <span className="text-steel-700"> / </span>
-          <span className="text-oxide-400">Blue</span>
+          <span className="text-cobalt-400">Blue</span>
         </span>
       </div>
 
@@ -163,7 +163,7 @@ export function MatchRows({
                 <span
                   className={
                     match.winner === "blue"
-                      ? "font-semibold text-oxide-400"
+                      ? "font-semibold text-cobalt-400"
                       : "text-steel-500"
                   }
                 >

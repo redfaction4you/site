@@ -147,7 +147,7 @@ export function LiveScoreboard({
       <Side
         label="Blue"
         score={blueScore}
-        accent="text-oxide-400"
+        accent="text-cobalt-400"
         players={players.filter((player) => player.team === "blue")}
       />
     </div>

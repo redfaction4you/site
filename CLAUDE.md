@@ -65,6 +65,14 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
 - **Colour token names are historical.** `basalt`, `rust`, `oxide`, `steel` no
   longer describe the colours; only their values changed when the site was
   rethemed. Renaming them would touch every component for no benefit.
+- **The blue team is `cobalt`, and `oxide` is gold.** Every blue side on the
+  site used to be drawn in `oxide`, so scoreboards, scores, legends and the
+  capture timeline showed blue as gold and a reader eventually said so. Red and
+  blue are the two things that have to be told apart on every result, so the
+  blue team has its own token now. `oxide` is still correct for what it always
+  was: overtime marks, the columnist's rule and byline, staleness warnings,
+  compatibility badges. **Anything that means "the blue team" is `cobalt`; a
+  gold accent that means something else stays `oxide`.**
 - **`font-brand` (Black Ops One) ships one weight.** Never combine it with
   `font-bold` or similar — synthetic bolding looks awful. A bare
   `.font-brand { font-weight: 400 }` rule sits outside `@layer` to win against

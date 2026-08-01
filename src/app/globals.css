@@ -30,6 +30,22 @@
   --color-oxide-400: #e6b64f;
   --color-oxide-500: #c2953a;
 
+  /*
+   * The blue team, and it had none.
+   *
+   * Every blue side on the site was drawn in `oxide`, which is gold. The token
+   * names are historical and that is usually harmless, but not here: red and
+   * blue are the two things a reader has to tell apart on every scoreboard,
+   * timeline and score, and one of them was the wrong colour. A reader said so.
+   *
+   * Bright enough to hold against the ground at small sizes, since most of its
+   * uses are a two digit score or a single word, and far enough from `rust` that
+   * the pair reads at a glance rather than by position.
+   */
+  --color-cobalt-300: #9ecbff;
+  --color-cobalt-400: #55a6ff;
+  --color-cobalt-500: #2a7fe0;
+
   --color-steel-100: #e8e6e1;
   --color-steel-200: #cfcdc6;
   --color-steel-300: #b9b6ad;
@@ -108,6 +124,12 @@
   --color-oxide-300: #7a5c12;
   --color-oxide-400: #8a6a18;
   --color-oxide-500: #a07d22;
+
+  /* Darkened the same way, so blue on paper is still legibly blue and still
+     legibly not red. The dark values would be a pale wash on white. */
+  --color-cobalt-300: #1f4f8f;
+  --color-cobalt-400: #1257b0;
+  --color-cobalt-500: #2f76cc;
 
   --color-signal-green: #2f7a42;
 }
@@ -232,7 +254,7 @@
     border-top-color: var(--color-rust-500);
   }
   .plate-blue {
-    border-top-color: var(--color-oxide-400);
+    border-top-color: var(--color-cobalt-400);
   }
 
   /*
