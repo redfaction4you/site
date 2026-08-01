@@ -44,6 +44,9 @@ npm run db:migrate   # apply to Neon
 npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
 npm run db:studio
 npm run ai:quota     # what each Gemini key can do today; -- --images too
+npm run vet          # the archive against itself
+npm run vet:queries  # every match query filters, or says why not
+npm run vet:pages    # a rendered page against itself; -- --base <url>
 ```
 
 ## Stack
@@ -173,6 +176,28 @@ The dedicated server pushes each night's results to
 `POST /api/rf4u/archive/ingest`, authenticated by `RF4U_ARCHIVE_SYNC_SECRET`.
 Setup and troubleshooting: `docs/match-archive-vps.md`.
 
+- **A match that did not count must not count anywhere, and the checks are
+  automatic now.** An abandoned start arrives labelled `final` like any other
+  match, so duration is the only test: `completion.ts` holds the rule,
+  `MATCH_COMPLETED` in `queries.ts` is its SQL twin, and the two must be kept in
+  step exactly as `tookPart` and `TOOK_PART` are. The rule has been written once
+  and missed twice, both times reaching a published page, so three things now
+  watch it:
+  - **`npm run vet:queries`**, which runs inside `npm test`. Every query reading
+    the match tables either filters or carries a comment saying
+    `counts-everything: <why>`. There is no third option. Plenty of queries
+    genuinely want every row and the reason differs each time, which is why the
+    exemption is a sentence rather than a flag.
+  - **`npm run vet:pages`**, which reads rendered pages over HTTP and checks
+    that a page does not contradict itself: a header total against the rows it
+    totals, a player count against the scoreboard, attendance denominators
+    against the match count. It found the last two failures on production while
+    the database was entirely consistent. Point it at what the reader is
+    looking at, not at localhost.
+  - **GitHub Actions**, `checks` on every push and `vet-live` after a deploy and
+    every six hours, because the archive changes without anybody pushing.
+  It only ever covers the night pages and the archive index. `/players`,
+  `/stats` and the map pages are not cross-checked by anything yet.
 - **`sanitize.ts` is a security boundary and an allowlist.** Every stored field
   is named in it. A new field appearing in the VPS export cannot leak through,
   because it simply is not copied. **Never** replace this with a spread of the

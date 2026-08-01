@@ -1,0 +1,30 @@
+# Types, lint and tests on every push.
+#
+# The tests include the query guard, which is the check that would have caught
+# the bug this file was added for: a filter applied to nine queries and missed on
+# the tenth, so a night's header and the scoreboard under it disagreed by twelve
+# frags on a published page.
+#
+# No secrets and no database. Everything here runs on the source alone, which is
+# what keeps it fast enough to be worth having on every push.
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test

@@ -1,0 +1,38 @@
+# Reads the live site and checks it does not contradict itself.
+#
+# The other workflow checks the source. This checks the pages, which is a
+# different question: every figure can come from a correct query and the page
+# still be wrong, because the total was queried one way and the table under it
+# another. That is exactly what shipped, and a person found it.
+#
+# Runs after a push, once the deploy has had time to land, and every six hours
+# after that, because the archive changes without anybody pushing: the VPS syncs
+# every fifteen minutes and the writing regenerates on its own. A page that was
+# right at deploy can be wrong by dinner.
+#
+# Reads public pages only. No secrets, no database, nothing to leak.
+name: vet-live
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Long enough for Vercel to have built and swapped the deployment. A run
+      # against the previous build would be checking the wrong pages, which is
+      # worse than not checking: it reports green on work that is not live yet.
+      - name: Wait for the deploy
+        if: github.event_name == 'push'
+        run: sleep 180
+      - name: Vet the live pages
+        run: node scripts/vet-pages.mjs --base https://redfaction4you.com
