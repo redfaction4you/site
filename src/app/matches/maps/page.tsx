@@ -29,6 +29,16 @@ export const dynamic = "force-dynamic";
  * archive holds and what the rotation is are the same set. If that ever stops
  * being true, this is where the distinction would go, and it would have to be a
  * list somebody maintains rather than something inferred from play.
+ *
+ * **The picture is the point.** These were rows: a 96 pixel thumbnail beside a
+ * name and two lines of grey figures, nine of them identical down the page, on a
+ * page about nine places that look nothing like one another. Anybody who plays
+ * here knows Huna by sight long before they know it by name. The screenshot is
+ * the card now, the name sits on it, and the figures read underneath.
+ *
+ * The most played map takes the wide card. The list is ranked and says so in
+ * words while every row looked the same weight, and a level the server runs five
+ * times as often as another is worth seeing first and seeing bigger.
  */
 export default async function MapsPage() {
   const names = await listMapNames();
@@ -54,73 +64,126 @@ export default async function MapsPage() {
         </p>
       ) : (
         <>
-          <p className="max-w-3xl py-4 text-sm leading-relaxed text-steel-400">
-            The levels the matches are played on, most played first. Overtime is
-            counted because it is the one thing a map can be blamed for: a level
-            that keeps ending level is telling you something the scores alone do
-            not. The fastest run is the quickest anybody has carried the flag
-            from the enemy stand to their own without dropping it, and it is kept
-            per map because these are not the same length.
-          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {maps.map(({ mapName, matchCount, record }, index) => {
+              const { totals, bests } = record;
+              const lead = index === 0;
+              const decided = totals.redWins + totals.blueWins;
 
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {maps.map(({ mapName, matchCount, record }) => (
-              <li key={mapName}>
-                <Link
-                  href={`/matches/map/${mapSlug(mapName)}`}
-                  className="plate group flex items-center gap-3 p-2 transition-colors hover:border-t-rust-500"
-                >
-                  <MapShot
-                    mapName={mapName}
-                    className="hidden w-24 shrink-0 sm:block"
-                    sizes="96px"
-                  />
+              return (
+                <li key={mapName} className={lead ? "sm:col-span-2" : ""}>
+                  <Link
+                    href={`/matches/map/${mapSlug(mapName)}`}
+                    className="plate group block overflow-hidden transition-colors hover:border-t-rust-500"
+                  >
+                    <span className="relative block">
+                      <MapShot
+                        mapName={mapName}
+                        className="w-full"
+                        rounded={false}
+                        sizes={
+                          lead
+                            ? "(min-width: 640px) 48rem, 100vw"
+                            : "(min-width: 1024px) 24rem, (min-width: 640px) 50vw, 100vw"
+                        }
+                        priority={lead}
+                      />
 
-                  <span className="flex min-w-0 flex-1 flex-col justify-center">
-                    <span className="truncate text-sm font-semibold text-steel-100 group-hover:text-rust-300">
-                      {mapName}
+                      {/*
+                        Black and white rather than the theme's own tokens. This
+                        sits on a photograph in both themes, and `basalt-950` is
+                        the deepest background in one and the palest paper in the
+                        other, so a scrim built from it would put dark ink on a
+                        white wash over a dark screenshot in light mode.
+                      */}
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-3 pb-2 pt-8">
+                        <span
+                          className={
+                            "block font-display font-bold text-white drop-shadow " +
+                            (lead ? "text-xl" : "text-base")
+                          }
+                        >
+                          {mapName}
+                        </span>
+                      </span>
                     </span>
-                    <span className="mt-0.5 font-mono text-[0.625rem] uppercase tracking-wider text-steel-600">
-                      {matchCount} {matchCount === 1 ? "match" : "matches"}
-                      {record.totals.captures > 0
-                        ? ` · ${record.totals.captures} captures`
-                        : ""}
-                      {record.totals.overtime > 0 ? (
-                        <span className="text-oxide-400">
-                          {" "}
-                          · {record.totals.overtime} to overtime
+
+                    <span className="block p-2.5">
+                      <span className="block font-mono text-[0.625rem] uppercase tracking-wider text-steel-500">
+                        <span className="text-steel-300">{matchCount}</span>{" "}
+                        {matchCount === 1 ? "match" : "matches"}
+                        {totals.matches > 0 ? (
+                          <>
+                            {" · "}
+                            <span className="text-steel-300">
+                              {(totals.captures / totals.matches).toFixed(1)}
+                            </span>{" "}
+                            caps a match
+                          </>
+                        ) : null}
+                        {totals.overtime > 0 ? (
+                          <span className="text-oxide-400">
+                            {" · "}
+                            {totals.overtime} to overtime
+                          </span>
+                        ) : null}
+                      </span>
+
+                      {/*
+                        Who wins here, as two counts rather than a rate. Sides
+                        are reshuffled between matches so it is a fact about the
+                        map, and at this many matches a percentage would claim a
+                        spawn advantage the record cannot support.
+                      */}
+                      {decided > 0 ? (
+                        <span className="mt-1.5 flex items-baseline gap-1.5 font-mono text-xs tabular-nums">
+                          <span className="text-rust-400">{totals.redWins}</span>
+                          <span className="text-steel-700">/</span>
+                          <span className="text-cobalt-400">{totals.blueWins}</span>
+                          <span className="font-sans text-[0.625rem] uppercase tracking-wider text-steel-600">
+                            red / blue
+                          </span>
+                        </span>
+                      ) : null}
+
+                      {bests.fastestRun ? (
+                        <span className="mt-1.5 block border-t border-basalt-800 pt-1.5 font-mono text-[0.625rem] tabular-nums text-steel-500">
+                          Fastest run{" "}
+                          <span className="text-steel-100">
+                            {(bests.fastestRun.value / 1000).toFixed(1)}s
+                          </span>{" "}
+                          <span className="text-steel-400">
+                            {bests.fastestRun.name}
+                          </span>
                         </span>
                       ) : null}
                     </span>
-                    {/*
-                      The map's own record, on the row rather than a click away.
-                      It is the one figure that differs between these levels for
-                      a reason a player cares about, and reading nine of them
-                      down a page is how the difference in length becomes
-                      obvious.
-                    */}
-                    {record.bests.fastestRun ? (
-                      <span className="mt-1 font-mono text-[0.625rem] tabular-nums text-steel-500">
-                        Fastest run{" "}
-                        <span className="text-steel-200">
-                          {(record.bests.fastestRun.value / 1000).toFixed(1)}s
-                        </span>{" "}
-                        <span className="text-steel-600">
-                          {record.bests.fastestRun.name}
-                        </span>
-                      </span>
-                    ) : null}
-                  </span>
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
 
-          <p className="mt-6 text-xs leading-relaxed text-steel-500">
-            A map with no picture is one nobody has screenshotted yet, which is a
-            normal state rather than a fault. Names are as the server reports
-            them, so two builds of the same level are two entries.
-          </p>
+          {/*
+            Under the maps rather than over them. It explains what the figures on
+            the cards mean, which is a thing to read after seeing them, and it
+            was four lines of prose standing between the reader and the page.
+          */}
+          <div className="mt-8 max-w-3xl space-y-3 text-sm leading-relaxed text-steel-400">
+            <p>
+              The levels the matches are played on, most played first. Overtime is
+              counted because it is the one thing a map can be blamed for: a level
+              that keeps ending level is telling you something the scores alone do
+              not. The fastest run is the quickest anybody has carried the flag
+              from the enemy stand to their own without dropping it, and it is
+              kept per map because these are not the same length.
+            </p>
+            <p className="text-xs leading-relaxed text-steel-500">
+              A map with no picture is one nobody has screenshotted yet, which is
+              a normal state rather than a fault. Names are as the server reports
+              them, so two builds of the same level are two entries.
+            </p>
+          </div>
         </>
       )}
     </div>
