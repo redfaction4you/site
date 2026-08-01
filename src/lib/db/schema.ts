@@ -713,6 +713,74 @@ export const playerProfiles = pgTable(
   (profile) => [index("player_profiles_generated_idx").on(profile.generatedAt)],
 );
 
+/**
+ * Recordings of a match, added through the site rather than through a commit.
+ *
+ * Footage used to live in a typed file, which is the right home for data that
+ * is small and rarely changes and the wrong home for data somebody wants to add
+ * from their phone the moment a video finishes uploading. A commit and a deploy
+ * is too much friction for a link, and the friction is why recordings went
+ * unlinked.
+ *
+ * One row per match a video covers, rather than a video with a list of matches
+ * inside it. A single upload is often a whole evening, and one row per coverage
+ * means attaching, correcting or removing one match of six is a row rather than
+ * an edit to a nested array.
+ *
+ * The typed file stays as the seed. Anything in it keeps working and the two are
+ * merged on read, so this table only ever has to hold what was added since.
+ */
+export const matchVideos = pgTable(
+  "match_videos",
+  {
+    id: text("id").primaryKey(),
+
+    /** The YouTube id, not the URL. Parsed from whatever form was pasted. */
+    youtubeId: text("youtube_id").notNull(),
+
+    /** The archive day, which is a Pacific calendar date. */
+    archiveDay: date("archive_day").notNull(),
+
+    /** The server's own match id, which is the number in the match URL. */
+    sourceMatchId: integer("source_match_id").notNull(),
+
+    /**
+     * Seconds into the recording where this match starts.
+     *
+     * Null for a video of one match. A forty minute upload of six games needs
+     * it, because sending somebody to the top of it to find the one they were
+     * reading about is a chore rather than a link.
+     */
+    startsAt: integer("starts_at"),
+
+    /**
+     * The title and channel as YouTube reported them when this was added.
+     *
+     * Stored rather than fetched on render: a page should not depend on a third
+     * party answering, and a video that gets renamed or deleted later should
+     * still show what it was when somebody vouched for it.
+     */
+    title: text("title"),
+    authorName: text("author_name"),
+    authorUrl: text("author_url"),
+
+    /** Anything worth saying about the recording. Usually nothing. */
+    note: text("note"),
+
+    addedAt: timestamp("added_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (video) => [
+    // The same video cannot be attached to the same match twice, which is the
+    // shape a double submit takes.
+    unique("match_videos_unique").on(
+      video.youtubeId,
+      video.archiveDay,
+      video.sourceMatchId,
+    ),
+    index("match_videos_day_idx").on(video.archiveDay),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Relations. These add no SQL of their own; they are what lets
 // db.query.items.findMany({ with: { files: true } }) work in one round trip

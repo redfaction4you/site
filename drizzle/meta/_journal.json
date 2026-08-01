@@ -78,6 +78,13 @@
       "when": 1785491400761,
       "tag": "0010_mature_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785555448436,
+      "tag": "0011_tricky_gorgon",
+      "breakpoints": true
     }
   ]
 }
