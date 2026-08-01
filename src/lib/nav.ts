@@ -71,7 +71,7 @@ export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
  * catalogue page has no business advertising the match archive's furniture.
  */
 export const ARCHIVE_NAV: NavItem[] = [
-  { href: "/matches", label: "Nights" },
+  { href: "/matches", label: "Archive" },
   { href: "/matches/maps", label: "Maps" },
   { href: "/players", label: "Players" },
   { href: "/players/pairings", label: "Pairings" },

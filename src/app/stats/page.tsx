@@ -72,20 +72,6 @@ export default async function StatsPage({ searchParams }: Props) {
       ) : (
         <>
           {/*
-            One line rather than two paragraphs.
-
-            The page opened with a hundred pixels of explanation before a single
-            number, and the second paragraph made a point the per match boards
-            already make by existing and being labelled as such.
-          */}
-          <p className="max-w-3xl py-3 text-sm leading-relaxed text-steel-400">
-            Every statistic ranked on its own, because being good at this game is
-            not one thing. Totals reward playing often as well as playing well;
-            the per match and per death boards do not. Open a board for the full
-            ranking and what it takes to appear on it.
-          </p>
-
-          {/*
             The table first, the boards under it.
 
             A ranking answers who is best at one thing; this answers everything
@@ -95,19 +81,8 @@ export default async function StatsPage({ searchParams }: Props) {
             or nowhere near, and twelve columns of bare ordinals gave the eye
             nothing to recognise.
           */}
-          <section className="pb-7">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="rule-heading">Everyone, everything</h2>
-            </div>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
-              Every figure the archive holds, for everybody. Click a column to
-              sort by it, which is a link rather than a control, so the sorted
-              view is a real page you can send somebody. The column in force is
-              tinted and the leader of each is in bold. Nothing is compared
-              across columns, because a frag and a capture are not the same unit.
-            </p>
-
-            <div className="mt-3">
+          <section className="pb-7 pt-4">
+            <div className="mt-2">
               <StatTable players={players} sort={sort} dir={dir} />
             </div>
 
