@@ -100,45 +100,6 @@ export default async function MatchDayPage({ params }: Props) {
               ]
                 .filter(Boolean)
                 .join(" · ")}
-              /*
-                The night's story, above its results and with the picture at a
-                size somebody can see.
-
-                It was a strip at the foot of the block: a twenty pixel
-                thumbnail, the headline truncated to one line, under everything
-                else on the page. Every sports page puts the lead at the top of
-                the main column with the image attached to it, because the
-                story is what makes a table of scores worth reading. This is the
-                one picture the site generates every night and it was furniture.
-              */
-              lead={
-                column ? (
-                  <Link
-                    href={`/news/${day}`}
-                    className="group flex items-start gap-3 border-b border-basalt-800 pb-3"
-                  >
-                    <ColumnImage
-                      imageKey={column.imageKey}
-                      model={column.imageModel}
-                      headline={column.headline}
-                      className="hidden w-40 shrink-0 sm:block"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="figure-label block text-rust-500">
-                        The write-up
-                      </span>
-                      {/* Wraps rather than truncating. A headline cut in half is
-                          a worse invitation than no headline. */}
-                      <span className="mt-1 block font-display text-lg font-bold leading-snug text-steel-100 group-hover:text-rust-300">
-                        {column.headline}
-                      </span>
-                      <span className="mt-1.5 block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 group-hover:text-rust-300">
-                        Read the night
-                      </span>
-                    </span>
-                  </Link>
-                ) : null
-              }
             />
           </div>
 
@@ -173,6 +134,39 @@ export default async function MatchDayPage({ params }: Props) {
               </p>
             </section>
           ) : null}
+
+          {/*
+            The write-up, under the night it is about.
+
+            It led the page, which put a picture and a headline above the
+            results on a page named after the results. The story is derived from
+            the record and reads better once the reader has seen it.
+          */}
+          {column ? (
+              <Link
+                href={`/news/${day}`}
+                className="group flex items-start gap-3 border-b border-basalt-800 pb-3"
+              >
+                <ColumnImage
+                  imageKey={column.imageKey}
+                  model={column.imageModel}
+                  headline={column.headline}
+                  className="hidden w-40 shrink-0 sm:block"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="figure-label block text-rust-500">
+                    The write-up
+                  </span>
+                  {/* Wraps rather than truncating. A headline cut in half is
+                      a worse invitation than no headline. */}
+                  <span className="mt-1 block font-display text-lg font-bold leading-snug text-steel-100 group-hover:text-rust-300">
+                    {column.headline}
+                  </span>
+                  <span className="mt-1.5 block font-display text-[0.625rem] uppercase tracking-widest text-rust-400 group-hover:text-rust-300">
+                    Read the night
+                  </span>
+                </span>
+              </Link>) : null}
         </div>
 
         {/*

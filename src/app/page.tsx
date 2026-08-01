@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
 import { MatchOfTheNight } from "@/components/match-of-the-night";
-import { dayLabel, shortDayLabel } from "@/components/match-archive";
+import { dayLabel } from "@/components/match-archive";
 import {
   archiveTotals,
   latestDay,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/matches/queries";
 import { NightFootageCard } from "@/components/match-footage";
 import { footageForNight } from "@/lib/match-footage";
+import { ResultsStrip } from "@/components/results-strip";
 import { Ticker } from "@/components/ticker";
 import { getTicker } from "@/lib/matches/ticker";
 import { DISCORD_INVITE } from "@/lib/nav";
@@ -38,7 +39,7 @@ export default async function HomePage() {
       latestDay(),
       listPlayers(),
       listColumns(),
-      recentMatches(6),
+      recentMatches(10),
       getTicker(),
       listOpinions(1),
     ]);
@@ -130,7 +131,20 @@ export default async function HomePage() {
         </span>
       </div>
 
-      <div className="grid gap-x-10 gap-y-8 py-6 lg:grid-cols-[1.55fr_1fr]">
+      {/*
+        What happened, before anything written about what happened.
+
+        This page opened with a headline, an illustration and three paragraphs,
+        which put the first score 789px down a 720px screen. The article was
+        1271px of a 1959px page. Almost nobody arriving here is meeting the
+        server for the first time; they are looking up last night, and a front
+        page that makes them scroll for it is answering a question they did not
+        ask.
+      */}
+      <ResultsStrip matches={recent} className="pt-3" />
+
+      <div className="grid gap-x-10 gap-y-8 pb-6 pt-5 lg:grid-cols-[1.55fr_1fr]">
+        {/* --- The story, now under the results rather than above them --- */}
         {/* --- The lead story --- */}
         <article className="min-w-0">
           {column ? (
@@ -225,88 +239,6 @@ export default async function HomePage() {
               </Link>
             </section>
           ) : null}
-
-          <section>
-            <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
-              <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
-                Latest results
-              </h2>
-              <Link
-                href="/matches"
-                className="font-display text-[0.625rem] uppercase tracking-widest text-rust-400 hover:text-rust-300"
-              >
-                All
-              </Link>
-            </div>
-
-            {recent.length === 0 ? (
-              <p className="mt-3 text-xs text-steel-500">Nothing recorded yet.</p>
-            ) : (
-              <>
-                {/*
-                  Named, the same as the archive rows. A bare `2 - 1` does not
-                  say which number is which side, and colour cannot tell you
-                  because it encodes who won rather than who is who. The heading
-                  is the legend.
-
-                  These span nights, so the night is the column rather than the
-                  kick-off time: on a list of the last six matches, which evening
-                  is the useful one and the clock is not.
-                */}
-                <div className="flex items-baseline gap-2.5 border-b border-basalt-800 py-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
-                  <span className="min-w-0 flex-1">Map</span>
-                  <span className="w-10 shrink-0 text-right">Night</span>
-                  <span className="w-14 shrink-0 text-right tracking-normal">
-                    <span className="text-rust-400">Red</span>
-                    <span className="text-steel-700"> / </span>
-                    <span className="text-oxide-400">Blue</span>
-                  </span>
-                </div>
-
-                <ul>
-                  {recent.map((match) => (
-                    <li
-                      key={`${match.archiveDay}-${match.sourceMatchId}`}
-                      className="border-b border-basalt-800"
-                    >
-                      <Link
-                        href={`/matches/${match.archiveDay}/${match.sourceMatchId}`}
-                        className="group flex items-baseline gap-2.5 py-1.5"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-xs text-steel-200 group-hover:text-rust-300">
-                          {match.mapName}
-                        </span>
-                        <span className="w-10 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-500">
-                          {shortDayLabel(match.archiveDay)}
-                        </span>
-                        <span className="w-14 shrink-0 text-right font-mono text-sm tabular-nums">
-                          <span
-                            className={
-                              match.winner === "red"
-                                ? "font-semibold text-rust-400"
-                                : "text-steel-500"
-                            }
-                          >
-                            {match.redScore}
-                          </span>
-                          <span className="mx-0.5 text-steel-700">/</span>
-                          <span
-                            className={
-                              match.winner === "blue"
-                                ? "font-semibold text-oxide-400"
-                                : "text-steel-500"
-                            }
-                          >
-                            {match.blueScore}
-                          </span>
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
 
           {/*
             Earlier nights, which the front page had no route to at all.
