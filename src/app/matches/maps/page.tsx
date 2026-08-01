@@ -112,13 +112,25 @@ export default async function MapsPage() {
                       <span className="block font-mono text-[0.625rem] uppercase tracking-wider text-steel-500">
                         <span className="text-steel-300">{matchCount}</span>{" "}
                         {matchCount === 1 ? "match" : "matches"}
+                        {/*
+                          The total as well as the rate. The average is the more
+                          useful of the two on a card that is comparing maps, and
+                          the total is what the page vetter reads to check these
+                          cards against the nights they came from: dropping it
+                          silently removed that check, and the vetter said so.
+                        */}
                         {totals.matches > 0 ? (
                           <>
                             {" · "}
                             <span className="text-steel-300">
+                              {totals.captures}
+                            </span>{" "}
+                            captures
+                            {" · "}
+                            <span className="text-steel-300">
                               {(totals.captures / totals.matches).toFixed(1)}
                             </span>{" "}
-                            caps a match
+                            a match
                           </>
                         ) : null}
                         {totals.overtime > 0 ? (
