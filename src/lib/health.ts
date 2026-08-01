@@ -43,6 +43,8 @@ export type Health = {
 };
 
 export async function getHealth(): Promise<Health> {
+  // counts-everything: this answers "is data arriving", not "what does the
+  // archive say happened". A cancelled match is data arriving.
   const [row] = await db
     .select({
       lastIngest: sql<Date | null>`max(${matches.ingestedAt})`,
@@ -85,7 +87,12 @@ export async function getHealth(): Promise<Health> {
 
 export { SYNC_STALE_MINUTES, BACKUP_STALE_HOURS };
 
-/** Newest ingest time, for the small indicator on the server page. */
+/**
+ * Newest ingest time, for the small indicator on the server page.
+ *
+ * counts-everything: when the archive last heard from the VPS, which is a fact
+ * about the pipeline rather than about the matches in it.
+ */
 export async function lastSyncAt(): Promise<Date | null> {
   const [row] = await db
     .select({ ingestedAt: matches.ingestedAt })

@@ -67,6 +67,11 @@ export type VettableMatch = {
  * would be a number fitted to the two values seen so far, and it would start
  * failing the day somebody runs a five minute match on purpose. Everything this
  * is meant to catch, an abandoned start, is far below it.
+ *
+ * `MIN_COMPLETED_SECONDS` in completion.ts is the same number and is what the
+ * site's totals and pages read. Flagging one here and counting it there is the
+ * disagreement worth avoiding: this file is what says a match was cancelled, and
+ * that file is what makes it stop counting.
  */
 const MIN_PLAUSIBLE_SECONDS = 300;
 

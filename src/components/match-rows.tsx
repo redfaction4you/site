@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FootageMark } from "@/components/footage-mark";
 import { MapShot } from "@/components/map-shot";
 import { matchTime } from "@/components/match-archive";
+import { CANCELLED_NOTE } from "@/lib/matches/completion";
 import type { MatchSummary } from "@/lib/matches/queries";
 
 /**
@@ -113,6 +114,20 @@ export function MatchRows({
                     {match.status}
                   </span>
                 ) : null}
+                {/*
+                  A cancelled start reads exactly like a real result without
+                  this. It was already left out of every total on the page, so
+                  the row was the one place a nil-nil after thirty seconds still
+                  looked like a match that was played to a draw.
+                */}
+                {match.completed ? null : (
+                  <span
+                    className="shrink-0 font-mono text-[0.5625rem] uppercase tracking-wider text-steel-500"
+                    title={CANCELLED_NOTE}
+                  >
+                    cancelled
+                  </span>
+                )}
               </span>
 
               <span className="hidden w-28 shrink-0 truncate text-[0.6875rem] text-steel-400 md:block">

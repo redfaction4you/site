@@ -32,7 +32,12 @@ import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
-import { TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
+import { MIN_COMPLETED_SECONDS } from "@/lib/matches/completion";
+import {
+  MATCH_COMPLETED,
+  TOOK_PART,
+  fetchAppearances,
+} from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
 import { loreFor } from "./lore";
 import { verifyDraft, verifyNote } from "./verify";
@@ -207,11 +212,15 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     })
     .from(matches)
     .innerJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
-    // Only what was on record that night. See the note below.
+    // Only what was on record that night, and only what counted. See the note
+    // below for the first; the second is because this figure opens the piece as
+    // "N matches" and is also the gate on whether there is enough to write
+    // about at all.
     .where(
       and(
         eq(matches.status, "final"),
         TOOK_PART,
+        MATCH_COMPLETED,
         lte(matches.archiveDay, archiveDay),
       ),
     );
@@ -246,7 +255,7 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     .select({ name: sql<string>`min(${matchPlayers.name})` })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(desc(sql`sum(${matchPlayers.score})`));
 
@@ -265,7 +274,13 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
       lastNight: sql<string>`max(${matches.archiveDay})::text`,
     })
     .from(matches)
-    .where(and(eq(matches.status, "final"), lte(matches.archiveDay, archiveDay)));
+    .where(
+      and(
+        eq(matches.status, "final"),
+        MATCH_COMPLETED,
+        lte(matches.archiveDay, archiveDay),
+      ),
+    );
   const season = seasonRows[0];
 
   // When each pair first and last shared a side, which is the shape of a
@@ -280,6 +295,11 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
       on b.match_id = a.match_id and b.team = a.team and lower(b.name) > lower(a.name)
     join ${matches} m on m.id = a.match_id
     where m.status = 'final' and m.archive_day <= ${archiveDay}
+      -- The same rule MATCH_COMPLETED carries, written against the alias:
+      -- that fragment names the table, and this query aliases it to m.
+      -- MIN_COMPLETED_SECONDS is still the one constant.
+      and (m.ended_at is null or m.started_at is null
+           or extract(epoch from (m.ended_at - m.started_at)) >= ${MIN_COMPLETED_SECONDS})
       and a.team in ('red','blue') and not a.spectator and not b.spectator
     group by 1, 2
   `);
@@ -304,6 +324,7 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
       and(
         eq(matches.status, "final"),
         TOOK_PART,
+        MATCH_COMPLETED,
         lte(matches.archiveDay, archiveDay),
       ),
     )

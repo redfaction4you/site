@@ -38,6 +38,10 @@ import {
   IDENTITY_KEY,
   playedBy,
 } from "@/lib/matches/identities";
+import {
+  MIN_COMPLETED_SECONDS,
+  matchCompleted,
+} from "@/lib/matches/completion";
 import type { VettableMatch } from "@/lib/matches/vet";
 
 /**
@@ -65,30 +69,19 @@ export const TOOK_PART = sql`
 /**
  * A match that actually finished, as a `where` clause.
  *
- * The companion to `TOOK_PART`, and it exists for the same reason: something
- * arrives in the archive that looks like a real row and is not. The server
- * labels an abandoned start `final`, identically to a game that ran its full ten
- * minutes, so status cannot tell them apart. Duration can, and unambiguously:
- * every completed match on record ran 600 seconds or more, and the one that was
- * cancelled ran 30.
+ * The SQL twin of `matchCompleted` in completion.ts, which is where the
+ * reasoning lives. Kept in step with it by hand for the same reason `TOOK_PART`
+ * is kept in step with `tookPart`: a page marking a match cancelled while a
+ * total still counted it is the failure mode, and it is exactly what happened.
+ * The night header excluded the cancelled match and the scoreboard under it did
+ * not, so the two disagreed by twelve frags on the same screen.
  *
- * **The row is kept and simply does not count.** Deleting it would be the
- * archive forgetting something that happened, and a cancelled match did happen;
- * it just produced no result. So it stays readable on its night, marked, and is
- * excluded from every total, average and ranking, exactly the trade the absent
- * player rows get.
- *
- * Half of regulation, matching `MIN_PLAUSIBLE_SECONDS` in vet.ts. Kept loose on
- * purpose: a tighter bound would be fitted to the single cancelled match seen so
- * far and would start excluding real games if a shorter format is ever run.
- *
- * A match with no clock at all is counted. Missing is not the same as short, and
- * refusing to count a match because the server forgot to send an end time would
- * lose a real result to a reporting gap.
+ * **The row is kept and simply does not count**, in every total, average and
+ * ranking, exactly the trade the absent player rows get.
  */
 export const MATCH_COMPLETED = sql`(
   ${matches.endedAt} is null or ${matches.startedAt} is null
-  or extract(epoch from (${matches.endedAt} - ${matches.startedAt})) >= 300
+  or extract(epoch from (${matches.endedAt} - ${matches.startedAt})) >= ${MIN_COMPLETED_SECONDS}
 )`;
 
 /**
@@ -115,12 +108,17 @@ export type DaySummary = {
   finalCount: number;
 };
 
-/** Every day that has matches, newest first. Drives the day selector. */
+/**
+ * Every day that has matches, newest first. Drives the day selector.
+ *
+ * The count is of matches that counted. A night strip reading 8 above a page
+ * whose own totals are of 7 is the same disagreement in a smaller space.
+ */
 export const listDays = cache(async function listDays(): Promise<DaySummary[]> {
   const rows = await db
     .select({
       archiveDay: matches.archiveDay,
-      matchCount: sql<number>`count(*)::int`,
+      matchCount: sql<number>`count(*) filter (where ${MATCH_COMPLETED})::int`,
       finalCount: sql<number>`count(*) filter (where ${matches.status} = 'final')::int`,
     })
     .from(matches)
@@ -130,6 +128,12 @@ export const listDays = cache(async function listDays(): Promise<DaySummary[]> {
   return rows;
 });
 
+/**
+ * The newest night on record.
+ *
+ * counts-everything: an evening is an evening. A night whose only match was
+ * cancelled is still the last time anybody played, and its page says so.
+ */
 export const latestDay = cache(async function latestDay(): Promise<string | null> {
   const [row] = await db
     .select({ archiveDay: matches.archiveDay })
@@ -157,6 +161,14 @@ export type MatchSummary = {
   winner: string | null;
   playerCount: number;
   /**
+   * Whether it counted. False for a start that was abandoned and restarted.
+   *
+   * Carried on the row rather than recomputed by each caller, so a list can mark
+   * it and a header can leave it out of the count without either of them
+   * knowing the rule. See completion.ts.
+   */
+  completed: boolean;
+  /**
    * Who had the best of it, by the game's own scoring.
    *
    * A row that says which map and what the score was does not say anything
@@ -170,7 +182,13 @@ export type MatchSummary = {
   top: { name: string; score: number; caps: number } | null;
 };
 
-/** The matches played on one day, in the order they were played. */
+/**
+ * The matches played on one day, in the order they were played.
+ *
+ * counts-everything: this is the night's own list, and a cancelled start is
+ * shown in it, marked, at the position it was played. Every figure taken from
+ * the list reads `completed` and leaves it out.
+ */
 export const listMatchesForDay = cache(async function listMatchesForDay(
   archiveDay: string,
 ): Promise<MatchSummary[]> {
@@ -203,6 +221,9 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
   // Every participant rather than a count, because the count and the best
   // player come out of the same rows and a night is a few dozen of them. Two
   // aggregates over one small result beats two round trips.
+  //
+  // counts-everything: the roster of the matches above, cancelled ones
+  // included, so a row that is shown can still say who was in it.
   const played = await db
     .select({
       matchId: matchPlayers.matchId,
@@ -245,6 +266,7 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
     ...row,
     number: index + 1,
     playerCount: counts.get(row.id) ?? 0,
+    completed: matchCompleted(row),
     top: best.get(row.id) ?? null,
   }));
 });
@@ -277,6 +299,13 @@ export type PublicScoreRow = {
   weaponStats: PublicWeaponStat[];
 };
 
+/**
+ * One match, whatever it turned out to be.
+ *
+ * counts-everything: the page renders what happened and marks a cancelled start
+ * as cancelled. Refusing to serve it would be the archive hiding a row it
+ * holds, and the link to it exists on the night page either way.
+ */
 export const getMatch = cache(async function getMatch(
   archiveDay: string,
   sourceMatchId: number,
@@ -310,6 +339,7 @@ export const getMatch = cache(async function getMatch(
 
   if (!match) return null;
 
+  // counts-everything: this match's own scoreboard, for the match above.
   const players: PublicScoreRow[] = await db
     .select({
       name: matchPlayers.name,
@@ -391,6 +421,9 @@ export const getAdjacentMatches = cache(async function getAdjacentMatches(
     mapName: matches.mapName,
   };
 
+  // counts-everything: walking the archive in the order it was played. A
+  // cancelled start sits between two real matches and skipping it would make
+  // the two arrows disagree with the list they came from.
   const [previous] = await db
     .select(columns)
     .from(matches)
@@ -398,6 +431,7 @@ export const getAdjacentMatches = cache(async function getAdjacentMatches(
     .orderBy(desc(matches.startedAt))
     .limit(1);
 
+  // counts-everything: the other direction of the same walk.
   const [next] = await db
     .select(columns)
     .from(matches)
@@ -668,6 +702,12 @@ export const getPlayerProfile = cache(async function getPlayerProfile(name: stri
  * in it were still on the same side; it carries no winner, so it lands in
  * `undecided` and cannot flatter or damage anybody's record.
  *
+ * Cancelled matches are a different case and are filtered out. "Played together
+ * eleven times" is a total like any other, and a start that was abandoned after
+ * thirty seconds is not a game two people played together. Left in, it also
+ * moved pairs across the five match bar that decides whether they are shown a
+ * win rate at all.
+ *
  * Exported uncached as well as cached because the profile writer runs outside a
  * request, where React's `cache` has no scope to work in.
  */
@@ -683,8 +723,8 @@ export async function fetchAppearances(upToDay?: string): Promise<Appearance[]> 
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
     .where(
       upToDay
-        ? and(TOOK_PART, lte(matches.archiveDay, upToDay))
-        : TOOK_PART,
+        ? and(TOOK_PART, MATCH_COMPLETED, lte(matches.archiveDay, upToDay))
+        : and(TOOK_PART, MATCH_COMPLETED),
     );
 }
 
@@ -792,6 +832,8 @@ export const getPlayerRecord = cache(async function getPlayerRecord(
   const rows = await getPlayerMatches(name);
   if (rows.length === 0) return [];
 
+  // counts-everything: `getPlayerMatches` above has already filtered, and this
+  // only names who else was in those matches.
   const roster = await db
     .select({
       matchId: matchPlayers.matchId,
@@ -850,6 +892,9 @@ export type LiveMatch = {
 
 /**
  * The match being played, if the server has told us about one.
+ *
+ * counts-everything: a match still being played has not ended, so there is
+ * nothing to time it against. It is judged when it finishes, like every other.
  *
  * The dedicated server pushes in-progress matches, marked `live`, with the flag
  * event stream as far as it has got. That has been arriving the whole time and
@@ -930,7 +975,13 @@ export const liveMatch = cache(async function liveMatch(): Promise<LiveMatch | n
    same aggregates the player and night pages use, grouped the other way.
    --------------------------------------------------------------------------- */
 
-/** Every map with a match on record, most played first. */
+/**
+ * Every map with a match on record, most played first.
+ *
+ * Counted the same way the map's own page counts, which is the matches that
+ * counted. The index saying a map has been played five times and the page
+ * behind it listing four is the disagreement this rule exists to stop.
+ */
 export const listMapNames = cache(async function listMapNames(): Promise<
   { mapName: string; matchCount: number }[]
 > {
@@ -940,6 +991,7 @@ export const listMapNames = cache(async function listMapNames(): Promise<
       matchCount: sql<number>`count(*)::int`,
     })
     .from(matches)
+    .where(MATCH_COMPLETED)
     .groupBy(matches.mapName)
     .orderBy(sql`count(*) desc`, asc(matches.mapName));
 });
@@ -1076,6 +1128,10 @@ export const getMapRecord = cache(async function getMapRecord(
  * Three queries rather than one per match: a busy night is twenty matches and
  * an N+1 here would be twenty round trips to answer one request.
  *
+ * counts-everything: this is the archive exporting itself. A consumer asking
+ * for a day is asking for what the server sent that day, cancelled starts and
+ * all, and every field they would need to tell them apart is in the document.
+ *
  * Field names are the snake_case of the original data contract, so anything
  * already written against that contract keeps working. The exception is the
  * bulk event streams, which are returned as stored.
@@ -1109,6 +1165,8 @@ export const getDayDocument = cache(async function getDayDocument(archiveDay: st
 
   // Note the explicit column list: identity_key is not among them, and must
   // never be. This is the endpoint where a mistake would be public.
+  //
+  // counts-everything: the scoreboards of the matches in the document above.
   const players = await db
     .select({
       matchId: matchPlayers.matchId,
@@ -1232,6 +1290,9 @@ export const getDayDocument = cache(async function getDayDocument(archiveDay: st
 /**
  * When matches actually kicked off, newest first.
  *
+ * counts-everything: every kick-off the archive holds, so a listed match can
+ * print its own start time in the reader's timezone.
+ *
  * Returned as raw instants so the browser can work out what that means where
  * the reader is. Doing the conversion here would bake in whichever timezone the
  * server happens to run in, which is nobody's.
@@ -1274,7 +1335,11 @@ export const recentMatches = cache(async function recentMatches(limit = 5) {
 export const nightTotals = cache(async function nightTotals(archiveDay: string) {
   const [row] = await db
     .select({
-      players: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+      // People, not names. Counting names left this header claiming ten players
+      // on 31 July directly above a scoreboard listing nine, because one of them
+      // had played under two names and the identity work grouped them
+      // everywhere except here.
+      players: sql<number>`count(distinct ${IDENTITY_KEY})::int`,
       frags: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
       captures: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
     })
@@ -1416,7 +1481,7 @@ export const serverRecords = cache(async function serverRecords() {
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(TOOK_PART)
+    .where(and(TOOK_PART, MATCH_COMPLETED))
     .orderBy(desc(matchPlayers.caps))
     .limit(1);
 
@@ -1430,18 +1495,29 @@ export const serverRecords = cache(async function serverRecords() {
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(TOOK_PART)
+    // A record set in a match that did not count is not a record. The match
+    // above this one was filtered and these two were not, so the biggest win
+    // came from the archive proper while the best streak could have come from
+    // thirty seconds of a start that was abandoned.
+    .where(and(TOOK_PART, MATCH_COMPLETED))
     .orderBy(desc(matchPlayers.maxStreak))
     .limit(1);
 
   return { biggestWin: biggestWin ?? null, mostCaps: mostCaps ?? null, bestStreak: bestStreak ?? null };
 });
 
-/** Totals for the front page and the archive header. */
+/**
+ * Totals for the front page and the archive header.
+ *
+ * Matches that counted, because this figure is quoted as a sample size: the
+ * server page argues from it that a per-map win rate would be noise, and a
+ * cancelled start is not part of any sample. Nights are counted whole, since an
+ * evening with a cancelled match in it was still an evening of play.
+ */
 export const archiveTotals = cache(async function archiveTotals() {
   const [row] = await db
     .select({
-      matchCount: sql<number>`count(*)::int`,
+      matchCount: sql<number>`count(*) filter (where ${MATCH_COMPLETED})::int`,
       dayCount: sql<number>`count(distinct ${matches.archiveDay})::int`,
     })
     .from(matches);
@@ -1456,6 +1532,10 @@ export const archiveTotals = cache(async function archiveTotals() {
  * suits none in particular. One game is usually the one people would actually
  * talk about, and it already has a written report, so surfacing it costs a query
  * and no generation at all.
+ *
+ * counts-everything: the rows are read in play order so the chosen match can be
+ * numbered as it is on the night page. The choice itself is made from the
+ * matches that counted, filtered where `pickable` is built below.
  *
  * Uses the same `matchInterest` the illustration uses to choose its subject, and
  * that sharing is the point: the picture and the featured match agreeing is the
@@ -1489,6 +1569,7 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
 
   const ids = rows.map((row) => row.id);
 
+  // counts-everything: squad sizes for the rows above, which the pick filters.
   const squads = await db
     .select({
       matchId: matchPlayers.matchId,
@@ -1518,7 +1599,18 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
 
   const byCaptures = new Map(captureCounts.map((row) => [row.matchId, row.count]));
 
-  const pickable: PickableMatch[] = rows.map((row) => ({
+  /*
+   * Everything that could be the match of the night, which is everything that
+   * counted. A cancelled start is a nil-nil after thirty seconds, so it is not
+   * a likely winner of an interest score, but "unlikely" is not a rule and the
+   * front page featuring a match the archive says did not happen would be the
+   * loudest possible place to say it twice.
+   *
+   * Filtered here rather than in the query, so the numbering below still counts
+   * every match of the evening in the order it was played and agrees with the
+   * night page, where the cancelled one is listed and marked.
+   */
+  const pickable: PickableMatch[] = rows.filter(matchCompleted).map((row) => ({
     sourceMatchId: row.sourceMatchId,
     mapName: row.mapName,
     redScore: row.redScore,
@@ -1548,6 +1640,8 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
     // Position in the night, so the article can say which game it was.
     number: rows.findIndex((candidate) => candidate.id === row.id) + 1,
     playerCount: squad.red + squad.blue,
+    // Always true: it was chosen from the matches that counted.
+    completed: true,
     // Not read by the component that renders this one, and a fourth query for a
     // field nothing shows would be a query for the type checker's benefit.
     top: null,
@@ -1616,7 +1710,12 @@ export const nightScoreboard = cache(async function nightScoreboard(
       playerIdentities,
       eq(playerIdentities.identityKey, matchPlayers.identityKey),
     )
-    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
+    // `MATCH_COMPLETED` was applied to the night's totals and missed here, one
+    // heading apart on the same page: the header read 2,090 frags for 31 July
+    // and the rows below it summed to 2,102, the difference being the twelve
+    // frags of a match cancelled after thirty seconds. It also put everybody on
+    // "8 / 8" for a night of seven matches.
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
     .groupBy(IDENTITY_KEY)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 });
@@ -1682,6 +1781,10 @@ export const otherColumns = cache(async function otherColumns(
 /**
  * Everything the ingest vet needs for one night, in one read.
  *
+ * counts-everything: emphatically so. The vet is what decides a match was
+ * cancelled in the first place. Filtering here would hide the evidence from the
+ * check that reports it, and the night would come back clean.
+ *
  * Separate from `getMatch` because that returns a whole match for a page and
  * this wants a narrow slice of every match at once. Names its columns, and does
  * not name `identity_key`.
@@ -1709,6 +1812,7 @@ export const nightForVetting = cache(async function nightForVetting(
 
   const ids = rows.map((row) => row.id);
 
+  // counts-everything: the rows the vet checks against each other.
   const players = await db
     .select({
       matchId: matchPlayers.matchId,
@@ -1763,6 +1867,10 @@ export type IdentityGroup = {
 
 /**
  * Everyone the archive knows about, grouped as people rather than as names.
+ *
+ * counts-everything: this is about names and the people behind them, not about
+ * results. Somebody who has only ever appeared in a cancelled match still needs
+ * to be nameable on the page that renames people.
  *
  * Only for the admin page. The identity key is in the return type because that
  * page has to be able to name the row it is editing, and it must go no further

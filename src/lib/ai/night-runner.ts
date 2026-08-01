@@ -12,7 +12,7 @@
  * longer matches and the column is rewritten rather than left describing half
  * an evening.
  */
-import { desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -22,7 +22,7 @@ import {
   opinionPieces,
   playerProfiles,
 } from "@/lib/db/schema";
-import { TOOK_PART } from "@/lib/matches/queries";
+import { MATCH_COMPLETED, TOOK_PART } from "@/lib/matches/queries";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
 import { activeModel, configuredProvider } from "./generate";
@@ -53,7 +53,23 @@ async function findFinishedNights(): Promise<Candidate[]> {
       lastEnd: sql<Date | null>`max(coalesce(${matches.endedAt}, ${matches.startedAt}))`,
     })
     .from(matches)
-    .where(eq(matches.status, "final"))
+    /*
+     * The matches that counted, which is what `buildNightFacts` writes from.
+     *
+     * These two counts are compared to decide whether a column is out of date,
+     * so they have to be the same count. They were not: the writer saw seven
+     * matches and this saw eight, and a night containing a cancelled start
+     * therefore looked permanently stale on one reading and permanently current
+     * on the other, depending on which count reached the comparison first.
+     *
+     * The 31 July column is the case in hand. It was written before the writing
+     * learned to skip cancelled matches, so it describes one as "a brief
+     * thirty-second clash that ended in a scoreless draw" and totals "all eight
+     * matches" above a page that says seven. With both counts on the same rule
+     * it comes out stale, and the next run rewrites it from what actually
+     * happened.
+     */
+    .where(and(eq(matches.status, "final"), MATCH_COMPLETED))
     .groupBy(matches.archiveDay)
     .orderBy(desc(matches.archiveDay))
     .limit(30);
@@ -275,7 +291,10 @@ export async function announcePendingColumns(): Promise<number> {
         blueScore: matches.blueScore,
       })
       .from(matches)
-      .where(eq(matches.archiveDay, column.archiveDay))
+      // The matches the column is about, which excludes any that were
+      // cancelled. Discord would otherwise carry a link to a nil-nil the
+      // article does not mention and the archive does not count.
+      .where(and(eq(matches.archiveDay, column.archiveDay), MATCH_COMPLETED))
       .orderBy(matches.startedAt);
 
     // Writing happens in a separate pass from announcing, so by the time we get
@@ -371,7 +390,11 @@ export async function backfillProfiles(): Promise<number> {
       matchCount: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
     })
     .from(matchPlayers)
-    .where(TOOK_PART)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    // The same count `/players` shows and the same one a profile is written
+    // from, so a profile is neither held back nor rewritten by a match that did
+    // not count towards the threshold it is being measured against.
+    .where(and(TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`);
 
   const existing = await db

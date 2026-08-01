@@ -125,6 +125,10 @@ export async function runBackup(): Promise<BackupResult> {
 
   // Order matters on restore: parents before children, because of the foreign
   // keys. Kept as an array rather than an object so that order is explicit.
+  //
+  // counts-everything: a backup that left rows out would not be a backup. The
+  // archive is copied exactly as it stands, cancelled matches included, and
+  // what counts is decided when it is read rather than when it is stored.
   const tables: [string, Promise<unknown[]>][] = [
     ["users", db.select().from(users)],
     ["accounts", db.select().from(accounts)],

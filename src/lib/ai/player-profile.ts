@@ -21,7 +21,12 @@ import {
   buildPairings,
   pairingsFor,
 } from "@/lib/matches/pairings";
-import { SOUND_SHOOTING, TOOK_PART, fetchAppearances } from "@/lib/matches/queries";
+import {
+  MATCH_COMPLETED,
+  SOUND_SHOOTING,
+  TOOK_PART,
+  fetchAppearances,
+} from "@/lib/matches/queries";
 import { generate } from "./generate";
 
 const SYSTEM = `You write two paragraph player profiles for a Red Faction
@@ -110,7 +115,12 @@ export async function buildProfileFacts(
       flagHoldMs: sql<number>`coalesce(sum(${matchPlayers.flagHoldMs}), 0)::int`,
     })
     .from(matchPlayers)
-    .where(TOOK_PART)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    // Every figure in a profile is a total or a rank across the field, and both
+    // are quoted back to the reader beside /players, which counts only the
+    // matches that counted. Two pages describing the same player with different
+    // numbers is the whole failure this rule exists to prevent.
+    .where(and(TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`);
 
   const me = everyone.find((row) => row.nameKey === nameKey);
@@ -171,7 +181,13 @@ export async function buildProfileFacts(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(sql`lower(${matchPlayers.name}) = ${nameKey}`, eq(matches.status, "final")))
+    .where(
+      and(
+        sql`lower(${matchPlayers.name}) = ${nameKey}`,
+        eq(matches.status, "final"),
+        MATCH_COMPLETED,
+      ),
+    )
     .orderBy(desc(matches.startedAt))
     .limit(8);
 

@@ -14,7 +14,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matches } from "@/lib/db/schema";
-import { getMatch } from "@/lib/matches/queries";
+import { MATCH_COMPLETED, getMatch } from "@/lib/matches/queries";
 import { activeModel, configuredProvider } from "./generate";
 import { writeMatchReport } from "./match-report";
 
@@ -32,8 +32,11 @@ export async function backfillReports(): Promise<number> {
     })
     .from(matches)
     // Only finished matches: a report on a game still being played would be
-    // wrong within the minute, and would never be rewritten.
-    .where(and(isNull(matches.report), eq(matches.status, "final")))
+    // wrong within the minute, and would never be rewritten. And only matches
+    // that counted, because there is nothing to report about a start that was
+    // abandoned after thirty seconds, and the attempt would spend an allowance
+    // that is the binding constraint on everything here.
+    .where(and(isNull(matches.report), eq(matches.status, "final"), MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt))
     .limit(MAX_PER_RUN);
 

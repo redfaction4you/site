@@ -14,7 +14,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
-import { SOUND_SHOOTING, TOOK_PART } from "@/lib/matches/queries";
+import { MATCH_COMPLETED, SOUND_SHOOTING, TOOK_PART } from "@/lib/matches/queries";
 import { checkClaims, repairNote } from "./fact-check";
 import { generate } from "./generate";
 import type { PickableMatch, Team } from "./match-pick";
@@ -73,16 +73,6 @@ function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-/**
- * Below this a match did not finish, so it is not written about.
- *
- * Half of the ten minute regulation, matching `MIN_PLAUSIBLE_SECONDS` in vet.ts
- * and deliberately generous: a tighter bound would be a number fitted to the
- * one cancelled match seen so far and would start excluding real games the day
- * somebody runs a shorter format.
- */
-const MIN_COMPLETED_SECONDS = 300;
-
 export type NightFacts = {
   archiveDay: string;
   matchCount: number;
@@ -137,12 +127,16 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
      * Filtered at the source rather than described to the writer as suspect. A
      * cancelled match is not a match that went badly, it is an event that did
      * not happen, and there is nothing true to say about it.
+     *
+     * The condition was written out here before `MATCH_COMPLETED` existed. It is
+     * the shared one now, so the column and the pages it links to cannot come to
+     * different views of which matches happened.
      */
     .where(
       and(
         eq(matches.archiveDay, archiveDay),
         eq(matches.status, "final"),
-        sql`extract(epoch from (${matches.endedAt} - ${matches.startedAt})) >= ${MIN_COMPLETED_SECONDS}`,
+        MATCH_COMPLETED,
       ),
     )
     .orderBy(asc(matches.startedAt));
@@ -150,6 +144,11 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
   if (rows.length === 0) return null;
 
   // Totals for the night, per player, across every match they appeared in.
+  //
+  // The matches above were filtered and these totals were not, so the writer was
+  // handed a frag count for the night that the night's own page no longer
+  // agreed with. A column quoting a total nobody can find on the scoreboard
+  // beside it is worse than one that says less.
   const totals = await db
     .select({
       name: sql<string>`min(${matchPlayers.name})`,
@@ -169,7 +168,7 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
 
@@ -189,7 +188,7 @@ export async function buildNightFacts(archiveDay: string): Promise<NightFacts | 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART))
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
     .groupBy(matchPlayers.matchId, matchPlayers.team);
 
   const squads = new Map<

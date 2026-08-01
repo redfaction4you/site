@@ -51,6 +51,12 @@ export function DayBlock({
   const Heading = heading;
   if (matches.length === 0) return null;
 
+  // What the night amounted to, which is not the number of rows below it: a
+  // cancelled start is listed, marked, and counted towards nothing, so a night
+  // of eight rows can be seven matches. Every other figure on this line is
+  // already counted that way.
+  const played = matches.filter((match) => match.completed).length;
+
   return (
     <section id={archiveDay} className="scroll-mt-20">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b-2 border-basalt-700 pb-1.5">
@@ -65,7 +71,7 @@ export function DayBlock({
           </Link>
         </Heading>
         <p className="font-mono text-xs text-steel-500">
-          {matches.length} {matches.length === 1 ? "match" : "matches"}
+          {played} {played === 1 ? "match" : "matches"}
           {stats ? <span className="text-steel-600"> · {stats}</span> : null}
         </p>
       </div>

@@ -11,7 +11,7 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
-import { TOOK_PART } from "@/lib/matches/queries";
+import { MATCH_COMPLETED, TOOK_PART } from "@/lib/matches/queries";
 
 export type TickerItem = {
   /** Short label, shown in the accent colour. */
@@ -50,7 +50,12 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(TOOK_PART, eq(matches.status, "final")));
+    // Every record below comes out of these rows, so a match that did not count
+    // must not be in them. Thirty seconds of an abandoned start is a short
+    // window to set a record in and not an impossible one, and "longest streak"
+    // taken from a match the archive says did not happen is exactly the kind of
+    // wrong number a ticker states with total confidence.
+    .where(and(TOOK_PART, eq(matches.status, "final"), MATCH_COMPLETED));
 
   if (best.length === 0) return items;
 
@@ -143,7 +148,7 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
       margin: sql<number>`abs(${matches.redScore} - ${matches.blueScore})`,
     })
     .from(matches)
-    .where(and(eq(matches.status, "final"), ne(matches.winner, "")))
+    .where(and(eq(matches.status, "final"), ne(matches.winner, ""), MATCH_COMPLETED))
     .orderBy(desc(sql`abs(${matches.redScore} - ${matches.blueScore})`))
     .limit(1);
 
@@ -171,7 +176,7 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
   const overtime = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(matches)
-    .where(and(eq(matches.status, "final"), eq(matches.overtime, true)));
+    .where(and(eq(matches.status, "final"), eq(matches.overtime, true), MATCH_COMPLETED));
 
   if (overtime[0]?.count) {
     items.push({

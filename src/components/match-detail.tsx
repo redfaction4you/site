@@ -13,6 +13,11 @@ import {
   shootingIsSound,
 } from "@/lib/matches/accuracy";
 import { tookPart } from "@/lib/matches/participation";
+import {
+  CANCELLED_NOTE,
+  matchSeconds,
+  wasCancelled,
+} from "@/lib/matches/completion";
 import { MatchFootageList } from "@/components/match-footage";
 import { footageForMatch } from "@/lib/match-footage";
 import { FootageMark } from "@/components/footage-mark";
@@ -320,10 +325,12 @@ export async function MatchDetailView({
 
   /** A full regulation match. Anything else is worth putting on the page. */
   const REGULATION_SECONDS = 600;
-  const playedSeconds =
-    match.startedAt && match.endedAt
-      ? Math.round((match.endedAt.getTime() - match.startedAt.getTime()) / 1000)
-      : null;
+  const playedSeconds = matchSeconds(match);
+
+  // Short enough that it was abandoned and restarted rather than played out.
+  // The same rule the totals use, so a match marked here is exactly a match
+  // missing from them. See completion.ts.
+  const cancelled = wasCancelled(match);
 
   const notableDuration = (() => {
     if (playedSeconds === null) return null;
@@ -443,16 +450,30 @@ export async function MatchDetailView({
             </p>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              {match.winner ? (
+              {/*
+                A result, in the words the result had.
+
+                The badge printed "{winner} won" for whatever the column held, so
+                a drawn match announced "tie won", and it took its colour from
+                "not red", which put a blue plate on a match blue had not won.
+                A tie is neither side's, so it is neither colour. A cancelled
+                start has no result at all and says so instead: it carries a
+                winner in the database like every other row.
+              */}
+              {match.winner && !cancelled ? (
                 <span
                   className={
                     "rounded-sm px-2 py-0.5 font-display text-[0.625rem] font-bold uppercase tracking-widest " +
                     (match.winner === "red"
                       ? "bg-rust-500/15 text-rust-300"
-                      : "bg-oxide-400/15 text-oxide-300")
+                      : match.winner === "blue"
+                        ? "bg-oxide-400/15 text-oxide-300"
+                        : "bg-basalt-700/60 text-steel-300")
                   }
                 >
-                  {match.winner} won
+                  {match.winner === "red" || match.winner === "blue"
+                    ? `${match.winner} won`
+                    : "Tie"}
                 </span>
               ) : null}
               {/* Overtime is the most interesting thing a match can be and it was
@@ -467,6 +488,15 @@ export async function MatchDetailView({
                   {match.status}
                 </span>
               ) : null}
+              {/* The score above is the loudest thing on the page and a
+                  cancelled start has one like any other match. Said here, next
+                  to it, rather than left to be inferred from a duration further
+                  down that most readers have no reason to check. */}
+              {cancelled ? (
+                <span className="rounded-sm border border-basalt-600 px-2 py-0.5 font-display text-[0.625rem] font-bold uppercase tracking-widest text-steel-400">
+                  Cancelled
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -476,6 +506,12 @@ export async function MatchDetailView({
                 full ten minutes, so printing 10:00 on all of them is noise. */}
             {notableDuration ? ` · ${notableDuration}` : ""}
           </p>
+
+          {cancelled ? (
+            <p className="mt-1.5 max-w-prose text-[0.6875rem] leading-snug text-steel-500">
+              {CANCELLED_NOTE}
+            </p>
+          ) : null}
         </div>
       </div>
 

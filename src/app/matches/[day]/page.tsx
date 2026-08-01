@@ -123,7 +123,11 @@ export default async function MatchDayPage({ params }: Props) {
               <div className="mt-2">
                 <NightScoreboard
                   players={scoreboard}
-                  matchCount={matches.length}
+                  /* The matches that counted, which is what the row beside it
+                     counts. Passing every row put everybody on "8 / 8" for a
+                     night where one of the eight was cancelled and nobody's
+                     total included it. */
+                  matchCount={matches.filter((match) => match.completed).length}
                 />
               </div>
               <p className="mt-2 text-[0.6875rem] leading-snug text-steel-600">
