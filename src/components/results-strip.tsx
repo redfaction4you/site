@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { MapShot } from "@/components/map-shot";
 import { shortDayLabel } from "@/components/match-archive";
+import { ScrollRow } from "@/components/scroll-row";
 
 /** Only what a result tile shows, so any query that has these can feed it. */
 export type StripMatch = {
@@ -28,7 +29,8 @@ export type StripMatch = {
  * Horizontal because results are read across rather than down, and because a
  * band costs one strip of height where a column costs a column. It scrolls
  * sideways when a night is long, with the newest first, so the most recent match
- * never needs a scroll to reach.
+ * never needs a scroll to reach. `ScrollRow` is what makes the far end
+ * reachable with a mouse, which for a while it was not.
  *
  * Winner in colour, loser in grey, and the map picture doing the work of saying
  * which game this was faster than the name can.
@@ -44,8 +46,8 @@ export function ResultsStrip({
   if (matches.length === 0) return null;
 
   return (
-    <section className={`relative ${className}`}>
-      <ol className="scrollbar-none flex gap-1.5 overflow-x-auto pb-1">
+    <section className={className}>
+      <ScrollRow label="results">
         {matches.map((match) => (
           <li key={`${match.archiveDay}-${match.sourceMatchId}`} className="shrink-0">
             <Link
@@ -100,12 +102,7 @@ export function ResultsStrip({
             </Link>
           </li>
         ))}
-      </ol>
-
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-basalt-950 to-transparent"
-      />
+      </ScrollRow>
     </section>
   );
 }

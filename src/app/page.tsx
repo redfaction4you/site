@@ -241,17 +241,24 @@ export default async function HomePage() {
           ) : null}
 
           {/*
-            Earlier nights, which the front page had no route to at all.
+            The other articles, which the front page had no route to at all.
 
             The lead was the only write-up on it, so a reader who had already
             seen that one had nowhere to go: the archive looked like it held a
             single article. These are the ones underneath it.
+
+            Headed "Earlier nights", which named what they are about rather than
+            what they are. A night is a set of results and this is a list of
+            things to read, so a reader who had just come from the results had no
+            reason to think these were anything new. `/news` calls them reports
+            and so does the lead directly above, which makes this the one place
+            on the site using a different word for the same thing.
           */}
           {earlier.length ? (
             <section>
               <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
                 <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
-                  Earlier nights
+                  Earlier reports
                 </h2>
                 <Link
                   href="/news"
