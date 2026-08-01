@@ -354,7 +354,7 @@ export default async function HomePage() {
           href={DISCORD_INVITE}
           target="_blank"
           rel="noreferrer noopener"
-          className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-steel-100 transition-colors hover:bg-rust-400"
+          className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-white transition-colors hover:bg-rust-400"
         >
           Join the Discord
         </a>

@@ -36,7 +36,7 @@ export function UserMenu({ session }: { session: Session | null }) {
       >
         <button
           type="submit"
-          className="rounded-sm bg-rust-500 px-3 py-1.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+          className="rounded-sm bg-rust-500 px-3 py-1.5 font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
         >
           Sign in
         </button>

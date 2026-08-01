@@ -39,7 +39,7 @@ function VideoCard({ video }: { video: Video }) {
             className="absolute inset-0 flex items-center justify-center bg-basalt-950/35 opacity-0 transition-opacity group-hover:opacity-100"
             aria-hidden="true"
           >
-            <span className="rounded-full bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-widest text-steel-100">
+            <span className="rounded-full bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-widest text-white">
               Watch
             </span>
           </span>
@@ -76,7 +76,7 @@ function EmptyState() {
         href={DISCORD_INVITE}
         target="_blank"
         rel="noreferrer noopener"
-        className="mt-6 inline-block rounded-sm bg-rust-500 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+        className="mt-6 inline-block rounded-sm bg-rust-500 px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
       >
         Suggest a video
       </a>

@@ -27,7 +27,11 @@ import {
   buildPairings,
   pairingsFor,
 } from "@/lib/matches/pairings";
-import { ARCHIVE_TIME_ZONE, type PublicWeaponStat } from "@/lib/matches/sanitize";
+import {
+  ARCHIVE_TIME_ZONE,
+  type PublicFlagEvent,
+  type PublicWeaponStat,
+} from "@/lib/matches/sanitize";
 import type { VettableMatch } from "@/lib/matches/vet";
 
 /**
@@ -785,6 +789,93 @@ export const getPlayerRecord = cache(async function getPlayerRecord(
         .map((entry) => entry.name),
     };
   });
+});
+
+export type LiveMatch = {
+  archiveDay: string;
+  sourceMatchId: number;
+  mapName: string;
+  startedAt: Date | null;
+  redScore: number;
+  blueScore: number;
+  ingestedAt: Date;
+  /** Newest first, already trimmed to what a feed can show. */
+  events: PublicFlagEvent[];
+  /** Every capture, oldest first, for the running scoreline. */
+  captures: PublicFlagEvent[];
+};
+
+/**
+ * The match being played, if the server has told us about one.
+ *
+ * The dedicated server pushes in-progress matches, marked `live`, with the flag
+ * event stream as far as it has got. That has been arriving the whole time and
+ * nothing read it: the site had a live score from the public server browser,
+ * which knows the numbers and none of the story, while its own database held
+ * every pickup, drop and capture with a message already written.
+ *
+ * Lagging, not real time, and the page has to say so. Events arrive when the
+ * server next syncs rather than as they happen, so this is the match up to a
+ * few minutes ago. The fix if that ever matters is at the other end: whatever
+ * posts each capture to Discord as it happens could post here too.
+ */
+export const liveMatch = cache(async function liveMatch(): Promise<LiveMatch | null> {
+  const [row] = await db
+    .select({
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      startedAt: matches.startedAt,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      ingestedAt: matches.ingestedAt,
+      flagEvents: matches.flagEvents,
+      status: matches.status,
+    })
+    .from(matches)
+    .where(eq(matches.status, "live"))
+    .orderBy(desc(matches.startedAt))
+    .limit(1);
+
+  if (!row) return null;
+
+  /*
+   * A live row that stopped being updated is not a live match.
+   *
+   * `live` is set by the sender and cleared by the sender, so a sync that stops
+   * mid match leaves the row saying live for ever. Without this the page would
+   * still be reporting a game from last Tuesday as in progress, which is the
+   * same shape of failure as prose outliving the bug that produced it: stored
+   * state that nothing revisits. The archive syncs every fifteen minutes, so an
+   * hour is several missed rounds and comfortably past any real gap.
+   */
+  const STALE_AFTER_MS = 60 * 60 * 1000;
+  if (Date.now() - row.ingestedAt.getTime() > STALE_AFTER_MS) return null;
+
+  const all = (Array.isArray(row.flagEvents) ? row.flagEvents : []) as PublicFlagEvent[];
+
+  /*
+   * Ordered on the match clock rather than on arrival.
+   *
+   * `elapsed_seconds` restarts at zero in overtime, which is the bug that once
+   * put a golden goal at the top of a capture timeline. A live match has not
+   * reached overtime by definition of still being the match, so the clock is
+   * safe here, and it is the only ordering the events all share: `observedAt`
+   * is null on some of them.
+   */
+  const ordered = [...all].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds);
+
+  return {
+    archiveDay: row.archiveDay,
+    sourceMatchId: row.sourceMatchId,
+    mapName: row.mapName,
+    startedAt: row.startedAt,
+    redScore: row.redScore,
+    blueScore: row.blueScore,
+    ingestedAt: row.ingestedAt,
+    events: [...ordered].reverse().slice(0, 12),
+    captures: ordered.filter((event) => event.eventType === "flag_capture"),
+  };
 });
 
 /* ---------------------------------------------------------------------------

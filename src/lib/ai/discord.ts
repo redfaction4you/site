@@ -41,7 +41,49 @@ export type ColumnToAnnounce = {
   matchCount: number;
   /** The generated illustration, if there is one. Null is normal. */
   imageUrl?: string | null;
+  /**
+   * The night's matches, so the post can link to each one.
+   *
+   * The embed sent people to the article and stopped there, which is the one
+   * page on the site that does not have the scoreboard on it. Somebody reading
+   * "Blue took it 5-3 on Huna" in Discord wants the match, and the match has a
+   * permanent URL, so not offering it was a link nobody had to guess at going
+   * unoffered.
+   */
+  matches?: {
+    sourceMatchId: number;
+    mapName: string;
+    redScore: number;
+    blueScore: number;
+  }[];
 };
+
+/**
+ * The night's matches as one field of links.
+ *
+ * One field rather than one per match, because Discord lays fields out in
+ * columns and six of them turns a post into a grid of stubs. Capped, because a
+ * long night would otherwise push the embed past its limit for a list nobody
+ * reads to the end of; the site link at the top covers the rest.
+ */
+function matchLinks(column: ColumnToAnnounce): string | null {
+  if (!column.matches?.length) return null;
+
+  const shown = column.matches.slice(0, 12);
+  const lines = shown.map(
+    (match) =>
+      `[${match.mapName}](${SITE_URL}/matches/${column.archiveDay}/${match.sourceMatchId}) ` +
+      `${match.redScore}-${match.blueScore}`,
+  );
+
+  if (column.matches.length > shown.length) {
+    lines.push(
+      `[and ${column.matches.length - shown.length} more](${SITE_URL}/matches/${column.archiveDay})`,
+    );
+  }
+
+  return lines.join("\n");
+}
 
 /** Returns true only if Discord accepted the post. */
 export async function announceColumn(column: ColumnToAnnounce): Promise<boolean> {
@@ -49,6 +91,7 @@ export async function announceColumn(column: ColumnToAnnounce): Promise<boolean>
   if (!url) return false;
 
   const link = `${SITE_URL}/news/${column.archiveDay}`;
+  const links = matchLinks(column);
 
   try {
     const response = await fetch(url, {
@@ -64,13 +107,23 @@ export async function announceColumn(column: ColumnToAnnounce): Promise<boolean>
             // Discord fetches this itself, which is another reason the bucket
             // URL has to be public and permanent rather than signed.
             ...(column.imageUrl ? { image: { url: column.imageUrl } } : {}),
+            ...(links
+              ? {
+                  fields: [
+                    { name: "Every match this night", value: links.slice(0, 1024) },
+                  ],
+                }
+              : {}),
             footer: {
               // The illustration is labelled here for the same reason it is
               // labelled on the site. A synthetic photograph passed off as a
               // record of the evening is the single most misleading thing this
               // project could publish, and an embed travels further than a page.
+              // Named, because an embed travels away from the place it was
+              // posted and a reader three shares later has no idea whose
+              // archive this is.
               text:
-                `${column.matchCount} ${column.matchCount === 1 ? "match" : "matches"} · written automatically from the match data` +
+                `redfaction4you.com · ${column.matchCount} ${column.matchCount === 1 ? "match" : "matches"} · written automatically from the match data` +
                 (column.imageUrl ? " · picture generated, not a photograph" : ""),
             },
             timestamp: new Date().toISOString(),

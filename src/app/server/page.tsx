@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 
+import { LiveFeed } from "@/components/live-feed";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LiveScoreboard } from "@/components/live-scoreboard";
 import Link from "next/link";
@@ -11,12 +12,14 @@ import {
   archiveTotals,
   getMatchStartTimes,
   latestDay,
+  liveMatch,
   mapRotation,
   nightShape,
   serverRecords,
 } from "@/lib/matches/queries";
 import { mapSlug } from "@/lib/matches/maps";
 import { DISCORD_INVITE } from "@/lib/nav";
+import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
 import { getServerStatus, type ServerStatus } from "@/lib/server-status";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
 
@@ -157,17 +160,27 @@ function StatusBadge({ status }: { status: ServerStatus }) {
 }
 
 export default async function ServerPage() {
-  const [totals, latest, status, startTimes, lastSync, rotation, shape, records] =
-    await Promise.all([
-      archiveTotals(),
-      latestDay(),
-      getServerStatus(),
-      getMatchStartTimes(),
-      lastSyncAt(),
-      mapRotation(),
-      nightShape(),
-      serverRecords(),
-    ]);
+  const [
+    totals,
+    latest,
+    status,
+    startTimes,
+    lastSync,
+    rotation,
+    shape,
+    records,
+    live,
+  ] = await Promise.all([
+    archiveTotals(),
+    latestDay(),
+    getServerStatus(),
+    getMatchStartTimes(),
+    lastSyncAt(),
+    mapRotation(),
+    nightShape(),
+    serverRecords(),
+    liveMatch(),
+  ]);
 
   const mostPlayed = rotation[0]?.played ?? 0;
 
@@ -292,7 +305,7 @@ export default async function ServerPage() {
               href={DISCORD_INVITE}
               target="_blank"
               rel="noreferrer noopener"
-              className="rounded-sm bg-rust-500 px-3 py-1.5 font-display text-[0.6875rem] font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+              className="rounded-sm bg-rust-500 px-3 py-1.5 font-display text-[0.6875rem] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
             >
               Join the Discord
             </a>
@@ -342,6 +355,28 @@ export default async function ServerPage() {
                 Sides are named from what the browser reports, and a player it
                 does not mark as blue is taken to be red.
               </p>
+
+              {/*
+                The story behind those numbers, from our own event stream, which
+                is a slower clock than the scoreboard above it and says so.
+              */}
+              {live ? (
+                <div className="mt-6 border-t border-basalt-800 pt-4">
+                  <LiveFeed match={live} />
+                  <p className="mt-3 max-w-2xl text-xs leading-relaxed text-steel-500">
+                    On {live.mapName}, from the events the server has sent us so
+                    far. This arrives on the archive sync rather than as it
+                    happens, so it runs behind the scoreboard above: last
+                    received{" "}
+                    {new Date(live.ingestedAt).toLocaleTimeString("en-GB", {
+                      timeZone: ARCHIVE_TIME_ZONE,
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    .
+                  </p>
+                </div>
+              ) : null}
             </section>
           ) : (
             <MatchTimes startedAt={startTimes} />

@@ -158,7 +158,7 @@ export function MatchFootageList({
                     className="absolute inset-0 flex items-center justify-center bg-basalt-950/35 opacity-0 transition-opacity group-hover:opacity-100"
                     aria-hidden="true"
                   >
-                    <span className="rounded-full bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-widest text-steel-100">
+                    <span className="rounded-full bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-widest text-white">
                       Watch
                     </span>
                   </span>

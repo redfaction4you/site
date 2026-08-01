@@ -255,11 +255,28 @@ export async function announcePendingColumns(): Promise<number> {
   let posted = 0;
 
   for (const column of pending) {
+    /*
+     * The night's results, so the post can link to each match rather than only
+     * to the article. One query per column being announced, and there are at
+     * most three of those per run.
+     */
+    const played = await db
+      .select({
+        sourceMatchId: matches.sourceMatchId,
+        mapName: matches.mapName,
+        redScore: matches.redScore,
+        blueScore: matches.blueScore,
+      })
+      .from(matches)
+      .where(eq(matches.archiveDay, column.archiveDay))
+      .orderBy(matches.startedAt);
+
     // Writing happens in a separate pass from announcing, so by the time we get
     // here the image either exists or was never going to.
     const ok = await announceColumn({
       ...column,
       imageUrl: column.imageKey ? publicUrl(column.imageKey) : null,
+      matches: played,
     });
     if (!ok) continue;
 

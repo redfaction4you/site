@@ -64,7 +64,7 @@ export function ItemDetail({ item, meta }: { item: CatalogueItem; meta: KindMeta
             <a
               href={primaryUrl}
               download
-              className="rounded-sm bg-rust-500 px-6 py-3 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+              className="rounded-sm bg-rust-500 px-6 py-3 font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
             >
               Download
             </a>

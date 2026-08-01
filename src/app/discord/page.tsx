@@ -59,7 +59,7 @@ export default function DiscordPage() {
             href={DISCORD_INVITE}
             target="_blank"
             rel="noreferrer noopener"
-            className="mt-5 block rounded-sm bg-rust-500 px-4 py-2.5 text-center font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+            className="mt-5 block rounded-sm bg-rust-500 px-4 py-2.5 text-center font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
           >
             Join the server
           </a>

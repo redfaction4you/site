@@ -73,7 +73,7 @@ export default async function SignInPage({
       >
         <button
           type="submit"
-          className="w-full rounded-sm bg-rust-500 px-5 py-3 font-display text-sm font-semibold uppercase tracking-wider text-steel-100 transition-colors hover:bg-rust-400"
+          className="w-full rounded-sm bg-rust-500 px-5 py-3 font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
         >
           Continue with Discord
         </button>
