@@ -32,7 +32,7 @@ export function DayBlock({
 }: {
   archiveDay: string;
   matches: MatchSummary[];
-  heading?: "h1" | "h2";
+  heading?: "h1" | "h2" | "h3";
   /**
    * The night's story, above its results.
    *

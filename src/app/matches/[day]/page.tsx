@@ -267,18 +267,31 @@ export default async function MatchDayPage({ params }: Props) {
           The page used to end after one night, so the only route to the night
           before was back out to a selector and in again. Reading an archive is
           walking backwards through it, and the scroll should do that.
+
+          Under a heading, and at h3, because without one the page shows three
+          nights of equal weight beside a rail that is about one of them. The
+          rail is not wrong, it is scoped to the night in the URL, but nothing
+          said so: the fix is to say which night this page is, rather than to
+          stop the rail being about it.
         */}
-        <div className="min-w-0 space-y-8 lg:col-start-1">
-          {earlierNights.map((night) => (
-            <DayBlock
-              key={night.archiveDay}
-              archiveDay={night.archiveDay}
-              matches={night.matches}
-            />
-          ))}
+        <div className="min-w-0 lg:col-start-1">
+          {earlierNights.length > 0 ? (
+            <h2 className="rule-heading mb-3">Earlier nights</h2>
+          ) : null}
+
+          <div className="space-y-8">
+            {earlierNights.map((night) => (
+              <DayBlock
+                key={night.archiveDay}
+                archiveDay={night.archiveDay}
+                matches={night.matches}
+                heading="h3"
+              />
+            ))}
+          </div>
 
           {older > 0 ? (
-            <p className="text-sm text-steel-500">
+            <p className="mt-8 text-sm text-steel-500">
               {older} older {older === 1 ? "night is" : "nights are"} in the index
               beside this.
             </p>
