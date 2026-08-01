@@ -7,9 +7,9 @@ import { mapSlug } from "@/lib/matches/maps";
 import { getMapRecord, listMapNames } from "@/lib/matches/queries";
 
 export const metadata: Metadata = {
-  title: "Maps played",
+  title: "Competitive CTF maps",
   description:
-    "Every map played on the RedFaction4You server, how often, and how the matches on it have gone.",
+    "The maps the RedFaction4You matches are played on, how often each comes up, and the fastest flag run recorded on it.",
 };
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,12 @@ export const dynamic = "force-dynamic";
  * Ordered by matches played, which is the honest ranking available: it is a
  * record of what the server actually runs, and on a server where people call
  * the map it is also roughly a record of what people ask for.
+ *
+ * It is not a filtered list and does not need to be. Every level with a recorded
+ * match on it is a level the competitive matches were played on, so what the
+ * archive holds and what the rotation is are the same set. If that ever stops
+ * being true, this is where the distinction would go, and it would have to be a
+ * list somebody maintains rather than something inferred from play.
  */
 export default async function MapsPage() {
   const names = await listMapNames();
@@ -37,7 +43,7 @@ export default async function MapsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 pb-12">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
-        <h1 className="eyebrow">Maps played</h1>
+        <h1 className="eyebrow">Competitive CTF maps</h1>
         <p className="font-mono text-xs text-steel-600">
           <span className="text-steel-300">{names.length}</span> maps
         </p>
@@ -52,10 +58,12 @@ export default async function MapsPage() {
       ) : (
         <>
           <p className="max-w-3xl py-4 text-sm leading-relaxed text-steel-400">
-            Every level the server has played a recorded match on, most played
-            first. Overtime is counted because it is the one thing a map can be
-            blamed for: a level that keeps ending level is telling you something
-            the scores alone do not.
+            The levels the matches are played on, most played first. Overtime is
+            counted because it is the one thing a map can be blamed for: a level
+            that keeps ending level is telling you something the scores alone do
+            not. The fastest run is the quickest anybody has carried the flag
+            from the enemy stand to their own without dropping it, and it is kept
+            per map because these are not the same length.
           </p>
 
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -87,6 +95,24 @@ export default async function MapsPage() {
                         </span>
                       ) : null}
                     </span>
+                    {/*
+                      The map's own record, on the row rather than a click away.
+                      It is the one figure that differs between these levels for
+                      a reason a player cares about, and reading nine of them
+                      down a page is how the difference in length becomes
+                      obvious.
+                    */}
+                    {record.bests.fastestRun ? (
+                      <span className="mt-1 font-mono text-[0.625rem] tabular-nums text-steel-500">
+                        Fastest run{" "}
+                        <span className="text-steel-200">
+                          {(record.bests.fastestRun.value / 1000).toFixed(1)}s
+                        </span>{" "}
+                        <span className="text-steel-600">
+                          {record.bests.fastestRun.name}
+                        </span>
+                      </span>
+                    ) : null}
                   </span>
                 </Link>
               </li>
