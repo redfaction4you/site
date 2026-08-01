@@ -57,6 +57,35 @@ export const TOOK_PART = sql`
   )`;
 
 /**
+ * A match that actually finished, as a `where` clause.
+ *
+ * The companion to `TOOK_PART`, and it exists for the same reason: something
+ * arrives in the archive that looks like a real row and is not. The server
+ * labels an abandoned start `final`, identically to a game that ran its full ten
+ * minutes, so status cannot tell them apart. Duration can, and unambiguously:
+ * every completed match on record ran 600 seconds or more, and the one that was
+ * cancelled ran 30.
+ *
+ * **The row is kept and simply does not count.** Deleting it would be the
+ * archive forgetting something that happened, and a cancelled match did happen;
+ * it just produced no result. So it stays readable on its night, marked, and is
+ * excluded from every total, average and ranking, exactly the trade the absent
+ * player rows get.
+ *
+ * Half of regulation, matching `MIN_PLAUSIBLE_SECONDS` in vet.ts. Kept loose on
+ * purpose: a tighter bound would be fitted to the single cancelled match seen so
+ * far and would start excluding real games if a shorter format is ever run.
+ *
+ * A match with no clock at all is counted. Missing is not the same as short, and
+ * refusing to count a match because the server forgot to send an end time would
+ * lose a real result to a reporting gap.
+ */
+export const MATCH_COMPLETED = sql`(
+  ${matches.endedAt} is null or ${matches.startedAt} is null
+  or extract(epoch from (${matches.endedAt} - ${matches.startedAt})) >= 300
+)`;
+
+/**
  * The order captures actually happened in.
  *
  * Not `elapsed_seconds`, which is the match clock and **restarts at zero in
@@ -484,7 +513,7 @@ export const listPlayers = cache(async function listPlayers(): Promise<PlayerTot
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(TOOK_PART)
+    .where(and(TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .orderBy(sql`count(distinct ${matchPlayers.matchId}) desc`, sql`2 desc`);
 
@@ -512,7 +541,7 @@ export const recentForm = cache(async function recentForm(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(TOOK_PART, eq(matches.status, "final")))
+    .where(and(TOOK_PART, eq(matches.status, "final"), MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt));
 
   const byPlayer = new Map<string, (boolean | null)[]>();
@@ -546,7 +575,7 @@ export const getPlayer = cache(async function getPlayer(
     // Filtered like the list is. Without this a player page counted the nights
     // somebody spectated as matches they played, so the list and the page
     // disagreed about the same person.
-    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART))
+    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART, MATCH_COMPLETED))
     .groupBy(sql`lower(${matchPlayers.name})`)
     .limit(1);
 
@@ -709,7 +738,7 @@ export const getPlayerMatches = cache(async function getPlayerMatches(
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART))
+    .where(and(sql`lower(${matchPlayers.name}) = lower(${name})`, TOOK_PART, MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt));
 
   return rows.map(({ winner, ...row }) => ({
@@ -951,7 +980,7 @@ export const getMapRecord = cache(async function getMapRecord(
       status: matches.status,
     })
     .from(matches)
-    .where(eq(matches.mapName, mapName))
+    .where(and(eq(matches.mapName, mapName), MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt));
 
   if (rows.length === 0) {
@@ -998,7 +1027,7 @@ export const getMapRecord = cache(async function getMapRecord(
       })
       .from(matchPlayers)
       .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-      .where(and(eq(matches.mapName, mapName), TOOK_PART))
+      .where(and(eq(matches.mapName, mapName), TOOK_PART, MATCH_COMPLETED))
       .groupBy(sql`lower(${matchPlayers.name})`)
       .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`),
   ]);
@@ -1218,7 +1247,7 @@ export const recentMatches = cache(async function recentMatches(limit = 5) {
       overtime: matches.overtime,
     })
     .from(matches)
-    .where(eq(matches.status, "final"))
+    .where(and(eq(matches.status, "final"), MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt))
     .limit(limit);
 });
@@ -1233,7 +1262,7 @@ export const nightTotals = cache(async function nightTotals(archiveDay: string) 
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART));
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED));
 
   return row ?? { players: 0, frags: 0, captures: 0 };
 });
@@ -1294,7 +1323,7 @@ export const mapRotation = cache(async function mapRotation() {
       overtimes: sql<number>`count(*) filter (where ${matches.overtime})::int`,
     })
     .from(matches)
-    .where(eq(matches.status, "final"))
+    .where(and(eq(matches.status, "final"), MATCH_COMPLETED))
     .groupBy(matches.mapName)
     .orderBy(sql`count(*) desc`, matches.mapName);
 });
@@ -1318,7 +1347,7 @@ export const nightShape = cache(async function nightShape() {
     })
     .from(matches)
     .innerJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
-    .where(and(eq(matches.status, "final"), TOOK_PART))
+    .where(and(eq(matches.status, "final"), TOOK_PART, MATCH_COMPLETED))
     .groupBy(matches.archiveDay);
 
   if (rows.length === 0) {
@@ -1355,7 +1384,7 @@ export const serverRecords = cache(async function serverRecords() {
       blueScore: matches.blueScore,
     })
     .from(matches)
-    .where(eq(matches.status, "final"))
+    .where(and(eq(matches.status, "final"), MATCH_COMPLETED))
     .orderBy(sql`abs(${matches.redScore} - ${matches.blueScore}) desc`)
     .limit(1);
 
