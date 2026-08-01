@@ -117,6 +117,18 @@ export type MatchSummary = {
   overtime: boolean;
   winner: string | null;
   playerCount: number;
+  /**
+   * Who had the best of it, by the game's own scoring.
+   *
+   * A row that says which map and what the score was does not say anything
+   * about the match, and opening six pages to find out who played well is the
+   * thing a list is supposed to save you. Every scoreboard on every sports site
+   * carries this for the same reason.
+   *
+   * Score rather than frags, because in CTF a capture is worth many frags and
+   * the top fragger is often not the person who won the game.
+   */
+  top: { name: string; score: number; caps: number } | null;
 };
 
 /** The matches played on one day, in the order they were played. */
@@ -148,10 +160,16 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
   // subquery version rendered to something that returned zero for every match
   // while the same SQL by hand returned the right counts, and a grouped join is
   // both clearer and not worth debugging a template for.
-  const counts = await db
+  //
+  // Every participant rather than a count, because the count and the best
+  // player come out of the same rows and a night is a few dozen of them. Two
+  // aggregates over one small result beats two round trips.
+  const played = await db
     .select({
       matchId: matchPlayers.matchId,
-      playerCount: sql<number>`count(*)::int`,
+      name: matchPlayers.name,
+      score: matchPlayers.score,
+      caps: matchPlayers.caps,
     })
     .from(matchPlayers)
     .where(
@@ -162,10 +180,24 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
         ),
         TOOK_PART,
       ),
-    )
-    .groupBy(matchPlayers.matchId);
+    );
 
-  const byMatch = new Map(counts.map((row) => [row.matchId, row.playerCount]));
+  const counts = new Map<string, number>();
+  const best = new Map<string, { name: string; score: number; caps: number }>();
+  for (const entry of played) {
+    counts.set(entry.matchId, (counts.get(entry.matchId) ?? 0) + 1);
+
+    const standing = best.get(entry.matchId);
+    // Ties keep the first seen rather than picking one, which would be
+    // inventing an order the record does not have.
+    if (!standing || entry.score > standing.score) {
+      best.set(entry.matchId, {
+        name: entry.name,
+        score: entry.score,
+        caps: entry.caps,
+      });
+    }
+  }
 
   // Numbered by when they were played, not by the server's match id. The ids
   // keep counting across restarts, so the third game of the evening is rarely
@@ -173,7 +205,8 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
   return rows.map((row, index) => ({
     ...row,
     number: index + 1,
-    playerCount: byMatch.get(row.id) ?? 0,
+    playerCount: counts.get(row.id) ?? 0,
+    top: best.get(row.id) ?? null,
   }));
 });
 
@@ -1377,6 +1410,9 @@ export const matchOfTheNight = cache(async function matchOfTheNight(
     // Position in the night, so the article can say which game it was.
     number: rows.findIndex((candidate) => candidate.id === row.id) + 1,
     playerCount: squad.red + squad.blue,
+    // Not read by the component that renders this one, and a fourth query for a
+    // field nothing shows would be a query for the type checker's benefit.
+    top: null,
   };
 });
 

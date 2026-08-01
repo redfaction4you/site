@@ -47,13 +47,17 @@ export function MatchRows({
      * a night with a scoreboard beside it and a night without lining their
      * columns up down the page.
      */
-    <div className="max-w-[40rem]">
+    <div className="max-w-[44rem]">
       <div className="flex items-center gap-2.5 border-b border-basalt-700 pb-1 font-display text-[0.5625rem] uppercase tracking-wider text-steel-600">
         <span className="w-3.5 shrink-0" title="Order played">
           #
         </span>
         <span className="hidden w-12 shrink-0 sm:block" />
         <span className="min-w-0 flex-1">Map</span>
+        {/* The one column that says anything about the match rather than about
+            its filing. Hidden on a phone, where the map name needs the width
+            more than this does. */}
+        <span className="hidden w-28 shrink-0 md:block">Best</span>
         <span className="hidden w-8 shrink-0 text-right sm:block">Players</span>
         <span className="w-9 shrink-0 text-right">Start</span>
         {/*
@@ -108,6 +112,17 @@ export function MatchRows({
                   <span className="shrink-0 font-mono text-[0.5625rem] uppercase tracking-wider text-steel-600">
                     {match.status}
                   </span>
+                ) : null}
+              </span>
+
+              <span className="hidden w-28 shrink-0 truncate text-[0.6875rem] text-steel-400 md:block">
+                {match.top ? (
+                  <>
+                    {match.top.name}
+                    <span className="ml-1 font-mono tabular-nums text-steel-600">
+                      {match.top.score}
+                    </span>
+                  </>
                 ) : null}
               </span>
 
