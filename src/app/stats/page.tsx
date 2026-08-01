@@ -11,7 +11,7 @@ import {
 } from "@/lib/matches/leaderboards";
 import { ArchiveNav } from "@/components/archive-nav";
 import { listPlayers } from "@/lib/matches/queries";
-import { StatMatrix } from "@/components/stat-matrix";
+import { StatTable } from "@/components/stat-table";
 
 export const metadata: Metadata = {
   title: "Stat leaders",
@@ -32,8 +32,12 @@ const SHOWN = 5;
  * enough to show that, so each stat gets its own table rather than being folded
  * into one score.
  */
-export default async function StatsPage() {
-  const players = await listPlayers();
+type Props = {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+};
+
+export default async function StatsPage({ searchParams }: Props) {
+  const [players, { sort, dir }] = await Promise.all([listPlayers(), searchParams]);
 
   const boards = BOARDS.map((board) => ({
     board,
@@ -83,27 +87,37 @@ export default async function StatsPage() {
           </p>
 
           {/*
-            The whole archive at once, above the boards rather than instead of
-            them. The matrix answers where somebody places; the boards below
-            carry what they actually scored, which rank throws away. First and
-            second could be 721 and 550 or 721 and 719.
+            The table first, the boards under it.
+
+            A ranking answers who is best at one thing; this answers everything
+            else, and between them there is nothing left to open a spreadsheet
+            for. It replaced a grid of placings, which was lossy in the way a
+            rank always is: a cell reading 4 cannot say whether fourth was close
+            or nowhere near, and twelve columns of bare ordinals gave the eye
+            nothing to recognise.
           */}
           <section className="pb-7">
-            <h2 className="rule-heading">
-              Everyone, everything
-              <span className="font-mono normal-case tracking-normal text-steel-600">
-                by placing
-              </span>
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
-              Where each player places on each board. Rows are in order of
-              matches played, which is attendance and not a ranking: there is
-              deliberately no total, because adding twelve placings together
-              would be the single table this page exists to refuse.
-            </p>
-            <div className="mt-3">
-              <StatMatrix players={players} />
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="rule-heading">Everyone, everything</h2>
             </div>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-steel-400">
+              Every figure the archive holds, for everybody. Click a column to
+              sort by it, which is a link rather than a control, so the sorted
+              view is a real page you can send somebody. A bar behind a figure is
+              its share of that column&rsquo;s leader, and nothing is compared across
+              columns because a frag and a capture are not the same unit.
+            </p>
+
+            <div className="mt-3">
+              <StatTable players={players} sort={sort} dir={dir} />
+            </div>
+
+            <p className="mt-2 text-[0.6875rem] leading-snug text-steel-600">
+              A figure marked <span className="text-steel-500">*</span> is below
+              that board&rsquo;s qualification bar, so it is shown but not ranked. It
+              is a real thing that happened over too small a sample to stand
+              against the rest.
+            </p>
           </section>
 
           <div className="space-y-7 pb-6">
