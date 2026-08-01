@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { COLUMNIST_HREF, COLUMNIST_NAME } from "@/lib/ai/opinion";
 import { DISCORD_INVITE, VISIBLE_NAV } from "@/lib/nav";
 
 export function SiteFooter() {
@@ -37,6 +38,22 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+            {/*
+              The columnist, who had no route to him from anywhere except a card
+              on the news page a reader had to already be looking at. His pieces
+              are filed under the nights they are about, so the only way to find
+              the second one was to guess which night it belonged to. Not in the
+              header, which is full at eight: an opinion column is something you
+              go and find once you know it is there.
+            */}
+            <li>
+              <Link
+                href={COLUMNIST_HREF}
+                className="text-steel-400 transition-colors hover:text-steel-200"
+              >
+                {COLUMNIST_NAME}
+              </Link>
+            </li>
           </ul>
         </div>
 

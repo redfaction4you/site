@@ -70,8 +70,11 @@ export function OpinionColumn({
           <span className="block font-display text-sm font-bold text-steel-100 group-hover:text-rust-300">
             {COLUMNIST_NAME}
           </span>
+          {/* The role, and nothing else. What he is is said in full at the
+              foot of the piece, in COLUMNIST_NOTE, where it can be read as a
+              sentence rather than stamped under his name. */}
           <span className="block font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
-            {COLUMNIST_ROLE} · written by a machine
+            {COLUMNIST_ROLE}
           </span>
         </span>
       </Link>

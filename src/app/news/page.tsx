@@ -35,9 +35,8 @@ export default async function NewsPage() {
   const [columns, totals, opinions] = await Promise.all([
     listColumns(),
     archiveTotals(),
-    listOpinions(1),
+    listOpinions(3),
   ]);
-  const latestOpinion = opinions[0] ?? null;
 
   const [lead, ...earlier] = columns;
   const leadMatches = lead ? await listMatchesForDay(lead.archiveDay) : [];
@@ -121,34 +120,64 @@ export default async function NewsPage() {
           {/*
             The columnist, where somebody reading the news would find him.
 
-            His pieces were only reachable by opening the night they were filed
-            under, which is no way to discover that the site has an opinion
-            column at all.
+            One piece in a bordered card, captioned "written by a machine". The
+            card said opinion twice and carried one headline where there are
+            several, and the caption told a reader something the byline and his
+            own page already say: he is a visibly low polygon character called
+            Stanley Mesh, the note at the foot of every piece says he is a column
+            rather than a person, and his page opens by saying so. Said a third
+            time under a headline it reads as a warning label on a joke.
+
+            A section with his face, his name as the heading, and every piece he
+            has filed under it, which is also the answer to not being able to
+            find him: the heading is the link.
           */}
-          {latestOpinion ? (
-            <Link
-              href={COLUMNIST_HREF}
-              className="plate group flex items-start gap-3 border-l-2 border-l-oxide-500 p-3"
-            >
-              <Image
-                src="/mr-mesh.png"
-                alt=""
-                width={40}
-                height={40}
-                className="h-10 w-10 shrink-0 rounded-sm border border-basalt-600 object-cover object-top"
-              />
-              <span className="min-w-0">
-                <span className="block font-display text-[0.5625rem] font-bold uppercase tracking-[0.24em] text-oxide-400">
-                  Opinion
+          {opinions.length ? (
+            <section>
+              <Link
+                href={COLUMNIST_HREF}
+                className="group flex items-center gap-2.5 border-b border-basalt-800 pb-1.5"
+              >
+                <Image
+                  src="/mr-mesh.png"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 shrink-0 rounded-sm border border-basalt-600 object-cover object-top"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-display text-[0.5625rem] font-bold uppercase tracking-[0.24em] text-oxide-400">
+                    Opinion
+                  </span>
+                  <span className="block font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-300 group-hover:text-rust-300">
+                    {COLUMNIST_NAME}
+                  </span>
                 </span>
-                <span className="mt-0.5 block font-display text-sm font-bold leading-snug text-steel-100 group-hover:text-rust-300">
-                  {latestOpinion.headline}
+                <span className="shrink-0 font-display text-[0.625rem] uppercase tracking-widest text-rust-400 group-hover:text-rust-300">
+                  All
                 </span>
-                <span className="mt-0.5 block font-display text-[0.5625rem] uppercase tracking-widest text-steel-600">
-                  {COLUMNIST_NAME} · written by a machine
-                </span>
-              </span>
-            </Link>
+              </Link>
+              <ul>
+                {opinions.map((piece) => (
+                  <li
+                    key={piece.archiveDay}
+                    className="border-b border-basalt-900 last:border-b-0"
+                  >
+                    <Link
+                      href={`/news/${piece.archiveDay}`}
+                      className="group block py-1.5"
+                    >
+                      <span className="block text-xs leading-snug text-steel-200 group-hover:text-rust-300">
+                        {piece.headline}
+                      </span>
+                      <span className="mt-0.5 block font-mono text-[0.625rem] text-steel-600">
+                        {dayLabel(piece.archiveDay)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
 
           {/* Who was actually there. The page described a night without ever

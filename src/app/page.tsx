@@ -41,10 +41,9 @@ export default async function HomePage() {
       listColumns(),
       recentMatches(10),
       getTicker(),
-      listOpinions(1),
+      listOpinions(3),
     ]);
 
-  const opinion = opinions[0] ?? null;
 
   /*
    * Anything filmed of the most recent night.
@@ -216,7 +215,7 @@ export default async function HomePage() {
             who never opens one had no way of knowing the site has an opinion in
             it, which is most of the point of having one.
           */}
-          {opinion ? (
+          {opinions.length ? (
             <section>
               <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
                 <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
@@ -229,14 +228,38 @@ export default async function HomePage() {
                   All
                 </Link>
               </div>
-              <Link href={`/news/${opinion.archiveDay}`} className="group block py-1.5">
-                <span className="block text-sm leading-snug text-steel-200 group-hover:text-rust-300">
-                  {opinion.headline}
-                </span>
-                <span className="mt-0.5 block font-mono text-[0.625rem] text-steel-600">
-                  {dayLabel(opinion.archiveDay)} · opinion, written automatically
-                </span>
-              </Link>
+              {/*
+                Every piece he has filed, not just the newest. There are only
+                ever a few and one headline made the section look like a single
+                article rather than a column somebody keeps writing.
+
+                No "written automatically" under the headline. The section is
+                headed The analyst, the byline on the piece is a low polygon
+                character called Stanley Mesh, the note at the foot of every
+                piece says he is a column rather than a person, and his own page
+                opens with it. A fourth telling under the headline reads as a
+                warning label.
+              */}
+              <ul>
+                {opinions.map((piece) => (
+                  <li
+                    key={piece.archiveDay}
+                    className="border-b border-basalt-900 last:border-b-0"
+                  >
+                    <Link
+                      href={`/news/${piece.archiveDay}`}
+                      className="group block py-1.5"
+                    >
+                      <span className="block text-sm leading-snug text-steel-200 group-hover:text-rust-300">
+                        {piece.headline}
+                      </span>
+                      <span className="mt-0.5 block font-mono text-[0.625rem] text-steel-600">
+                        {dayLabel(piece.archiveDay)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 
