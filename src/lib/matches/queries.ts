@@ -1159,6 +1159,7 @@ export const getMapRecord = cache(async function getMapRecord(
 
     db
       .select({
+        key: IDENTITY_KEY,
         name: DISPLAY_NAME,
         matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
         score: sql<number>`coalesce(sum(${matchPlayers.score}), 0)::int`,
@@ -1191,6 +1192,15 @@ export const getMapRecord = cache(async function getMapRecord(
   const byMatch = new Map(counts.map((row) => [row.matchId, row.playerCount]));
 
   /*
+   * One map is as narrow a view as one night, so the same rule applies: a person
+   * is called what the archive calls them, not what they happened to be called
+   * on the map being read. The key is dropped here and never returned.
+   */
+  const named = await canonicalNames();
+  const nameOf = (row: { key: string; name: string }) =>
+    named.get(row.key) ?? row.name;
+
+  /*
    * Every single-match high on this map, in one pass over its rows.
    *
    * Read here rather than as four `order by ... limit 1` queries: a map is a few
@@ -1200,6 +1210,7 @@ export const getMapRecord = cache(async function getMapRecord(
    */
   const performances = await db
     .select({
+      key: IDENTITY_KEY,
       name: DISPLAY_NAME,
       matchId: matchPlayers.matchId,
       archiveDay: matches.archiveDay,
@@ -1250,7 +1261,7 @@ export const getMapRecord = cache(async function getMapRecord(
       if (value === null || value <= 0) continue;
       if (best && !better(value, best.value)) continue;
       best = {
-        name: row.name,
+        name: nameOf(row),
         value,
         archiveDay: row.archiveDay,
         sourceMatchId: row.sourceMatchId,
@@ -1329,7 +1340,7 @@ export const getMapRecord = cache(async function getMapRecord(
         highest,
       ),
     },
-    players,
+    players: players.map(({ key, ...row }) => ({ ...row, name: named.get(key) ?? row.name })),
   };
 });
 
@@ -1559,6 +1570,42 @@ export const nightTotals = cache(async function nightTotals(archiveDay: string) 
     .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED));
 
   return row ?? { players: 0, frags: 0, captures: 0 };
+});
+
+/**
+ * What to call each person, decided once over the whole archive.
+ *
+ * `DISPLAY_NAME` falls back to the name somebody has used most, and `most` is
+ * counted over whatever rows the query in hand happens to hold. That is right on
+ * a page about everybody and wrong on a page about one night: the person who has
+ * played eight matches as Skuldug, three as s9!nX and two as s9 is Skuldug on
+ * /players and on their own page, and was s9!nX on the scoreboard for 31 July,
+ * where that was the name they used that evening. One person, two labels, and
+ * the s9!nX label linked to a page headed Skuldug.
+ *
+ * So the name is decided here, over every row in the archive, and the pages with
+ * a narrower view look it up rather than working it out again. A chosen name
+ * from the admin page still wins, because it is the same `DISPLAY_NAME`.
+ *
+ * **The key never leaves the server.** It is returned into this map and read
+ * against it; nothing puts it in a payload. See `identities.ts`.
+ */
+export const canonicalNames = cache(async function canonicalNames(): Promise<
+  Map<string, string>
+> {
+  const rows = await db
+    .select({ key: IDENTITY_KEY, name: DISPLAY_NAME })
+    .from(matchPlayers)
+    // counts-everything: naming somebody is not a total. A person whose only
+    // appearance was in a match that did not count still has a name, and a page
+    // that shows them needs it.
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
+    .groupBy(IDENTITY_KEY);
+
+  return new Map(rows.map((row) => [row.key, row.name]));
 });
 
 /** Every written column, newest first. */
@@ -1896,8 +1943,9 @@ export const nightScoreboard = cache(async function nightScoreboard(
     flagReturns: number;
   }[]
 > {
-  return db
+  const rows = await db
     .select({
+      key: IDENTITY_KEY,
       name: DISPLAY_NAME,
       kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
       deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
@@ -1929,6 +1977,15 @@ export const nightScoreboard = cache(async function nightScoreboard(
     .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
     .groupBy(IDENTITY_KEY)
     .orderBy(sql`coalesce(sum(${matchPlayers.score}), 0) desc`);
+
+  /*
+   * Named over the archive rather than over this night, and the key dropped on
+   * the way out. A scoreboard is one evening's rows, so the name somebody used
+   * most in it is not necessarily the name they are known by, and it linked to a
+   * page with a different name at the top of it.
+   */
+  const named = await canonicalNames();
+  return rows.map(({ key, ...row }) => ({ ...row, name: named.get(key) ?? row.name }));
 });
 
 /**

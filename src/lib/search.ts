@@ -10,7 +10,11 @@ import {
 } from "@/lib/db/schema";
 import { COLUMNIST_HREF, COLUMNIST_NAME } from "@/lib/ai/opinion";
 import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
-import { MATCH_COMPLETED, TOOK_PART } from "@/lib/matches/queries";
+import {
+  MATCH_COMPLETED,
+  TOOK_PART,
+  canonicalNames,
+} from "@/lib/matches/queries";
 import { mapSlug } from "@/lib/matches/maps";
 import { BOARDS } from "@/lib/matches/leaderboards";
 import { VISIBLE_NAV } from "@/lib/nav";
@@ -78,6 +82,7 @@ export async function search(raw: string): Promise<SearchResults> {
     // somebody's names finds the person and lands on their page.
     db
       .select({
+        key: IDENTITY_KEY,
         name: DISPLAY_NAME,
         matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
       })
@@ -197,15 +202,38 @@ export async function search(raw: string): Promise<SearchResults> {
     })),
   ].filter((page) => page.title.toLowerCase().includes(query.toLowerCase()));
 
+  /*
+   * A search for one of somebody's names finds the person and shows the name the
+   * rest of the site knows them by. Searching "s9" should not offer a result
+   * headed s9 that opens a page headed Skuldug.
+   */
+  const named = await canonicalNames();
+
   const groups: SearchResults["groups"] = [
     {
       label: "Players",
-      hits: players.map((row) => ({
-        href: `/players/${encodeURIComponent(row.name)}`,
-        title: row.name,
-        kind: "player",
-        detail: `${row.matchesPlayed} ${row.matchesPlayed === 1 ? "match" : "matches"}`,
-      })),
+      hits: players.map((row) => {
+        const person = named.get(row.key) ?? row.name;
+        return {
+          href: `/players/${encodeURIComponent(person)}`,
+          title: person,
+          kind: "player",
+          /*
+           * Why this matched, when it is not obvious. Searching "s9" turns up
+           * Skuldug, which is correct and looks like a mistake without a word
+           * about it.
+           *
+           * Deliberately not a match count. The count available here is of the
+           * rows carrying the name that was searched, so it read "Skuldug, 3
+           * matches" for somebody who has played ten, which is worse than
+           * saying nothing.
+           */
+          detail:
+            person.toLowerCase() === row.name.toLowerCase()
+              ? undefined
+              : `played as ${row.name}`,
+        };
+      }),
     },
     {
       label: "Nights",
