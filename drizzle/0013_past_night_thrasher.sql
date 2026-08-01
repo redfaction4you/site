@@ -1,0 +1,1 @@
+ALTER TABLE "opinion_pieces" ADD COLUMN "posted_at" timestamp with time zone;

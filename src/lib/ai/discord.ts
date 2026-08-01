@@ -146,3 +146,73 @@ export async function announceColumn(column: ColumnToAnnounce): Promise<boolean>
     return false;
   }
 }
+
+export type OpinionToAnnounce = {
+  archiveDay: string;
+  headline: string;
+  body: string;
+  matchCount: number;
+  columnist: string;
+};
+
+/**
+ * Posts the columnist's piece, and marks it as opinion in every way it can.
+ *
+ * The reports are checked against the record and this is not, so the two must
+ * not arrive in the channel looking like the same thing. An embed travels
+ * further than a page, and it travels without whatever context surrounded it, so
+ * everything that distinguishes the two has to be inside the embed itself: the
+ * byline in the author slot, the word opinion in the title, a different colour
+ * from the report's red, and a footer that says it is a view rather than a
+ * finding and that a machine wrote it.
+ *
+ * Gold rather than red is not decoration. Red is what a match report posts under,
+ * and somebody scrolling a channel sorts by colour long before they read a
+ * footer.
+ */
+export async function announceOpinion(piece: OpinionToAnnounce): Promise<boolean> {
+  const url = webhookUrl();
+  if (!url) return false;
+
+  const link = `${SITE_URL}/news/${piece.archiveDay}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [
+          {
+            author: { name: `${piece.columnist} · opinion` },
+            title: piece.headline.slice(0, 250),
+            url: link,
+            description: truncate(piece.body, EMBED_LIMIT),
+            // Oxide, the site's second colour, so a piece never arrives looking
+            // like a result.
+            color: 0xe6b64f,
+            footer: {
+              text:
+                `Opinion, written automatically by ${piece.columnist} from ${piece.matchCount} ` +
+                `matches on record. It argues rather than reports, and unlike a match ` +
+                `report it is not checked against the archive.`,
+            },
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(10_000),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.warn(`[discord] opinion webhook ${response.status}: ${await response.text()}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`[discord] opinion webhook failed: ${reason}`);
+    return false;
+  }
+}

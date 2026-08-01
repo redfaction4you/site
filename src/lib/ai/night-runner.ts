@@ -34,7 +34,8 @@ import {
   buildProfileFacts,
   writeProfile,
 } from "./player-profile";
-import { announceColumn } from "./discord";
+import { announceColumn, announceOpinion } from "./discord";
+import { COLUMNIST_NAME } from "./opinion";
 
 /** How long after the last match before a night counts as finished. */
 const QUIET_MINUTES = 75;
@@ -298,6 +299,40 @@ export async function announcePendingColumns(): Promise<number> {
 }
 
 /**
+ * Posts the newest opinion piece that has not been announced yet.
+ *
+ * One per run, same as the columns, and separate from them so a failure to post
+ * one cannot stop the other. The piece is already labelled as opinion on the
+ * site; `announceOpinion` labels it again in the embed, because an embed leaves
+ * the page behind and arrives somewhere the labelling did not follow.
+ */
+export async function announcePendingOpinions(): Promise<number> {
+  const [pending] = await db
+    .select({
+      archiveDay: opinionPieces.archiveDay,
+      headline: opinionPieces.headline,
+      body: opinionPieces.body,
+      matchCount: opinionPieces.matchCount,
+    })
+    .from(opinionPieces)
+    .where(isNull(opinionPieces.postedAt))
+    .orderBy(desc(opinionPieces.archiveDay))
+    .limit(1);
+
+  if (!pending) return 0;
+
+  const ok = await announceOpinion({ ...pending, columnist: COLUMNIST_NAME });
+  if (!ok) return 0;
+
+  await db
+    .update(opinionPieces)
+    .set({ postedAt: new Date() })
+    .where(eq(opinionPieces.archiveDay, pending.archiveDay));
+
+  return 1;
+}
+
+/**
  * Rewrites player profiles that have gone out of date.
  *
  * A profile written after three matches is wrong once somebody has played
@@ -493,6 +528,7 @@ export async function runNightJobs(): Promise<{
 
   try {
     posted = await announcePendingColumns();
+    posted += await announcePendingOpinions();
   } catch (error) {
     console.warn("[ai] column announce threw:", error);
   }

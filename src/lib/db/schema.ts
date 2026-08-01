@@ -668,6 +668,16 @@ export const opinionPieces = pgTable(
     matchCount: integer("match_count").notNull(),
 
     model: text("model"),
+
+    /**
+     * When this was announced, or null.
+     *
+     * The same shape the columns use, and for the same reason: announcing is a
+     * separate pass from writing, so a Discord outage cannot cost the piece and
+     * an unannounced one is retried on the next sync rather than lost.
+     */
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+
     generatedAt: timestamp("generated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
