@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ArchiveNav } from "@/components/archive-nav";
 import { EmptyArchive } from "@/components/match-archive";
 import { MapShot } from "@/components/map-shot";
 import { dayLabel, matchTime } from "@/components/match-archive";
@@ -60,8 +59,6 @@ export default async function MatchesPage() {
           <span className="text-steel-300">{totals.dayCount}</span> nights
         </p>
       </div>
-
-      <ArchiveNav active="/matches" className="mt-3" />
 
       <p className="max-w-2xl py-4 text-sm leading-relaxed text-steel-400">
         Every night on record, newest first. Open one for the full scoreboard,

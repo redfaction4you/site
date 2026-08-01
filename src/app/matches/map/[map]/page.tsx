@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ArchiveNav } from "@/components/archive-nav";
 import { MapShot } from "@/components/map-shot";
 import { MapBests } from "@/components/map-bests";
 import { dayLabel, matchTime } from "@/components/match-archive";
@@ -104,8 +103,6 @@ export default async function MapPage({ params }: Props) {
           </Link>
         </p>
       </div>
-
-      <ArchiveNav active="/matches/maps" className="mt-3" />
 
       <div className="mt-6 flex flex-wrap items-end gap-x-6 gap-y-4">
         <MapShot mapName={mapName} className="w-56 shrink-0" sizes="224px" />

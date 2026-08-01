@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ArchiveNav } from "@/components/archive-nav";
 import { UNSOUND_SHOOTING_NOTE } from "@/lib/matches/accuracy";
 import { listPlayers, recentForm } from "@/lib/matches/queries";
 import { FormRun } from "@/components/form-run";
@@ -48,7 +47,6 @@ export default async function PlayersPage() {
           to it was a sentence on one page. It is an entry in the strip now,
           alongside everything else the archive has that the masthead's six
           sections do not mention. */}
-      <ArchiveNav active="/players" className="mt-5" />
 
       {players.length === 0 ? (
         <div className="panel mt-10 p-8 text-center">

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ArchiveNav } from "@/components/archive-nav";
 import { ColumnImage } from "@/components/column-image";
 import { DayBlock } from "@/components/day-block";
 import { NightFootageCard } from "@/components/match-footage";
@@ -57,8 +56,6 @@ export default async function MatchDayPage({ params }: Props) {
           Matches
         </Link>
       </p>
-
-      <ArchiveNav active="/matches" className="mt-2" />
 
       {/* Every night on record, across the top rather than down the side. */}
       <NightStrip days={days} current={day} className="mt-3" />

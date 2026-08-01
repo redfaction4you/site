@@ -56,7 +56,11 @@ export async function SiteHeader() {
         </div>
       </div>
 
-      {/* Mobile nav. A horizontal scroller beats a hamburger for seven links. */}
+      {/*
+        Mobile nav. A horizontal scroller beats a hamburger for eight links, and
+        eight is what it carries since Maps and Pairings came up from the strip
+        that used to sit under this one.
+      */}
       <nav
         aria-label="Main, compact"
         className="flex gap-1 overflow-x-auto border-t border-basalt-800 px-3 py-2 md:hidden"

@@ -8,7 +8,6 @@ import {
   BOARD_GROUP_LABEL,
   rank,
 } from "@/lib/matches/leaderboards";
-import { ArchiveNav } from "@/components/archive-nav";
 import { listPlayers } from "@/lib/matches/queries";
 import { StatTable } from "@/components/stat-table";
 
@@ -62,8 +61,6 @@ export default async function StatsPage({ searchParams }: Props) {
           <span className="text-steel-300">{boards.length}</span> boards
         </p>
       </div>
-
-      <ArchiveNav active="/stats" className="mt-3" />
 
       {boards.length === 0 ? (
         <p className="py-10 text-sm text-steel-500">

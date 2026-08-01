@@ -28,6 +28,11 @@ export const NAV: NavItem[] = [
   // pages say which they are.
   // The catalogue is built but empty. Hidden until there is something on the
   // shelves; every page still answers, so shared links keep working.
+  /*
+   * The catalogue's own Maps, which is the page for downloading a map file
+   * rather than the page for what has been played on it. Hidden, and when it
+   * ships the two will need telling apart in the header: this one is the files.
+   */
   { href: "/maps", label: "Maps", hidden: true },
   { href: "/mods", label: "Mods", hidden: true },
   { href: "/models", label: "Models", hidden: true },
@@ -37,9 +42,21 @@ export const NAV: NavItem[] = [
   { href: "/guides", label: "Guides", hidden: true },
 
   // What actually has something behind it today.
+  //
+  // Maps and Pairings were in a second navigation strip under this one, along
+  // with three entries that were the same routes as Matches, Players and Stats
+  // wearing different words. A reader asked what the second menu was for, having
+  // noticed that clicking Players in either one landed in the same place. The
+  // answer was two unique pages and three duplicates, so the two came up here
+  // and the strip is gone.
+  //
+  // Each sits beside the page it belongs to: what has been played on a map next
+  // to the matches, who plays with whom next to the players.
   { href: "/news", label: "News" },
   { href: "/matches", label: "Matches" },
+  { href: "/matches/maps", label: "Maps" },
   { href: "/players", label: "Players" },
+  { href: "/players/pairings", label: "Pairings" },
   // Sits next to Players deliberately: that page is who has played, this one is
   // what they are each good at.
   { href: "/stats", label: "Stats" },
@@ -56,27 +73,18 @@ export const NAV: NavItem[] = [
  */
 export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
 
-/**
- * The archive's own pages, under the top level nav.
+/*
+ * There is deliberately no second navigation strip.
  *
- * The header carries six sections and stops there, which was right while each
- * section was one page and became wrong as the archive grew a second layer.
- * Pairings, the map pages and the stat boards are all reachable only by
- * stumbling on a link inside something else, which is no way to find out a site
- * has them.
- *
- * Every sports site solves this the same way, with a section strip under the
- * masthead: Scores, Schedule, Standings, Stats, Teams, Players. This is that
- * strip, and it appears on the pages it covers rather than site wide, because a
- * catalogue page has no business advertising the match archive's furniture.
+ * There was one, carrying Archive, Maps, Players, Pairings and Stat boards. It
+ * was added because the archive had grown pages the header did not reach, which
+ * was a real problem, and it solved it by repeating three entries the header
+ * already had under different words: Archive was Matches, Stat boards was Stats,
+ * and Players was Players, the same route in both menus, one line apart. A
+ * reader asked what the second menu was for. Two menus that disagree about what
+ * a section is called are worse than one menu missing two links, and the fix for
+ * the missing links was to add them.
  */
-export const ARCHIVE_NAV: NavItem[] = [
-  { href: "/matches", label: "Archive" },
-  { href: "/matches/maps", label: "Maps" },
-  { href: "/players", label: "Players" },
-  { href: "/players/pairings", label: "Pairings" },
-  { href: "/stats", label: "Stat boards" },
-];
 
 export const DISCORD_INVITE =
   process.env.NEXT_PUBLIC_DISCORD_INVITE ?? "https://discord.gg/";
