@@ -21,7 +21,8 @@ import {
 import { MatchFootageList } from "@/components/match-footage";
 import { footageForMatch } from "@/lib/match-footage";
 import { FootageMark } from "@/components/footage-mark";
-import { CaptureTrack } from "@/components/capture-track";
+import { MatchTimeline } from "@/components/match-timeline";
+import { buildTimeline } from "@/lib/matches/timeline";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
@@ -559,10 +560,24 @@ export async function MatchDetailView({
             "mt-6 grid gap-4 " + (footage.length ? "lg:grid-cols-[3fr_2fr]" : "")
           }
         >
-          {match.captures.length ? (
+          {match.captures.length || match.flagEvents.length ? (
             <div className="plate p-4">
               <h2 className="rule-heading">How it was won</h2>
-              <CaptureTrack
+              {/*
+                Built on the server, where the whole event log already is.
+                Sending four hundred kills to the browser to bucket them into
+                forty numbers would be the page's largest payload by far, and
+                the layers are a way of reading the match rather than a thing
+                the reader is editing.
+              */}
+              <MatchTimeline
+                timeline={buildTimeline({
+                  flagEvents: match.flagEvents,
+                  kills: match.kills,
+                  captures: match.captures,
+                  startedAt: match.startedAt,
+                  endedAt: match.endedAt,
+                })}
                 captures={match.captures}
                 startedAt={match.startedAt}
                 endedAt={match.endedAt}
