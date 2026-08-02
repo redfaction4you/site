@@ -66,6 +66,7 @@ export function CaptureTrack({
   endedAt,
   redScore,
   blueScore,
+  showAxis = true,
 }: {
   captures: TrackCapture[];
   startedAt: Date | null;
@@ -73,6 +74,13 @@ export function CaptureTrack({
   /** The final score, so the track can end on the result. */
   redScore?: number;
   blueScore?: number;
+  /**
+   * False when this sits inside the layered timeline, which draws one clock for
+   * every layer. Two axes on one picture is two answers to "when", and they
+   * were not even in the same place: this one spans the panel and the lanes are
+   * inset by their labels, so the same moment sat at two different points.
+   */
+  showAxis?: boolean;
 }) {
   if (captures.length === 0) return null;
 
@@ -244,7 +252,10 @@ export function CaptureTrack({
           it arrived at. */}
       <div
         aria-hidden="true"
-        className="flex items-baseline justify-between font-mono text-[0.625rem] tabular-nums text-steel-600"
+        className={
+          "flex items-baseline justify-between font-mono text-[0.625rem] tabular-nums text-steel-600 " +
+          (showAxis ? "" : "hidden")
+        }
       >
         <span>0:00</span>
         {overtimeFrom !== -1 ? <span className="text-oxide-400">overtime</span> : null}

@@ -13,11 +13,17 @@ import type { Carry, Timeline } from "@/lib/matches/timeline";
  * no page. A flag carried the length of the map and dropped at the door is the
  * moment people remember, and it left no mark anywhere.
  *
- * So the flags, the returns and the fighting are layers over the same clock, and
- * each one can be turned off. That is not a preference toggle: they answer
- * different questions, and drawn together they are a mess. Captures say who won,
- * carries say who was pressing, returns say who was holding, frags say where the
- * match was actually being fought.
+ * So the flags and the fighting are layers over the same clock, and each one can
+ * be turned off. That is not a preference toggle: they answer different
+ * questions, and drawn together they are a mess. Captures say who won, carries
+ * say who was pressing and who stopped them, frags say where the match was
+ * actually being fought.
+ *
+ * **Every layer is drawn in the same column, including the capture track.** They
+ * are laid out as a two column grid, labels then plot, so a moment is at the same
+ * place in all of them. It was not: the lanes were inset by their labels and the
+ * track spanned the whole panel, so the carry that produced a capture ended
+ * visibly to the left of the capture it produced.
  *
  * **A grab is an event, not a short bar.** The first version drew each carry as
  * a bar and nothing else, so the commonest thing in a match, somebody taking the
@@ -40,7 +46,17 @@ import type { Carry, Timeline } from "@/lib/matches/timeline";
  * per click on a panel whose whole appeal is that it responds.
  */
 
-type Layer = "captures" | "carries" | "returns" | "frags";
+/*
+ * Three layers, and there were four.
+ *
+ * Returns had a switch of its own and drew a tick on the lane wherever a flag
+ * went home. Every one of those ticks is already the end of a carry, drawn as
+ * its ending, so the layer duplicated what was underneath it: on its own it was
+ * two nearly empty lanes, and turned on with the carries it added a third kind
+ * of thin vertical mark to a lane that already had two. A switch that adds
+ * nothing is worse than no switch, because a reader has to try it to find out.
+ */
+type Layer = "captures" | "carries" | "frags";
 
 const LAYERS: { key: Layer; label: string; hint: string }[] = [
   {
@@ -54,13 +70,6 @@ const LAYERS: { key: Layer; label: string; hint: string }[] = [
     hint:
       "Every grab, how far it got, and how it ended: captured, dropped in the " +
       "field, or returned to its stand.",
-  },
-  {
-    key: "returns",
-    label: "Returns",
-    hint:
-      "Where a flag was brought home. The game does not name the returner, so " +
-      "the archive infers one and marks it.",
   },
   {
     key: "frags",
@@ -111,7 +120,6 @@ export function MatchTimeline({
   const [on, setOn] = useState<Record<Layer, boolean>>({
     captures: true,
     carries: true,
-    returns: false,
     frags: false,
   });
 
@@ -148,10 +156,7 @@ export function MatchTimeline({
 
   const Lane = ({ flag }: { flag: "red" | "blue" }) => {
     const carries = timeline.carries.filter((carry) => carry.flagOwner === flag);
-    const returns = timeline.returns.filter((mark) =>
-      flag === "red" ? mark.team === "blue" : mark.team === "red",
-    );
-    if (carries.length === 0 && returns.length === 0) return null;
+    if (carries.length === 0) return null;
 
     // Whoever carries this flag is the other side, always.
     const bar = flag === "red" ? "bg-cobalt-500" : "bg-rust-500";
@@ -166,7 +171,7 @@ export function MatchTimeline({
           flag
         </span>
 
-        <div className="relative h-5 flex-1 rounded-sm bg-basalt-850">
+        <div className="relative h-7 flex-1 rounded-sm bg-basalt-850">
           <Grid />
 
           {on.carries
@@ -184,7 +189,7 @@ export function MatchTimeline({
                       came to nothing still reads as pressure. */}
                   <span
                     className={
-                      "absolute top-[7px] h-1.5 rounded-full " +
+                      "absolute top-[10px] h-2 rounded-full " +
                       bar +
                       (carry.ending === "captured" ? "" : "/35")
                     }
@@ -193,10 +198,15 @@ export function MatchTimeline({
                       width: `${Math.max(0.3, (carry.to - carry.from) * 100)}%`,
                     }}
                   />
-                  {/* The grab, the same size however long the carry lasted. */}
+                  {/*
+                    The grab: a dot on the top edge, which nothing else on the
+                    lane is. Three kinds of thin vertical mark meaning three
+                    different things was a barcode, so only the ending is a
+                    vertical now and the grab has its own shape.
+                  */}
                   <span
-                    className={"absolute top-1 h-3 w-[3px] rounded-sm " + grab}
-                    style={{ left: `${carry.from * 100}%` }}
+                    className={"absolute top-0.5 h-2 w-2 rounded-full " + grab}
+                    style={{ left: `calc(${carry.from * 100}% - 1px)` }}
                   />
                   {/*
                     The flag on the floor, from the drop until it went home.
@@ -205,7 +215,7 @@ export function MatchTimeline({
                   */}
                   {carry.returnedAt !== null ? (
                     <span
-                      className="absolute top-[9px] h-px bg-steel-500/60"
+                      className="absolute top-[13px] h-px bg-steel-500/60"
                       style={{
                         left: `${carry.to * 100}%`,
                         width: `${Math.max(0.2, (carry.returnedAt - carry.to) * 100)}%`,
@@ -220,7 +230,7 @@ export function MatchTimeline({
                   {carry.ending === "captured" || carry.returnedAt !== null ? (
                     <span
                       className={
-                        "absolute top-0 h-full w-[3px] rounded-sm " +
+                        "absolute bottom-0 h-4 w-[3px] rounded-sm " +
                         (carry.ending === "captured" ? bar : "bg-steel-400")
                       }
                       style={{
@@ -232,20 +242,6 @@ export function MatchTimeline({
               ))
             : null}
 
-          {on.returns
-            ? returns.map((mark, index) => (
-                <span
-                  key={`r${index}`}
-                  title={
-                    mark.inferred
-                      ? "Flag returned. The game does not name the returner, so this is inferred."
-                      : "Flag returned."
-                  }
-                  className="absolute -top-1 h-7 w-px bg-steel-400/70"
-                  style={{ left: `${mark.at * 100}%` }}
-                />
-              ))
-            : null}
         </div>
       </div>
     );
@@ -329,7 +325,7 @@ export function MatchTimeline({
         </div>
       ) : null}
 
-      {layered && (on.carries || on.returns) ? (
+      {layered && on.carries ? (
         <div className="mb-2 space-y-1">
           <Lane flag="red" />
           <Lane flag="blue" />
@@ -337,7 +333,7 @@ export function MatchTimeline({
           {on.carries ? (
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-16 text-[0.625rem] text-steel-600">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3 w-[3px] rounded-sm bg-steel-300" />
+                <span className="inline-block h-2 w-2 rounded-full bg-steel-300" />
                 grabbed
               </span>
               <span className="flex items-center gap-1.5">
@@ -350,34 +346,76 @@ export function MatchTimeline({
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-px w-4 bg-steel-500/60" />
-                <span className="inline-block h-3 w-[3px] rounded-sm bg-steel-400" />
+                <span className="inline-block h-4 w-[3px] rounded-sm bg-steel-400" />
                 on the floor, then home
               </span>
               <span>Hover for who, how long and how it ended.</span>
             </p>
           ) : null}
 
-          {on.returns ? (
-            <p className="pl-16 text-[0.625rem] leading-snug text-steel-600">
-              Returns are inferred: the game does not say who brought a flag
-              back, so the archive credits the player who was uniquely closest to
-              it and marks the figure as inferred everywhere it appears.
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {on.captures ? (
-        <CaptureTrack
-          captures={captures}
-          startedAt={startedAt}
-          endedAt={endedAt}
-          redScore={redScore}
-          blueScore={blueScore}
-        />
+        <div className="flex items-start gap-2">
+          {/* The same gutter every lane has, so the captures line up with the
+              carries that produced them. */}
+          <span className="w-14 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <CaptureTrack
+              captures={captures}
+              startedAt={startedAt}
+              endedAt={endedAt}
+              redScore={redScore}
+              blueScore={blueScore}
+              showAxis={!layered}
+            />
+          </div>
+        </div>
       ) : null}
 
-      {!on.captures && !on.carries && !on.returns && !on.frags ? (
+      {/*
+        One clock for the whole picture.
+        
+        Every layer had its own idea of where time was: the lanes carried
+        unlabelled gridlines, the capture track carried 0:00 and the final time
+        at its own edges, and the two were inset differently. This is the only
+        axis now, it sits under whatever is drawn, and it is the same width as
+        every plot above it.
+      */}
+      {layered && (on.captures || on.carries || on.frags) ? (
+        <div className="mt-1 flex items-start gap-2">
+          <span className="w-14 shrink-0" aria-hidden="true" />
+          <div className="relative h-4 min-w-0 flex-1 font-mono text-[0.625rem] tabular-nums text-steel-600">
+            <span className="absolute left-0">0:00</span>
+            {grid.map((at) => (
+              <span
+                key={at}
+                className="absolute -translate-x-1/2"
+                style={{ left: `${at * 100}%` }}
+              >
+                {clockAt(at, timeline.seconds)}
+              </span>
+            ))}
+            <span className="absolute right-0">
+              {clockAt(1, timeline.seconds)}
+            </span>
+            {timeline.overtimeFrom !== null ? (
+              <span
+                className="absolute -translate-x-1/2 text-oxide-400"
+                style={{
+                  left: `${((timeline.overtimeFrom + 1) / 2) * 100}%`,
+                  top: "0.9rem",
+                }}
+              >
+                extra time
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {!on.captures && !on.carries && !on.frags ? (
         <p className="py-6 text-center text-xs text-steel-600">
           Every layer is off.
         </p>
