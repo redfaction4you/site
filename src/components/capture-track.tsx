@@ -173,11 +173,27 @@ export function CaptureTrack({
           const red = capture.team === "red";
           const left = `${at[index] * 100}%`;
 
+          /*
+           * A marker is a 56 pixel column centred on its moment, so one at the
+           * whistle hangs half of itself past the end of the track and gave the
+           * panel a horizontal scrollbar. The last capture of a match is always
+           * at 100%, so this was every match with a decisive final flag.
+           *
+           * Pulled inside at the edges rather than clamped in place: the marker
+           * still points at the right moment, and only its label moves.
+           */
+          const shift =
+            at[index] > 0.97
+              ? "translateX(-100%)"
+              : at[index] < 0.03
+                ? "translateX(0)"
+                : "translateX(-50%)";
+
           return (
             <div
               key={`${capture.elapsedSeconds}-${index}`}
               className="absolute top-0 h-full"
-              style={{ left, transform: "translateX(-50%)" }}
+              style={{ left, transform: shift }}
               title={`${inOvertime(index) ? "Overtime " : ""}${clock(
                 capture.elapsedSeconds,
               )} · ${capture.team} · ${capture.playerName ?? "unknown"} · ${

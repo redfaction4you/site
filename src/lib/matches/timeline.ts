@@ -62,8 +62,30 @@ export type Carry = {
   team: string;
   from: number;
   to: number;
-  /** How it ended, which is the whole interest of the layer. */
-  ending: "captured" | "dropped" | "unfinished";
+  /**
+   * How it ended, which is the whole interest of the layer.
+   *
+   * `dropped` and `returned` are different things and were one. A flag dropped
+   * in the field is still live and either side can take it; a flag returned is
+   * back on its stand and the attack is over. Somebody who grabs it at the enemy
+   * base and dies on the spot produces the second, and it is the commonest
+   * event in a match.
+   */
+  ending: "captured" | "dropped" | "returned" | "unfinished";
+  /**
+   * Where the flag went home, when it did so straight from this carry.
+   *
+   * A return arrives after the drop, never during the carry, so it closes
+   * nothing: the sequence for the commonest event in a match is grab, die,
+   * drop, and then the flag going home a few seconds later. Timing the carry to
+   * the return would count the seconds the flag spent lying on the floor as
+   * carrying, which they are not, so the carry still ends at the drop and this
+   * says where the attack finally died.
+   *
+   * Null when somebody picked the flag up again before it went home, because
+   * then the attack did not end there: it changed hands.
+   */
+  returnedAt: number | null;
   /**
    * How long it lasted, to a tenth.
    *
@@ -202,6 +224,9 @@ export function buildTimeline({
     ...captures.map((event) => ({ kind: "capture" as const, event })),
   ].sort((a, b) => time.at(a.event) - time.at(b.event));
 
+  /** The last carry closed for each flag, so a later return can find it. */
+  const lastFor = new Map<string, number>();
+
   const close = (
     flag: string,
     to: number,
@@ -210,6 +235,7 @@ export function buildTimeline({
     const carry = open.get(flag);
     if (!carry) return;
     open.delete(flag);
+    lastFor.set(flag, carries.length);
     carries.push({
       flagOwner: flag,
       carrier: carry.carrier,
@@ -217,6 +243,7 @@ export function buildTimeline({
       from: carry.from,
       to,
       ending,
+      returnedAt: null,
       seconds:
         Math.max(0, Math.round((to - carry.from) * (time.seconds ?? 0) * 10)) / 10,
     });
@@ -236,11 +263,28 @@ export function buildTimeline({
 
     if (entry.event.eventType === "flag_pickup") {
       close(flag, at, "dropped");
+      // Somebody took it off the floor, so the attack before this one did not
+      // end with the flag going home and must not be marked as though it had.
+      lastFor.delete(flag);
       open.set(flag, { carrier: entry.event.playerName, from: at });
     } else if (entry.event.eventType === "flag_drop") {
       close(flag, at, "dropped");
     } else if (entry.event.eventType === "flag_return") {
-      close(flag, at, "dropped");
+      // Closes a carry only in the case where somebody was still holding it,
+      // which the game does not allow but the log has been known to imply.
+      close(flag, at, "returned");
+
+      /*
+       * Otherwise the flag was already on the floor, and the carry that put it
+       * there is the attack this return ended. Marked on that carry rather than
+       * drawn as an unattached tick, so the lane reads grabbed, ran, lost it,
+       * and it went home.
+       */
+      const last = lastFor.get(flag);
+      if (last !== undefined && carries[last].ending === "dropped") {
+        carries[last] = { ...carries[last], ending: "returned", returnedAt: at };
+      }
+      lastFor.delete(flag);
     }
   }
 
@@ -253,6 +297,7 @@ export function buildTimeline({
       from: carry.from,
       to: 1,
       ending: "unfinished",
+      returnedAt: null,
       seconds:
         Math.max(0, Math.round((1 - carry.from) * (time.seconds ?? 0) * 10)) / 10,
     });

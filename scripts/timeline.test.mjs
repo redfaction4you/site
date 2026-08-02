@@ -163,13 +163,58 @@ test("a return is marked inferred unless the record says it was observed", () =>
   assert.deepEqual(line.returns.map((r) => r.inferred), [true, false]);
 });
 
-test("a returned flag ends the carry", () => {
+test("a grab that died and went home is marked on the carry that made it", () => {
+  /*
+   * The commonest thing in a match, and the case this layer was asked for:
+   * somebody takes the flag at the enemy base, dies, and it goes back to its
+   * stand a few seconds later.
+   *
+   * The return arrives after the drop and so closes nothing, which is why it
+   * has to be looked for backwards. The carry still ends at the drop, because
+   * the seconds the flag spent on the floor are not seconds anybody carried it,
+   * and `returnedAt` says where the attack finally died.
+   */
   const line = build({
-    flagEvents: [pickup(60, "Romek", "blue"), returned(90, "blue")],
+    flagEvents: [
+      pickup(60, "Romek", "blue"),
+      drop(64, "Romek", "blue"),
+      returned(72, "blue"),
+    ],
   });
 
   assert.equal(line.carries.length, 1);
-  assert.equal(line.carries[0].ending, "dropped");
+  assert.equal(line.carries[0].ending, "returned");
+  assert.equal(line.carries[0].seconds, 4, "four seconds carried, not twelve");
+  assert.ok(line.carries[0].returnedAt > line.carries[0].to);
+});
+
+test("a flag picked up again before it went home is still a drop", () => {
+  // The attack did not end there, it changed hands, and a later return belongs
+  // to whichever carry actually put the flag down last.
+  const line = build({
+    flagEvents: [
+      pickup(60, "Romek", "blue"),
+      drop(64, "Romek", "blue"),
+      pickup(70, "SiD", "blue"),
+      drop(80, "SiD", "blue"),
+      returned(90, "blue"),
+    ],
+  });
+
+  assert.deepEqual(
+    line.carries.map((c) => c.ending),
+    ["dropped", "returned"],
+  );
+  assert.equal(line.carries[0].returnedAt, null);
+});
+
+test("a flag still in somebody's hands is not marked returned", () => {
+  const line = build({
+    flagEvents: [pickup(60, "Romek", "blue"), drop(64, "Romek", "blue"), returned(72, "blue"), pickup(120, "SiD", "blue")],
+  });
+
+  assert.equal(line.carries[0].ending, "returned");
+  assert.equal(line.carries[1].ending, "unfinished");
 });
 
 /* --- overtime, the case this has to be immune to -------------------------- */
