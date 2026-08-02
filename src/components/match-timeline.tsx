@@ -164,7 +164,11 @@ export function MatchTimeline({
                     ? carries.map((carry, index) => (
                         <span
                           key={index}
-                          title={`${carry.carrier ?? "somebody"} carried the ${flag} flag for ${carry.seconds}s, ${
+                          title={`${carry.carrier ?? "somebody"} carried the ${flag} flag for ${
+                            carry.seconds < 10
+                              ? carry.seconds.toFixed(1)
+                              : Math.round(carry.seconds)
+                          }s, ${
                             carry.ending === "captured"
                               ? "and capped"
                               : carry.ending === "dropped"

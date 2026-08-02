@@ -64,6 +64,13 @@ export type Carry = {
   to: number;
   /** How it ended, which is the whole interest of the layer. */
   ending: "captured" | "dropped" | "unfinished";
+  /**
+   * How long it lasted, to a tenth.
+   *
+   * Whole seconds read "carried the red flag for 0s", which is what a flag
+   * touched and lost immediately rounds to and is a sentence that describes
+   * nothing. Those touches are most of a busy match and worth drawing.
+   */
   seconds: number;
 };
 
@@ -210,7 +217,8 @@ export function buildTimeline({
       from: carry.from,
       to,
       ending,
-      seconds: Math.max(0, Math.round(((to - carry.from) * (time.seconds ?? 0)))),
+      seconds:
+        Math.max(0, Math.round((to - carry.from) * (time.seconds ?? 0) * 10)) / 10,
     });
   };
 
@@ -245,7 +253,8 @@ export function buildTimeline({
       from: carry.from,
       to: 1,
       ending: "unfinished",
-      seconds: Math.max(0, Math.round((1 - carry.from) * (time.seconds ?? 0))),
+      seconds:
+        Math.max(0, Math.round((1 - carry.from) * (time.seconds ?? 0) * 10)) / 10,
     });
   }
 
