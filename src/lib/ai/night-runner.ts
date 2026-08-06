@@ -388,21 +388,53 @@ export async function announcePendingColumns(): Promise<number> {
      */
     const aliases = await aliasNames();
 
+    /*
+     * Claimed before it is sent, not after it succeeds.
+     *
+     * Posting and then recording duplicates whenever the recording does not
+     * happen, and the recording not happening is the ordinary case rather than
+     * the exotic one: the request times out, the connection drops, the function
+     * is torn down mid-flight. The 30 July opinion went to Discord at 22:41,
+     * the answer never came back, `posted_at` stayed null, and the next sync
+     * posted it again. The archive recorded one post and the channel had two.
+     *
+     * Claiming first inverts which way an unknown outcome fails. The row is
+     * marked posted before anything is sent, and only a *certain* failure puts
+     * it back. So a lost acknowledgement costs at most one piece never
+     * appearing, where before it cost the same piece appearing twice, and a
+     * missing post is recoverable by hand while an extra one is not.
+     */
+    await db
+      .update(nightColumns)
+      .set({ postedAt: new Date() })
+      .where(eq(nightColumns.archiveDay, column.archiveDay));
+
     // Writing happens in a separate pass from announcing, so by the time we get
     // here the image either exists or was never going to.
-    const ok = await announceColumn({
+    const result = await announceColumn({
       ...column,
       headline: renameInText(column.headline, aliases),
       body: renameInText(column.body, aliases),
       imageUrl: column.imageKey ? publicUrl(column.imageKey) : null,
       matches: played,
     });
-    if (!ok) continue;
 
-    await db
-      .update(nightColumns)
-      .set({ postedAt: new Date() })
-      .where(eq(nightColumns.archiveDay, column.archiveDay));
+    if (result === "rejected") {
+      // Certainly never arrived, so there is nothing to duplicate and it goes
+      // back in the queue. `unknown` deliberately does not land here.
+      await db
+        .update(nightColumns)
+        .set({ postedAt: null })
+        .where(eq(nightColumns.archiveDay, column.archiveDay));
+      continue;
+    }
+
+    if (result === "unknown") {
+      console.warn(
+        `[ai] column ${column.archiveDay} may or may not have posted; left claimed ` +
+          `rather than risk a duplicate. Check the channel.`,
+      );
+    }
 
     posted++;
   }
@@ -440,18 +472,34 @@ export async function announcePendingOpinions(): Promise<number> {
   // permanent disagreement, because a Discord post is not re-rendered.
   const aliases = await aliasNames();
 
-  const ok = await announceOpinion({
+  // Claimed before it is sent, for the reason set out in
+  // `announcePendingColumns`: this is the piece that went out twice.
+  await db
+    .update(opinionPieces)
+    .set({ postedAt: new Date() })
+    .where(eq(opinionPieces.archiveDay, pending.archiveDay));
+
+  const result = await announceOpinion({
     ...pending,
     headline: renameInText(pending.headline, aliases),
     body: renameInText(pending.body, aliases),
     columnist: COLUMNIST_NAME,
   });
-  if (!ok) return 0;
 
-  await db
-    .update(opinionPieces)
-    .set({ postedAt: new Date() })
-    .where(eq(opinionPieces.archiveDay, pending.archiveDay));
+  if (result === "rejected") {
+    await db
+      .update(opinionPieces)
+      .set({ postedAt: null })
+      .where(eq(opinionPieces.archiveDay, pending.archiveDay));
+    return 0;
+  }
+
+  if (result === "unknown") {
+    console.warn(
+      `[ai] opinion ${pending.archiveDay} may or may not have posted; left claimed ` +
+        `rather than risk a duplicate. Check the channel.`,
+    );
+  }
 
   return 1;
 }

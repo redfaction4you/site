@@ -114,10 +114,38 @@ function matchLinks(column: ColumnToAnnounce): string | null {
   return lines.join("\n");
 }
 
-/** Returns true only if Discord accepted the post. */
-export async function announceColumn(column: ColumnToAnnounce): Promise<boolean> {
+/**
+ * What became of an attempt to post, in the only three kinds that matter.
+ *
+ * A boolean cannot express the case that duplicated a piece in the channel: the
+ * post arrived and the answer did not. `false` was read as "did not happen", the
+ * row kept its null `posted_at`, and fifteen minutes later the same opinion went
+ * out a second time. The archive recorded one post; Discord had two.
+ *
+ * - `sent`      Discord accepted it. Certain.
+ * - `rejected`  It certainly did not arrive: no webhook, a 4xx, a rate limit.
+ *               Safe to try again, because there is nothing to duplicate.
+ * - `unknown`   The request went out and the outcome is not known: a timeout, a
+ *               dropped connection, a 5xx. **Never retried.** A retry here is
+ *               exactly the double post, and a piece silently missing from the
+ *               channel is a far smaller harm than the same piece twice.
+ */
+export type AnnounceResult = "sent" | "rejected" | "unknown";
+
+/**
+ * How an HTTP response should be read when the post was not accepted.
+ *
+ * 4xx is the server telling us it did not act: a malformed embed, a webhook that
+ * no longer exists, a rate limit. 5xx is the server failing to tell us anything,
+ * which is not the same as it not having happened.
+ */
+function resultFor(status: number): AnnounceResult {
+  return status >= 400 && status < 500 ? "rejected" : "unknown";
+}
+
+export async function announceColumn(column: ColumnToAnnounce): Promise<AnnounceResult> {
   const url = webhookUrl();
-  if (!url) return false;
+  if (!url) return "rejected";
 
   const link = `${SITE_URL}/news/${column.archiveDay}`;
   const links = matchLinks(column);
@@ -165,14 +193,16 @@ export async function announceColumn(column: ColumnToAnnounce): Promise<boolean>
 
     if (!response.ok) {
       console.warn(`[discord] webhook ${response.status}: ${await response.text()}`);
-      return false;
+      return resultFor(response.status);
     }
 
-    return true;
+    return "sent";
   } catch (error) {
+    // A timeout or a dropped connection says nothing about whether Discord
+    // created the message. Treated as unknown, and therefore never retried.
     const reason = error instanceof Error ? error.message : String(error);
-    console.warn(`[discord] webhook failed: ${reason}`);
-    return false;
+    console.warn(`[discord] webhook failed, outcome unknown: ${reason}`);
+    return "unknown";
   }
 }
 
@@ -187,21 +217,28 @@ export type OpinionToAnnounce = {
 /**
  * Posts the columnist's piece, and marks it as opinion in every way it can.
  *
- * The reports are checked against the record and this is not, so the two must
- * not arrive in the channel looking like the same thing. An embed travels
- * further than a page, and it travels without whatever context surrounded it, so
+ * A report tells you what happened and this argues about it, so the two must not
+ * arrive in the channel looking like the same thing. An embed travels further
+ * than a page, and it travels without whatever context surrounded it, so
  * everything that distinguishes the two has to be inside the embed itself: the
  * byline in the author slot, the word opinion in the title, a different colour
  * from the report's red, and a footer that says it is a view rather than a
  * finding and that a machine wrote it.
  *
+ * **The difference is not that one is checked and the other is not.** This file
+ * said that and so did the footer, and it was wrong in the direction that costs
+ * you: `writeOpinion` runs `checkClaims` exactly as the reports do, and refuses
+ * to publish when the checker could not run, where a report publishes anyway.
+ * The figures in a piece are as checked as any on the site. What is the column's
+ * own is the argument it builds out of them.
+ *
  * Gold rather than red is not decoration. Red is what a match report posts under,
  * and somebody scrolling a channel sorts by colour long before they read a
  * footer.
  */
-export async function announceOpinion(piece: OpinionToAnnounce): Promise<boolean> {
+export async function announceOpinion(piece: OpinionToAnnounce): Promise<AnnounceResult> {
   const url = webhookUrl();
-  if (!url) return false;
+  if (!url) return "rejected";
 
   const link = `${SITE_URL}/news/${piece.archiveDay}`;
 
@@ -219,11 +256,27 @@ export async function announceOpinion(piece: OpinionToAnnounce): Promise<boolean
             // Oxide, the site's second colour, so a piece never arrives looking
             // like a result.
             color: 0xe6b64f,
+            /*
+             * What this is, without talking the piece down.
+             *
+             * It used to end "and unlike a match report it is not checked
+             * against the archive", which was both corrosive and untrue. Every
+             * opinion piece goes through `checkClaims` exactly as a report
+             * does, and it is held to the stricter standard of the two: a
+             * report publishes when the checker could not run, and a piece does
+             * not publish at all. Advertising a weakness the writing does not
+             * have, on an archive whose whole argument is that its information
+             * can be trusted, is a bad trade in both directions.
+             *
+             * What still needs saying is the real distinction, which is not
+             * about checking: a report tells you what happened and this argues
+             * about it. The numbers in it are as checked as any other; the
+             * view it takes of them is one column's.
+             */
             footer: {
               text:
                 `Opinion, written automatically by ${piece.columnist} from ${piece.matchCount} ` +
-                `matches on record. It argues rather than reports, and unlike a match ` +
-                `report it is not checked against the archive.`,
+                `matches on record. Its figures come from the archive; the argument is its own.`,
             },
             timestamp: new Date().toISOString(),
           },
@@ -235,13 +288,13 @@ export async function announceOpinion(piece: OpinionToAnnounce): Promise<boolean
 
     if (!response.ok) {
       console.warn(`[discord] opinion webhook ${response.status}: ${await response.text()}`);
-      return false;
+      return resultFor(response.status);
     }
 
-    return true;
+    return "sent";
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    console.warn(`[discord] opinion webhook failed: ${reason}`);
-    return false;
+    console.warn(`[discord] opinion webhook failed, outcome unknown: ${reason}`);
+    return "unknown";
   }
 }
