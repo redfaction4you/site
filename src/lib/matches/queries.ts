@@ -485,6 +485,27 @@ export type PlayerTotals = {
   soloCaps: number;
   relayCaps: number;
   leadCarries: number;
+  /**
+   * Matches won, and matches that had a winner at all.
+   *
+   * Two numbers rather than a rate, for the reason the pairing record is two
+   * numbers: a rate needs a bar under it and the bar belongs to whatever is
+   * ranking it, not to the total. A match with no recorded winner is not a
+   * defeat, so it is out of the denominator as well as the numerator.
+   */
+  wins: number;
+  decided: number;
+  /**
+   * Times they took the enemy flag off its stand or off the ground.
+   *
+   * The one flag counter besides captures and returns that the dedicated server
+   * actually fills in. `flag_carrier_kills`, `capture_assists`,
+   * `flag_recoveries`, `flag_carrier_deaths` and `successful_flag_drives` are
+   * all still zero on all 188 rows on record, which is why nothing reads them:
+   * a board of dashes is worse than no board. `lead_carries` is the exception
+   * and only because `drives.ts` reconstructs it here.
+   */
+  flagPickups: number;
   firstSeen: string | null;
   lastSeen: string | null;
 };
@@ -553,6 +574,20 @@ const playerTotalColumns = {
   soloCaps: sql<number>`coalesce(sum(${matchPlayers.soloCaps}), 0)::int`,
   relayCaps: sql<number>`coalesce(sum(${matchPlayers.relayCaps}), 0)::int`,
   leadCarries: sql<number>`coalesce(sum(${matchPlayers.leadCarries}), 0)::int`,
+  /*
+   * Won and decided, counted here rather than worked out from a form strip.
+   *
+   * `winner` is a side and a player's `team` is a side, so a win is the two
+   * agreeing. Both are restricted to red and blue: a row with no side recorded
+   * cannot have won, and `winner = team` would call two empty strings a victory.
+   */
+  wins: sql<number>`count(*) filter (
+    where ${matches.winner} in ('red','blue')
+      and ${matchPlayers.team} in ('red','blue')
+      and ${matches.winner} = ${matchPlayers.team}
+  )::int`,
+  decided: sql<number>`count(*) filter (where ${matches.winner} in ('red','blue'))::int`,
+  flagPickups: sql<number>`coalesce(sum(${matchPlayers.flagPickups}), 0)::int`,
 };
 
 /** Everyone who has played, most active first. */
@@ -731,6 +766,9 @@ export async function fetchAppearances(upToDay?: string): Promise<Appearance[]> 
       name: matchPlayers.name,
       team: matchPlayers.team,
       winner: matches.winner,
+      // So a partnership's arc is counted over exactly the matches its record
+      // is counted over. See `firstNight` in pairings.ts.
+      archiveDay: matches.archiveDay,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))

@@ -33,11 +33,12 @@ import {
  *
  * `red` and `blue` are name lists, so a test reads as the line-up it is about.
  */
-function match(id, { red = [], blue = [], winner = null, other = [] } = {}) {
+function match(id, { red = [], blue = [], winner = null, other = [], day } = {}) {
+  const on = day === undefined ? {} : { archiveDay: day };
   return [
-    ...red.map((name) => ({ matchId: id, name, team: "red", winner })),
-    ...blue.map((name) => ({ matchId: id, name, team: "blue", winner })),
-    ...other.map(({ name, team }) => ({ matchId: id, name, team, winner })),
+    ...red.map((name) => ({ matchId: id, name, team: "red", winner, ...on })),
+    ...blue.map((name) => ({ matchId: id, name, team: "blue", winner, ...on })),
+    ...other.map(({ name, team }) => ({ matchId: id, name, team, winner, ...on })),
   ];
 }
 
@@ -298,4 +299,64 @@ test("a tie has no most played partner, rather than an arbitrary one", () => {
 
 test("no partners at all is null, not a crash", () => {
   assert.equal(mostPlayedWith([]), null);
+});
+
+/* --- the arc of a partnership -------------------------------------------- */
+
+test("a partnership carries the first and last night it happened", () => {
+  const pairings = buildPairings([
+    ...match("m2", { red: ["Ada", "Bo"], day: "2026-07-30" }),
+    ...match("m1", { red: ["Ada", "Bo"], day: "2026-07-28" }),
+    ...match("m3", { red: ["Ada", "Bo"], day: "2026-07-29" }),
+  ]);
+
+  const pair = partnership(pairings, "ada", "bo");
+  assert.equal(pair.firstNight, "2026-07-28");
+  assert.equal(pair.lastNight, "2026-07-30");
+});
+
+test("one night is both the first and the last", () => {
+  const pairings = buildPairings(
+    match("m1", { red: ["Ada", "Bo"], day: "2026-07-28" }),
+  );
+
+  const pair = partnership(pairings, "ada", "bo");
+  assert.equal(pair.firstNight, "2026-07-28");
+  assert.equal(pair.lastNight, "2026-07-28");
+});
+
+test("appearances without dates leave the arc null rather than guessing", () => {
+  const pairings = buildPairings(match("m1", { red: ["Ada", "Bo"] }));
+
+  const pair = partnership(pairings, "ada", "bo");
+  assert.equal(pair.firstNight, null);
+  assert.equal(pair.lastNight, null);
+});
+
+/**
+ * The bug this whole arrangement exists to stop.
+ *
+ * One person, two names, and the arc counted per name said the pairing started
+ * on the night they changed it. The record beside it said eleven matches. The
+ * caller hands appearances in already named per person, so the arc has to be
+ * built from the same rows the record is.
+ */
+test("the arc covers every match the record covers, under any name", () => {
+  const pairings = buildPairings([
+    ...match("m1", { red: ["Skuldug", "Ada"], day: "2026-07-20" }),
+    ...match("m2", { red: ["Skuldug", "Ada"], day: "2026-07-31" }),
+  ]);
+
+  const pair = partnership(pairings, "skuldug", "ada");
+  assert.equal(pair.matches, 2);
+  assert.equal(pair.firstNight, "2026-07-20");
+});
+
+test("a rivalry is not given an arc, since only partnerships print one", () => {
+  const pairings = buildPairings(
+    match("m1", { red: ["Ada"], blue: ["Bo"], day: "2026-07-28" }),
+  );
+
+  assert.equal(partnership(pairings, "ada", "bo"), undefined);
+  assert.equal(rivalry(pairings, "ada", "bo").matches, 1);
 });

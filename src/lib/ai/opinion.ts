@@ -37,7 +37,6 @@ import {
   playerIdentities,
 } from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
-import { MIN_COMPLETED_SECONDS } from "@/lib/matches/completion";
 import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import {
   MATCH_COMPLETED,
@@ -232,7 +231,11 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   const [totals] = await db
     .select({
       matchCount: sql<number>`count(distinct ${matches.id})::int`,
-      playerCount: sql<number>`count(distinct lower(${matchPlayers.name}))::int`,
+      // Per person, like every other count on the site. Counted by name it read
+      // the four names one player has used as four players, which both inflated
+      // the "N players" line this opens with and let a thin night clear
+      // MIN_PLAYERS_FOR_OPINION on people who were not there.
+      playerCount: sql<number>`count(distinct ${IDENTITY_KEY})::int`,
     })
     .from(matches)
     .innerJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
@@ -313,34 +316,19 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     );
   const season = seasonRows[0];
 
-  // When each pair first and last shared a side, which is the shape of a
-  // partnership rather than a snapshot of one.
-  const pairHistory = await db.execute(sql`
-    select least(lower(a.name), lower(b.name)) as one,
-           greatest(lower(a.name), lower(b.name)) as two,
-           min(m.archive_day)::text as first_night,
-           max(m.archive_day)::text as last_night
-    from ${matchPlayers} a
-    join ${matchPlayers} b
-      on b.match_id = a.match_id and b.team = a.team and lower(b.name) > lower(a.name)
-    join ${matches} m on m.id = a.match_id
-    where m.status = 'final' and m.archive_day <= ${archiveDay}
-      -- The same rule MATCH_COMPLETED carries, written against the alias:
-      -- that fragment names the table, and this query aliases it to m.
-      -- MIN_COMPLETED_SECONDS is still the one constant.
-      and (m.ended_at is null or m.started_at is null
-           or extract(epoch from (m.ended_at - m.started_at)) >= ${MIN_COMPLETED_SECONDS})
-      and a.team in ('red','blue') and not a.spectator and not b.spectator
-    group by 1, 2
-  `);
-
-  const history = new Map<string, { first: string; last: string }>();
-  for (const row of pairHistory.rows as { one: string; two: string; first_night: string; last_night: string }[]) {
-    history.set(`${row.one}|${row.two}`, { first: row.first_night, last: row.last_night });
-  }
-  const historyFor = (a: string, b: string) =>
-    history.get([a.toLowerCase(), b.toLowerCase()].sort().join("|"));
-
+  /*
+   * When each pair first and last shared a side now arrives on the partnership
+   * itself, from `buildPairings`.
+   *
+   * It used to be a self-join here, and it was wrong in two ways at once. It
+   * joined on `lower(name)`, so somebody who has played under four names was
+   * four different partners and each pairing's history covered a fraction of
+   * its matches. And it carried its own hand-copied twin of `MATCH_COMPLETED`
+   * plus a bare `not spectator` where the record beside it used `TOOK_PART`, so
+   * the arc was measured over a different set of matches than the counts it was
+   * printed next to. Both are the same failure: a second query answering a
+   * question the first one had already answered.
+   */
   // How each player has been going lately, so form can be talked about at all.
   const form = await db
     .select({
@@ -522,7 +510,10 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
       pair.winRate === null
         ? `no win rate: fewer than ${MIN_MATCHES_FOR_PAIR_RATE} decided matches together, so there is not one to give`
         : `${Math.round(pair.winRate * 100)}% of decided matches won`;
-    const arc = historyFor(pair.a, pair.b);
+    const arc =
+      pair.firstNight && pair.lastNight
+        ? { first: pair.firstNight, last: pair.lastNight }
+        : null;
     const when = arc
       ? arc.first === arc.last
         ? ` Only ever on ${arc.first}.`
