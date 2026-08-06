@@ -41,6 +41,9 @@ export type RankablePlayer = {
   soloCaps: number;
   relayCaps: number;
   leadCarries: number;
+  wins: number;
+  decided: number;
+  flagPickups: number;
 };
 
 /**
@@ -51,17 +54,30 @@ export type RankablePlayer = {
  * shape of the other. Twelve boards in one flat grid weighted accuracy the same
  * as fastest capture and left a reader to work out which were even comparable.
  */
-export const BOARD_GROUPS = ["fighting", "flag"] as const;
+export const BOARD_GROUPS = ["fighting", "flag", "support", "record"] as const;
 export type BoardGroup = (typeof BOARD_GROUPS)[number];
 
 export const BOARD_GROUP_LABEL: Record<BoardGroup, string> = {
   fighting: "Fighting",
   flag: "The flag",
+  support: "The work nobody sees",
+  record: "The record",
 };
 
 export const BOARD_GROUP_BLURB: Record<BoardGroup, string> = {
   fighting: "Frags, accuracy, and what they cost.",
   flag: "The objective, which is the only thing that wins a match.",
+  /*
+   * A third group, because the archive records a good deal of play that neither
+   * of the first two describes.
+   *
+   * Stopping a carrier, setting up somebody else's capture and carrying a flag
+   * most of the way before dying at the door are all things that decide matches
+   * and leave nothing next to a name on the scoreboard. The numbers were being
+   * stored and none of them were ranked anywhere.
+   */
+  support: "Stopping carriers, setting up captures, and the flag work that ends up on somebody else's line.",
+  record: "Turning up, and how it has gone.",
 };
 
 export type Board = {
@@ -159,6 +175,16 @@ const MIN_MATCHES_FOR_RATIO = 3;
  * match, not an average.
  */
 const MIN_MATCHES_FOR_RATE = 3;
+
+/**
+ * Decided matches before a win rate is shown.
+ *
+ * Five, the same bar `pairings.ts` sets and for the same arithmetic: at four,
+ * one result moves the figure by twenty five points, which is not a tendency,
+ * it is the last game. Higher than the other rate boards because this one reads
+ * as a verdict on a player in a way frags per match does not.
+ */
+const MIN_DECIDED_FOR_WIN_RATE = 5;
 
 export const BOARDS: Board[] = [
   {
@@ -318,6 +344,133 @@ export const BOARDS: Board[] = [
     direction: "high",
     qualifies: (p) => p.matchesPlayed >= MIN_MATCHES_FOR_RATIO,
     requirement: `At least ${MIN_MATCHES_FOR_RATIO} matches, because a ratio from one game is noise.`,
+  },
+  {
+    key: "score",
+    group: "fighting",
+    label: "Score",
+    short: "Score",
+    blurb: "The server's own scoreboard total, which weighs a capture above a frag.",
+    value: (p) => (p.score !== 0 ? p.score : null),
+    format: (v) => v.toLocaleString("en-GB"),
+    direction: "high",
+    qualifies: () => true,
+    requirement: null,
+  },
+  {
+    key: "damage-per-match",
+    group: "fighting",
+    label: "Damage per match",
+    short: "Damage/match",
+    blurb: "Pressure applied per game, rather than per season.",
+    value: (p) =>
+      p.matchesPlayed > 0 && p.damageGiven > 0 ? p.damageGiven / p.matchesPlayed : null,
+    format: (v) => Math.round(v).toLocaleString("en-GB"),
+    direction: "high",
+    qualifies: (p) => p.matchesPlayed >= MIN_MATCHES_FOR_RATE,
+    requirement: `At least ${MIN_MATCHES_FOR_RATE} matches, because an average over one match is just that match.`,
+  },
+
+  /* --- the work that ends up on somebody else's line --------------------- */
+
+  /*
+   * There is no carriers-stopped board and no capture-assists board.
+   *
+   * Both were written, and both came out as a column of dashes. The server has
+   * `flag_carrier_kills`, `capture_assists`, `flag_recoveries`,
+   * `flag_carrier_deaths` and `successful_flag_drives` in its export and sends
+   * zero for every one of them on all 188 player rows on record. The columns
+   * exist in the schema because the export defines them, not because anything
+   * fills them in.
+   *
+   * They are the obvious boards to want here, so this note is the thing that
+   * stops them being written a third time. If the dedicated server ever starts
+   * populating them, `flagCarrierKills` and `captureAssists` are two lines in
+   * `playerTotalColumns` and a board each.
+   */
+  {
+    key: "flag-pickups",
+    group: "support",
+    label: "Flags taken",
+    short: "Pickups",
+    blurb:
+      "Times they took the enemy flag, off its stand or off the ground. Most do not end in a capture.",
+    value: (p) => (p.flagPickups > 0 ? p.flagPickups : null),
+    format: (v) => `${v}`,
+    direction: "high",
+    qualifies: () => true,
+    requirement: null,
+  },
+  {
+    /*
+     * The number that did not exist before drive credit was reconstructed.
+     *
+     * The scoreboard gives the capture to whoever touched it down. Somebody who
+     * takes the flag at the enemy stand, carries it most of the way and dies at
+     * the door appears nowhere on it. This is how often that happened.
+     */
+    key: "lead-carries",
+    group: "support",
+    label: "Carried furthest",
+    short: "Lead carries",
+    blurb: "Captures where they moved the flag the furthest and somebody else touched it down.",
+    value: (p) => (p.leadCarries > 0 ? p.leadCarries : null),
+    format: (v) => `${v}`,
+    direction: "high",
+    qualifies: () => true,
+    requirement: null,
+  },
+  {
+    key: "returns-per-match",
+    group: "support",
+    label: "Returns per match",
+    short: "Returns/match",
+    blurb: "How reliably they get their own flag back, regardless of how often they play.",
+    value: (p) =>
+      p.matchesPlayed > 0 && p.flagReturns > 0 ? p.flagReturns / p.matchesPlayed : null,
+    format: (v) => v.toFixed(1),
+    direction: "high",
+    qualifies: (p) => p.matchesPlayed >= MIN_MATCHES_FOR_RATE,
+    requirement: `At least ${MIN_MATCHES_FOR_RATE} matches, because an average over one match is just that match.`,
+  },
+
+  /* --- turning up, and how it has gone ----------------------------------- */
+
+  {
+    key: "matches",
+    group: "record",
+    label: "Matches played",
+    short: "Matches",
+    blurb: "Who turns up. Every total on this page is partly a ranking of this one.",
+    value: (p) => (p.matchesPlayed > 0 ? p.matchesPlayed : null),
+    format: (v) => `${v}`,
+    direction: "high",
+    qualifies: () => true,
+    requirement: null,
+  },
+  {
+    /*
+     * Sides are reshuffled between matches, so this is not a ranking of skill
+     * and the blurb says so rather than leaving a reader to assume it is one.
+     * It is still the first thing anybody looks for, and withholding it would
+     * be the kind of coyness this archive does not otherwise go in for.
+     */
+    key: "win-rate",
+    group: "record",
+    label: "Win rate",
+    short: "Win %",
+    blurb:
+      "Share of decided matches won. Sides are picked to be even and reshuffled, so this says more about the shuffle than about the player.",
+    value: (p) => (p.decided > 0 ? p.wins / p.decided : null),
+    format: (v, p) => `${Math.round(v * 100)}% (${p.wins}-${p.decided - p.wins})`,
+    direction: "high",
+    qualifies: (p) => p.decided >= MIN_DECIDED_FOR_WIN_RATE,
+    requirement: `At least ${MIN_DECIDED_FOR_WIN_RATE} decided matches, the same bar a pairing has to clear before it is shown a rate.`,
+    context: {
+      label: "Decided",
+      of: (p) => p.decided,
+      format: (v) => `${v}`,
+    },
   },
 ];
 

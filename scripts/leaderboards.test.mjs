@@ -39,6 +39,9 @@ function player(overrides = {}) {
     soloCaps: 1,
     relayCaps: 0,
     leadCarries: 0,
+    wins: 2,
+    decided: 4,
+    flagPickups: 6,
     ...overrides,
   };
 }
@@ -211,4 +214,86 @@ test("board keys are unique and url safe", () => {
 
 test("an unknown board key returns null rather than undefined", () => {
   assert.equal(boardByKey("nonsense"), null);
+});
+
+/* --- the win rate, which is the one board that reads as a verdict ---------- */
+
+test("a win rate needs enough decided matches before it is shown", () => {
+  const entries = rank(
+    [
+      player({ name: "Thin", wins: 4, decided: 4 }),
+      player({ name: "Solid", wins: 6, decided: 10 }),
+    ],
+    board("win-rate"),
+  );
+
+  assert.deepEqual(
+    entries.map((entry) => entry.player.name),
+    ["Solid"],
+  );
+});
+
+test("matches with no winner are out of the win rate entirely", () => {
+  // Ten played, six decided, four won. The rate is over the six.
+  const [entry] = rank(
+    [player({ matchesPlayed: 10, wins: 4, decided: 6 })],
+    board("win-rate"),
+  );
+
+  assert.equal(entry.value, 4 / 6);
+  assert.match(entry.display, /^67% \(4-2\)$/);
+});
+
+test("somebody who has never had a decided match is not ranked at nil", () => {
+  const entries = rank([player({ wins: 0, decided: 0 })], board("win-rate"));
+
+  assert.deepEqual(entries, []);
+});
+
+test("the support boards rank the numbers nothing used to read", () => {
+  for (const key of ["lead-carries", "flag-pickups", "returns-per-match"]) {
+    assert.equal(board(key).group, "support", `${key} is not in the support group`);
+  }
+
+  const [top] = rank(
+    [
+      player({ name: "Quiet", leadCarries: 6 }),
+      player({ name: "Loud", leadCarries: 1 }),
+    ],
+    board("lead-carries"),
+  );
+  assert.equal(top.player.name, "Quiet");
+});
+
+test("a zero on a support board is nothing to rank rather than last place", () => {
+  const entries = rank([player({ leadCarries: 0 })], board("lead-carries"));
+  assert.deepEqual(entries, []);
+});
+
+/**
+ * No board may rest on a counter the server does not fill in.
+ *
+ * Two were written on `flag_carrier_kills` and `capture_assists` and both
+ * rendered a column of dashes: the export defines those fields and sends zero
+ * for every row on record. They are the obvious boards to want, which is exactly
+ * why this needs to fail rather than be remembered.
+ */
+test("no board reads a counter the dedicated server never populates", () => {
+  const empty = [
+    "flagCarrierKills",
+    "captureAssists",
+    "flagRecoveries",
+    "flagCarrierDeaths",
+    "successfulFlagDrives",
+  ];
+
+  for (const b of BOARDS) {
+    const source = `${b.value}`;
+    for (const field of empty) {
+      assert.ok(
+        !source.includes(field),
+        `${b.key} reads ${field}, which the server sends as zero on every row`,
+      );
+    }
+  }
 });

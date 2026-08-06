@@ -34,6 +34,21 @@ export type StripMatch = {
  *
  * Winner in colour, loser in grey, and the map picture doing the work of saying
  * which game this was faster than the name can.
+ *
+ * **It sits on a band of its own.** The tiles read as loose cards floating in
+ * the page rather than as the results bar they are, which is what this fixes.
+ *
+ * Three things decide the colour, and the first two rule out most of the range.
+ * The page is `basalt-950` and the tiles are `basalt-850`, so the band has to
+ * land between them: darker and it is the page, lighter and the tiles stop
+ * standing out against it. And it has to be translucent, because the body
+ * carries a red radial gradient that is at its strongest right here, near the
+ * top; an opaque band in any one colour would show up as a rectangular hole
+ * punched in it. Half-strength `basalt-850` lifts the strip off the page and
+ * still lets the gradient through.
+ *
+ * It runs to the container edges, past the page padding, because a band that
+ * stops short of the margin is a box, and a box is what it already looked like.
  */
 export function ResultsStrip({
   matches,
@@ -46,7 +61,11 @@ export function ResultsStrip({
   if (matches.length === 0) return null;
 
   return (
-    <section className={className}>
+    <section
+      className={
+        "-mx-4 border-y border-basalt-800 bg-basalt-850/50 px-4 py-2.5 " + className
+      }
+    >
       <ScrollRow label="results">
         {matches.map((match) => (
           <li key={`${match.archiveDay}-${match.sourceMatchId}`} className="shrink-0">

@@ -143,10 +143,19 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   `.next` underneath the dev server and it starts answering 500 with
   `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or
   delete `.next` afterwards and restart it.
-- **`DISCORD_NEWS_WEBHOOK` is unset everywhere**, local and production, so columns
-  are written and published on the site but announced nowhere. Once it is set,
-  calling `/api/rf4u/archive/rebuild` against a *local* server will post to the
-  real channel, because there is only one webhook. Blank it for that run.
+- **`DISCORD_NEWS_WEBHOOK` is set in `.env.local` and unset in production.** This
+  entry used to say it was unset in both, and it is the wrong way round: `vercel
+  env ls production` has no such variable, and the local `.env.local` has a live
+  one. Two consequences, and the first is the dangerous one.
+  - **A local run posts to the real channel.** There is one webhook and it is the
+    community's. Anything that reaches `announcePendingColumns` or
+    `announcePendingOpinions` from a local server announces for real, including
+    `/api/rf4u/archive/rebuild`, and including a column being *re*generated after
+    somebody deleted a row to force a rewrite. Blank the variable for that run.
+  - **Production announces nothing**, so a column or an opinion piece written on
+    the VPS sync is published on the site and posted nowhere, and `posted_at`
+    stays null on it forever. A null there means "production has no webhook", not
+    "Discord failed".
 
 ## Compatibility detection (`src/lib/rfl/`)
 

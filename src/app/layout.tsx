@@ -3,6 +3,7 @@ import { Black_Ops_One, Chakra_Petch } from "next/font/google";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SITE_URL } from "@/lib/site";
 
 import "./globals.css";
 
@@ -20,9 +21,6 @@ const blackOps = Black_Ops_One({
   variable: "--font-blackops",
   display: "swap",
 });
-
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://redfaction4you.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

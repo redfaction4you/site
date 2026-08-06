@@ -9,12 +9,18 @@ import {
   rank,
 } from "@/lib/matches/leaderboards";
 import { listPlayers } from "@/lib/matches/queries";
+import { mapSummaries } from "@/lib/matches/map-stats";
+import { weaponTotals } from "@/lib/matches/weapon-stats";
+import { getTicker } from "@/lib/matches/ticker";
 import { StatTable } from "@/components/stat-table";
+import { RecordsPanel } from "@/components/records-panel";
+import { MapStatsTable } from "@/components/map-stats-table";
+import { WeaponStatsTable } from "@/components/weapon-stats-table";
 
 export const metadata: Metadata = {
-  title: "Stat leaders",
+  title: "Stats",
   description:
-    "Every recorded statistic from the RedFaction4You server ranked separately: frags, accuracy, captures, time carrying the flag, returns, streaks and more.",
+    "Everything the RedFaction4You server records: the archive's standing records, every player statistic ranked separately, how each map plays, and what each weapon does.",
 };
 
 export const dynamic = "force-dynamic";
@@ -34,8 +40,29 @@ type Props = {
   searchParams: Promise<{ sort?: string; dir?: string }>;
 };
 
+/**
+ * The sections, in the order a reader wants them.
+ *
+ * Records first because they are the one thing on the page you do not have to
+ * already have a question for. Then the people, then the places, then the
+ * weapons: each is a wider frame than the last, and the last two describe the
+ * game rather than anybody playing it.
+ */
+const SECTIONS = [
+  { id: "records", label: "Records" },
+  { id: "players", label: "Players" },
+  { id: "maps", label: "Maps" },
+  { id: "weapons", label: "Weapons" },
+] as const;
+
 export default async function StatsPage({ searchParams }: Props) {
-  const [players, { sort, dir }] = await Promise.all([listPlayers(), searchParams]);
+  const [players, maps, weapons, records, { sort, dir }] = await Promise.all([
+    listPlayers(),
+    mapSummaries(),
+    weaponTotals(),
+    getTicker(),
+    searchParams,
+  ]);
 
   const boards = BOARDS.map((board) => ({
     board,
@@ -55,12 +82,51 @@ export default async function StatsPage({ searchParams }: Props) {
         {/* The page had no heading at all, only an eyebrow-styled paragraph, so
             its outline started at h2 and a screen reader was given no title for
             it. Same twelve pixels, now the thing it looks like. */}
-        <h1 className="eyebrow">Stat leaders</h1>
+        <h1 className="eyebrow">Stats</h1>
         <p className="font-mono text-xs text-steel-600">
           <span className="text-steel-300">{players.length}</span> players ·{" "}
-          <span className="text-steel-300">{boards.length}</span> boards
+          <span className="text-steel-300">{boards.length}</span> boards ·{" "}
+          <span className="text-steel-300">{maps.length}</span> maps
         </p>
       </div>
+
+      {/*
+        Four sections is enough to need a way past them.
+
+        Plain anchors rather than anything that watches the scroll position: the
+        page is server rendered, every section is a real id, and a link somebody
+        can copy out of the address bar is worth more here than a highlight that
+        follows the viewport.
+      */}
+      <nav
+        aria-label="Sections"
+        className="flex flex-wrap gap-x-5 gap-y-1 border-b border-basalt-800 py-2"
+      >
+        {SECTIONS.map((section) => (
+          <a
+            key={section.id}
+            href={`#${section.id}`}
+            className="font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-steel-400 hover:text-rust-300"
+          >
+            {section.label}
+          </a>
+        ))}
+      </nav>
+
+      {records.length ? (
+        <section id="records" className="scroll-mt-4 pt-5">
+          <h2 className="rule-heading">Records</h2>
+          <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
+            The best anybody has managed in a single match, and the matches they
+            managed it in. Every one is a link to the game it was set in.
+          </p>
+          <RecordsPanel items={records} />
+        </section>
+      ) : null}
+
+      <h2 id="players" className="rule-heading scroll-mt-4 pt-7">
+        Players
+      </h2>
 
       {boards.length === 0 ? (
         <p className="py-10 text-sm text-steel-500">
@@ -94,9 +160,18 @@ export default async function StatsPage({ searchParams }: Props) {
           <div className="space-y-7 pb-6">
             {groups.map(({ group, boards: inGroup }) => (
               <section key={group}>
-                <h2 className="rule-heading" title={BOARD_GROUP_BLURB[group]}>
-                  {BOARD_GROUP_LABEL[group]}
-                </h2>
+                <h3 className="rule-heading">{BOARD_GROUP_LABEL[group]}</h3>
+                {/*
+                  The group's own sentence, printed rather than left in a title
+                  attribute. It was the tooltip on the heading, which is an
+                  explanation nobody on a phone or a keyboard could reach, and
+                  with two new groups on the page the difference between "the
+                  flag" and "the work nobody sees" is exactly what a reader needs
+                  saying out loud.
+                */}
+                <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+                  {BOARD_GROUP_BLURB[group]}
+                </p>
 
                 <div className="mt-3 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                   {inGroup.map(({ board, entries }) => (
@@ -108,7 +183,7 @@ export default async function StatsPage({ searchParams }: Props) {
                         explanation nobody on a phone or a keyboard could reach,
                         and no hint that five was not everybody.
                       */}
-                      <h3 className="border-b border-basalt-700 pb-1">
+                      <h4 className="border-b border-basalt-700 pb-1">
                         <Link
                           href={`/stats/${board.key}`}
                           title={board.blurb}
@@ -121,7 +196,7 @@ export default async function StatsPage({ searchParams }: Props) {
                             </span>
                           ) : null}
                         </Link>
-                      </h3>
+                      </h4>
 
                       <ol className="mt-1">
                         {entries.slice(0, SHOWN).map((entry) => (
@@ -176,12 +251,41 @@ export default async function StatsPage({ searchParams }: Props) {
             ))}
           </div>
 
-          <p className="border-t border-basalt-800 pt-4 text-xs leading-relaxed text-steel-500">
-            Everything here is totalled from what the server recorded, across every
-            match in the archive. Nothing is estimated and nothing is weighted.
-          </p>
         </>
       )}
+
+      {/*
+        The two sections that are not about people.
+
+        Everything above ranks players against each other. These describe what
+        they are playing: where a match tends to go long, and which weapon is
+        actually doing the killing. Both read the same rows as the boards do and
+        neither is a ranking, which is why they sit apart from them rather than
+        as two more grids of names.
+      */}
+      <section id="maps" className="scroll-mt-4 pt-8">
+        <h2 className="rule-heading">Maps</h2>
+        <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
+          How each map actually plays. Not a ranking: a map that runs long and
+          finishes 3-2 is a different game from one that runs long and finishes
+          8-6, and neither is better.
+        </p>
+        <MapStatsTable maps={maps} />
+      </section>
+
+      <section id="weapons" className="scroll-mt-4 pt-8">
+        <h2 className="rule-heading">Weapons</h2>
+        <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
+          Every frag on record, by what caused it, and how much shooting each one
+          took.
+        </p>
+        <WeaponStatsTable weapons={weapons} />
+      </section>
+
+      <p className="mt-8 border-t border-basalt-800 pt-4 text-xs leading-relaxed text-steel-500">
+        Everything here is totalled from what the server recorded, across every
+        match in the archive. Nothing is estimated and nothing is weighted.
+      </p>
     </div>
   );
 }

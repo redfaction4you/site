@@ -15,8 +15,6 @@ import {
 import { NightFootageCard } from "@/components/match-footage";
 import { footageForNight } from "@/lib/match-footage";
 import { ResultsStrip } from "@/components/results-strip";
-import { Ticker } from "@/components/ticker";
-import { getTicker } from "@/lib/matches/ticker";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { getServerStatus } from "@/lib/server-status";
 
@@ -32,7 +30,7 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent, ticker, opinions] =
+  const [status, totals, latest, players, columns, recent, opinions] =
     await Promise.all([
       getServerStatus(),
       archiveTotals(),
@@ -40,7 +38,6 @@ export default async function HomePage() {
       listPlayers(),
       listColumns(),
       recentMatches(10),
-      getTicker(),
       listOpinions(3),
     ]);
 
@@ -82,10 +79,15 @@ export default async function HomePage() {
     <>
       <h1 className="sr-only">RedFaction4You</h1>
 
-      {/* Records strip, full bleed, directly under the hazard stripe. */}
-      <div className="-mt-px">
-        <Ticker items={ticker} />
-      </div>
+      {/*
+        The records ticker used to run across the top here, above everything.
+
+        It is gone from this page rather than deleted: every fact in it is a
+        record, /stats is the page about records, and having the two meant the
+        front page opened with a strip of superlatives above the results they
+        came out of. They are the first section of the stats page now, where
+        there is room to say which match each one was set in.
+      */}
 
       <div className="mx-auto max-w-6xl px-4 pb-10">
       {/* Status readout. One line, with the map the server is on. */}
@@ -140,7 +142,7 @@ export default async function HomePage() {
         page that makes them scroll for it is answering a question they did not
         ask.
       */}
-      <ResultsStrip matches={recent} className="pt-3" />
+      <ResultsStrip matches={recent} className="mt-3" />
 
       <div className="grid gap-x-10 gap-y-8 pb-6 pt-5 lg:grid-cols-[1.55fr_1fr]">
         {/* --- The story, now under the results rather than above them --- */}

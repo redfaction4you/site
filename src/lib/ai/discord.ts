@@ -9,10 +9,10 @@
  * written and still appears on the site; it just is not announced.
  */
 
+import { SITE_URL } from "@/lib/site";
+
 /** Discord's cap on an embed description. Columns run well under this. */
 const EMBED_LIMIT = 4096;
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://redfaction4you.com";
 
 function webhookUrl(): string | null {
   const url = process.env.DISCORD_NEWS_WEBHOOK?.trim();
