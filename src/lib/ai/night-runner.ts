@@ -25,8 +25,10 @@ import {
 import {
   MATCH_COMPLETED,
   TOOK_PART,
+  aliasNames,
   canonicalNames,
 } from "@/lib/matches/queries";
+import { renameInText } from "@/lib/matches/names";
 import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { ARCHIVE_TIME_ZONE, calendarDay } from "@/lib/matches/sanitize";
 import { publicUrl } from "@/lib/storage";
@@ -302,10 +304,26 @@ export async function announcePendingColumns(): Promise<number> {
       .where(and(eq(matches.archiveDay, column.archiveDay), MATCH_COMPLETED))
       .orderBy(matches.startedAt);
 
+    /*
+     * Everybody called what the site calls them, here as well.
+     *
+     * The pages get this from `listColumns` and `getColumn`, which resolve a
+     * name written months ago to the one its owner is known by now. This reads
+     * the table directly, because announcing needs `posted_at` and the page
+     * queries do not select it, and that difference is enough to leak: an embed
+     * saying "Special ED" landing in Discord under a link to a page that says
+     * Romek, permanently, because a Discord post is not re-rendered.
+     *
+     * The one surface where getting this wrong cannot be fixed by a deploy.
+     */
+    const aliases = await aliasNames();
+
     // Writing happens in a separate pass from announcing, so by the time we get
     // here the image either exists or was never going to.
     const ok = await announceColumn({
       ...column,
+      headline: renameInText(column.headline, aliases),
+      body: renameInText(column.body, aliases),
       imageUrl: column.imageKey ? publicUrl(column.imageKey) : null,
       matches: played,
     });
@@ -345,7 +363,16 @@ export async function announcePendingOpinions(): Promise<number> {
 
   if (!pending) return 0;
 
-  const ok = await announceOpinion({ ...pending, columnist: COLUMNIST_NAME });
+  // Same as the columns: a name resolved on the page and not in the embed is a
+  // permanent disagreement, because a Discord post is not re-rendered.
+  const aliases = await aliasNames();
+
+  const ok = await announceOpinion({
+    ...pending,
+    headline: renameInText(pending.headline, aliases),
+    body: renameInText(pending.body, aliases),
+    columnist: COLUMNIST_NAME,
+  });
   if (!ok) return 0;
 
   await db
