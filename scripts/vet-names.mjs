@@ -55,17 +55,38 @@ const sql = neon(process.env.DATABASE_URL);
  * person. `mode()` and the chosen name from /admin, exactly as DISPLAY_NAME
  * resolves them, so this cannot come to disagree with the pages it is checking.
  */
+/*
+ * The resolved identity, exactly as `identities.ts` resolves it.
+ *
+ * Two steps, and both matter. The server's key is corrected by whatever
+ * `player_identities.merged_into` says, and the chosen name is then looked up
+ * against that *corrected* key rather than the raw one. Reading it the old way,
+ * off a join on the raw key, made this script report nineteen pages showing a
+ * name belonging to somebody it thought was called nothing, because a
+ * merged-away row is the one row whose own name is not the answer.
+ */
 const rows = await sql`
-  select lower(mp.name) as alias, c.name as canonical
-  from match_players mp
-  join (
-    select coalesce(mp2.identity_key, lower(mp2.name)) as key,
-           coalesce(min(pi.display_name),
-                    mode() within group (order by mp2.name)) as name
-    from match_players mp2
-    left join player_identities pi on pi.identity_key = mp2.identity_key
-    group by 1
-  ) c on c.key = coalesce(mp.identity_key, lower(mp.name))
+  with resolved as (
+    select mp.name,
+           coalesce(
+             (select pi.merged_into from player_identities pi
+              where pi.identity_key = coalesce(mp.identity_key, lower(mp.name))),
+             coalesce(mp.identity_key, lower(mp.name))
+           ) as key
+    from match_players mp
+  ),
+  people as (
+    select key,
+           coalesce(
+             (select pi.display_name from player_identities pi
+              where pi.identity_key = resolved.key),
+             mode() within group (order by name)
+           ) as canonical
+    from resolved
+    group by key
+  )
+  select lower(r.name) as alias, p.canonical
+  from resolved r join people p on p.key = r.key
   group by 1, 2
 `;
 

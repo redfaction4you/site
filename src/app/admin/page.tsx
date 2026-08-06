@@ -8,10 +8,17 @@ import {
   archiveTotals,
   listDays,
   listIdentities,
+  listMerges,
   nightForVetting,
 } from "@/lib/matches/queries";
 import { vetNight } from "@/lib/matches/vet";
-import { lock, setDisplayName, unlock } from "./actions";
+import {
+  lock,
+  mergeIdentities,
+  setDisplayName,
+  unlock,
+  unmergeIdentity,
+} from "./actions";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -86,13 +93,17 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [identities, days, totals, lastSync] = await Promise.all([
+  const [identities, merges, days, totals, lastSync] = await Promise.all([
     listIdentities(),
+    listMerges(),
     listDays(),
     archiveTotals(),
     lastSyncAt(),
   ]);
   const merged = identities.filter((entry) => entry.names.length > 1);
+
+  // What a merged-away identity now answers to, for the undo list.
+  const nameOf = new Map(identities.map((e) => [e.identityKey, e.displayName]));
 
   /*
    * What the vetting found, on the page rather than only in a terminal.
@@ -277,8 +288,128 @@ export default async function AdminPage({ searchParams }: Props) {
         The identity comes from the connection, so two people sharing one
         household would be merged and one person on a changing connection could
         still split. It is right far more often than names are, and it is not
-        certain.
+        certain. Where it has split somebody, join them below.
       </p>
+
+      {/*
+        Joining two identities.
+
+        The connection-derived grouping is wrong in two directions and only one
+        of them is fixable from here. One person on a new address, a VPN or a
+        second machine arrives as two people with their record divided; somebody
+        who knows says so and every total adds up as one from then on. Two people
+        behind one connection cannot be separated, because the archive holds
+        nothing that tells them apart, and the text says so rather than leaving
+        somebody hunting for the control that would do it.
+
+        Deliberately a plain pair of selects. This is used a handful of times a
+        year by one person who already knows the answer, so the work is in making
+        the consequence legible, not the interaction quick.
+      */}
+      <section className="mt-6 border-t border-basalt-800 pt-4">
+        <h3 className="rule-heading">Same person, two identities</h3>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-steel-500">
+          Everything the first one did is credited to the second, everywhere on
+          the site, including in writing that has already been published. No rows
+          are deleted and nothing is lost, so this can be undone.
+        </p>
+
+        <form
+          action={mergeIdentities}
+          className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-2"
+        >
+          <label className="text-xs text-steel-500">
+            <span className="block pb-1">This person</span>
+            <select
+              name="source"
+              required
+              className="w-48 rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1 text-sm text-steel-100 focus:border-rust-500 focus:outline-none"
+            >
+              <option value="">choose</option>
+              {identities.map((entry) => (
+                <option key={entry.identityKey} value={entry.identityKey}>
+                  {entry.displayName} ({entry.matchesPlayed})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <span className="pb-1.5 text-xs text-steel-600">is really</span>
+
+          <label className="text-xs text-steel-500">
+            <span className="block pb-1">This person</span>
+            <select
+              name="target"
+              required
+              className="w-48 rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1 text-sm text-steel-100 focus:border-rust-500 focus:outline-none"
+            >
+              <option value="">choose</option>
+              {identities.map((entry) => (
+                <option key={entry.identityKey} value={entry.identityKey}>
+                  {entry.displayName} ({entry.matchesPlayed})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0 flex-1 text-xs text-steel-500">
+            <span className="block pb-1">Why (optional)</span>
+            <input
+              name="note"
+              type="text"
+              placeholder="e.g. confirmed in Discord, changed ISP"
+              className="w-full rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="shrink-0 rounded-sm border border-basalt-600 px-3 py-1 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+          >
+            Join
+          </button>
+        </form>
+
+        {merges.length > 0 ? (
+          <ul className="mt-4 space-y-1">
+            {merges.map((merge) => (
+              <li
+                key={merge.identityKey}
+                className="flex flex-wrap items-baseline gap-x-3 border-b border-basalt-800 py-1.5 text-xs"
+              >
+                <span className="text-steel-300">
+                  {merge.sourceName ?? "an identity with no matches"}
+                  <span className="text-steel-600"> is </span>
+                  {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
+                </span>
+                {merge.note ? (
+                  <span className="text-steel-600">{merge.note}</span>
+                ) : null}
+                <form action={unmergeIdentity} className="ml-auto">
+                  <input type="hidden" name="identityKey" value={merge.identityKey} />
+                  <button
+                    type="submit"
+                    className="font-mono text-[0.625rem] text-steel-600 hover:text-rust-300"
+                  >
+                    undo
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-xs text-steel-600">
+            Nothing has been joined by hand. Every person below is grouped
+            exactly as the server grouped them.
+          </p>
+        )}
+
+        <p className="mt-3 max-w-2xl text-[0.6875rem] leading-snug text-steel-600">
+          Two people who share a connection are one identity here and cannot be
+          separated: the archive holds nothing that tells them apart. That one
+          needs the telemetry to stop keying on the address.
+        </p>
+      </section>
 
       {merged.length > 0 ? (
         <p className="mt-4 text-xs text-steel-500">
@@ -317,6 +448,12 @@ export default async function AdminPage({ searchParams }: Props) {
                   ) : (
                     <span className="text-steel-600">one name only</span>
                   )}
+                  {entry.serverKeys > 1 ? (
+                    <span className="text-oxide-400">
+                      {" "}
+                      · {entry.serverKeys} identities joined by hand
+                    </span>
+                  ) : null}
                 </span>
               </span>
 

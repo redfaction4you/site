@@ -29,7 +29,42 @@ import { matchPlayers, playerIdentities } from "@/lib/db/schema";
  * a row that arrives without an identity still aggregates the way it always did
  * rather than vanishing or merging with strangers.
  */
-export const IDENTITY_KEY = sql<string>`coalesce(${matchPlayers.identityKey}, lower(${matchPlayers.name}))`;
+/**
+ * The identity exactly as the server sent it, before any merge decided here.
+ *
+ * Exported only so the admin page can count how many of these a person is made
+ * of, which is how it shows that a merge is in force. Nothing else should group
+ * by this: grouping by it is what `IDENTITY_KEY` exists to stop.
+ */
+export const SERVER_KEY = sql<string>`coalesce(${matchPlayers.identityKey}, lower(${matchPlayers.name}))`;
+
+/**
+ * What to group a player's rows by, after any merge decided by hand.
+ *
+ * The server's key is the starting point and `player_identities.merged_into` is
+ * the correction. A correlated subquery rather than a join, deliberately: this
+ * expression appears in about thirty queries and in almost as many `group by`
+ * clauses, and requiring every one of them to also add a join is exactly the
+ * shape of rule that gets applied by hand, missed once, and reaches a page.
+ * Written this way, a merge takes effect everywhere the moment it is saved and
+ * no query has to know it happened.
+ *
+ * The cost is a lookup per row against a table with one row per exception,
+ * which on an archive of a few hundred rows is not measurable.
+ *
+ * **Resolved exactly once.** See `mergedInto` in schema.ts: chains are prevented
+ * where they are written rather than followed where they are read, because a
+ * recursive resolution here would be a recursive CTE inside every group-by on
+ * the site.
+ */
+export const IDENTITY_KEY = sql<string>`coalesce(
+  (
+    select ${playerIdentities.mergedInto}
+    from ${playerIdentities}
+    where ${playerIdentities.identityKey} = ${SERVER_KEY}
+  ),
+  ${SERVER_KEY}
+)`;
 
 /**
  * What to call the group.
@@ -43,12 +78,31 @@ export const IDENTITY_KEY = sql<string>`coalesce(${matchPlayers.identityKey}, lo
  * rather than whichever row the planner happened to reach first.
  */
 export const DISPLAY_NAME = sql<string>`coalesce(
-  min(${playerIdentities.displayName}),
+  min((
+    select ${playerIdentities.displayName}
+    from ${playerIdentities}
+    where ${playerIdentities.identityKey} = ${IDENTITY_KEY}
+  )),
   mode() within group (order by ${matchPlayers.name})
 )`;
 
-/** The join every aggregate needs for `DISPLAY_NAME` to resolve. */
-export const IDENTITY_JOIN = sql`${playerIdentities} on ${playerIdentities.identityKey} = ${matchPlayers.identityKey}`;
+/*
+ * `IDENTITY_JOIN` is gone, and so is the need for it.
+ *
+ * `DISPLAY_NAME` used to read `min(player_identities.display_name)` off a join
+ * every caller had to remember to add. That worked while a person was one
+ * identity, and stopped working the moment two identities could be one person:
+ * the join matched on the raw key, so a merged identity found its own row
+ * rather than the row of whoever it had been merged into, and the name came out
+ * of the wrong record.
+ *
+ * Looking it up through `IDENTITY_KEY` makes it correct by construction and
+ * costs the callers nothing. The existing `leftJoin(playerIdentities, ...)`
+ * calls dotted around `queries.ts` are now redundant. They are harmless, since
+ * `identity_key` is that table's primary key so at most one row can match, and
+ * they are left alone rather than removed in the same change that alters what
+ * every group-by on the site means.
+ */
 
 /**
  * Every row belonging to whoever plays under this name.
@@ -63,8 +117,23 @@ export const IDENTITY_JOIN = sql`${playerIdentities} on ${playerIdentities.ident
  * also what makes an old link keep working after somebody is renamed.
  */
 export function playedBy(name: string) {
+  /*
+   * Resolved on both sides of the `in`.
+   *
+   * The inner query finds the server's keys for everybody who has used this
+   * name, and each of those has to go through the same merge the outer rows go
+   * through. Without that, a page reached by one of a merged person's names
+   * would select on the pre-merge key and show a fraction of their record,
+   * which is the split this module exists to close, reappearing one level up.
+   */
   return sql`${IDENTITY_KEY} in (
-    select coalesce(mp.identity_key, lower(mp.name))
+    select coalesce(
+      (
+        select pi.merged_into from player_identities pi
+        where pi.identity_key = coalesce(mp.identity_key, lower(mp.name))
+      ),
+      coalesce(mp.identity_key, lower(mp.name))
+    )
     from match_players mp
     where lower(mp.name) = lower(${name})
   )`;

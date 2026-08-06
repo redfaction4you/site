@@ -1,0 +1,1 @@
+ALTER TABLE "player_identities" ADD COLUMN "merged_into" text;

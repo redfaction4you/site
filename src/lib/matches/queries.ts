@@ -7,7 +7,7 @@
  * it has no business in a scoreboard. Selecting whole rows with
  * `db.query.matchPlayers.findMany()` would quietly undo that, so don't.
  */
-import { and, asc, desc, eq, gt, inArray, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
@@ -36,6 +36,7 @@ import {
 import {
   DISPLAY_NAME,
   IDENTITY_KEY,
+  SERVER_KEY,
   playedBy,
 } from "@/lib/matches/identities";
 import { renameInText } from "@/lib/matches/names";
@@ -2389,7 +2390,51 @@ export type IdentityGroup = {
   chosen: boolean;
   matchesPlayed: number;
   lastSeen: string | null;
+  /**
+   * How many of the server's own identities this person is made of.
+   *
+   * One is the ordinary case. More than one means somebody merged them by hand,
+   * and is the only visible sign on the page that a merge is in force.
+   */
+  serverKeys: number;
 };
+
+export type IdentityMerge = {
+  identityKey: string;
+  mergedInto: string;
+  /** What the merged-away identity used to be called, for the undo button. */
+  sourceName: string | null;
+  note: string | null;
+};
+
+/**
+ * The merges somebody has decided by hand, so the admin page can undo one.
+ *
+ * They cannot be read off `listIdentities`, which groups by the resolved key
+ * and therefore no longer has a row for a merged-away identity — that is the
+ * whole point of it. This reads the decisions themselves.
+ *
+ * counts-everything: a decision about who somebody is, not a total.
+ */
+export const listMerges = cache(async function listMerges(): Promise<IdentityMerge[]> {
+  const rows = await db
+    .select({
+      identityKey: playerIdentities.identityKey,
+      mergedInto: playerIdentities.mergedInto,
+      note: playerIdentities.note,
+      sourceName: sql<string | null>`(
+        select mode() within group (order by mp.name)
+        from match_players mp
+        where coalesce(mp.identity_key, lower(mp.name)) = ${playerIdentities.identityKey}
+      )`,
+    })
+    .from(playerIdentities)
+    .where(isNotNull(playerIdentities.mergedInto));
+
+  return rows.filter(
+    (row): row is IdentityMerge => typeof row.mergedInto === "string",
+  );
+});
 
 /**
  * Everyone the archive knows about, grouped as people rather than as names.
@@ -2420,9 +2465,17 @@ export const listIdentities = cache(async function listIdentities(): Promise<
       .select({
         identityKey: IDENTITY_KEY,
         displayName: DISPLAY_NAME,
-        chosen: sql<boolean>`min(${playerIdentities.displayName}) is not null`,
+        // Looked up through the resolved key like `DISPLAY_NAME` is, not off
+        // the join: a merged identity has a row of its own and it is the row of
+        // whoever it was merged into that decides the name.
+        chosen: sql<boolean>`min((
+          select ${playerIdentities.displayName}
+          from ${playerIdentities}
+          where ${playerIdentities.identityKey} = ${IDENTITY_KEY}
+        )) is not null`,
         matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
         lastSeen: sql<string | null>`max(${matches.archiveDay})::text`,
+        serverKeys: sql<number>`count(distinct ${SERVER_KEY})::int`,
       })
       .from(matchPlayers)
       .innerJoin(matches, eq(matches.id, matchPlayers.matchId))

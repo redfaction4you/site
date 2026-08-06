@@ -748,6 +748,25 @@ export const playerIdentities = pgTable("player_identities", {
   /** What to call them. Overrides the most used name when set. */
   displayName: text("display_name").notNull(),
 
+  /**
+   * Another identity this one is the same person as, decided by hand.
+   *
+   * The server's identity is an HMAC of the connection, which is the best signal
+   * available and is wrong in two directions: a household shares one connection
+   * and becomes one player, and one person on a changing address, a VPN or a
+   * second machine becomes several. The first cannot be fixed from here. The
+   * second can, by somebody who knows, and this is where they say so.
+   *
+   * **One level only, and never a chain.** `identities.ts` resolves a key
+   * through this column exactly once, so pointing A at B when B already points
+   * at C would silently leave A on B. The admin action flattens instead: it
+   * follows the target to its end and repoints anything aimed at the source, so
+   * this column always holds a final answer.
+   *
+   * Null is the ordinary case and means "the server's grouping was right".
+   */
+  mergedInto: text("merged_into"),
+
   /** Why, for whoever reads this table in a year. */
   note: text("note"),
 
