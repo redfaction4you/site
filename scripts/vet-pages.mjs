@@ -85,7 +85,9 @@ function text(html) {
  */
 function number(cell) {
   const cleaned = cell.replace(/[,\s*]/g, "");
-  if (cleaned === "" || cleaned === "-") return 0;
+  // A zero is drawn as a dash, and the tables use a real en dash rather than the
+  // entity, so it never passes through `decode`.
+  if (cleaned === "" || cleaned === "-" || cleaned === "–") return 0;
   const value = Number(cleaned.replace("%", ""));
   return Number.isNaN(value) ? null : value;
 }
@@ -293,9 +295,11 @@ async function vetTotalsPages(nights, archiveMatches) {
    * mistaken for a count.
    */
   const mapsHtml = await page("/matches/maps");
-  const cards = [
-    ...mapsHtml.matchAll(/<a[^>]*href="\/matches\/map\/[^"]*"[\s\S]*?<\/a>/g),
-  ].map((match) => text(match[0]));
+  const anchors = [
+    ...mapsHtml.matchAll(/<a[^>]*href="\/matches\/map\/([^"]*)"[\s\S]*?<\/a>/g),
+  ];
+  const cards = anchors.map((match) => text(match[0]));
+  const slugs = anchors.map((match) => match[1]);
 
   if (cards.length === 0) {
     fail("/matches/maps", "could not find any maps");
@@ -304,7 +308,8 @@ async function vetTotalsPages(nights, archiveMatches) {
 
   let mapMatches = 0;
   let mapCaptures = 0;
-  for (const card of cards) {
+  const perMap = [];
+  for (const [index, card] of cards.entries()) {
     const counts = /(\d[\d,]*) match(?:es)? · (\d[\d,]*) captures?/.exec(card);
     if (!counts) {
       fail("/matches/maps", `could not read the figures for ${card.slice(0, 40)}`);
@@ -312,6 +317,16 @@ async function vetTotalsPages(nights, archiveMatches) {
     }
     mapMatches += number(counts[1]) ?? 0;
     mapCaptures += number(counts[2]) ?? 0;
+    perMap.push({
+      slug: slugs[index],
+      matches: number(counts[1]),
+      captures: number(counts[2]),
+    });
+  }
+
+  // And the page behind every card, which is where the figures are read.
+  for (const card of perMap) {
+    if (card.slug) await vetMapPage(card.slug, card);
   }
 
   if (archiveMatches !== null && mapMatches !== archiveMatches) {
@@ -328,6 +343,101 @@ async function vetTotalsPages(nights, archiveMatches) {
   }
 
   checked.push("/matches/maps");
+}
+
+/**
+ * One map's own page, against the index row that points at it.
+ *
+ * The index already has to agree with the nights; this checks that the page
+ * behind each card agrees with the card, and that the page agrees with itself.
+ * Everything here is a figure that appears twice in different forms, which is
+ * the only kind of check this file makes: captures as a total and as an average
+ * of the matches it counts, wins as a split and as a decided count, and the
+ * player table's own captures against the map's.
+ *
+ * Written first as a throwaway during an audit, where it caught a usual length
+ * that rounded twice and read a second longer than the matches it averaged.
+ */
+async function vetMapPage(slug, card) {
+  const where = `/matches/map/${slug}`;
+  const html = await page(where);
+  const body = text(html);
+
+  const read = (label, pattern) => {
+    const found = pattern.exec(body);
+    if (!found) {
+      fail(where, `could not read ${label}`);
+      return null;
+    }
+    return number(found[1]);
+  };
+
+  const matches = read("matches", /Matches (\d[\d,]*)/);
+  const captures = read("captures", /Captures (\d[\d,]*) ·/);
+  const perMatch = read("captures a match", /Captures \d[\d,]* · ([\d.]+) a match/);
+
+  if (matches !== null && card.matches !== null && matches !== card.matches) {
+    fail(where, `says ${matches} matches, the maps index says ${card.matches}`);
+  }
+  if (captures !== null && card.captures !== null && captures !== card.captures) {
+    fail(where, `says ${captures} captures, the maps index says ${card.captures}`);
+  }
+  if (matches && captures !== null && perMatch !== null) {
+    const worked = Number((captures / matches).toFixed(1));
+    if (worked !== perMatch) {
+      fail(where, `says ${perMatch} captures a match, ${captures} over ${matches} is ${worked}`);
+    }
+  }
+
+  /*
+   * The same captures, counted per person instead of per match.
+   *
+   * This list is an `ol` of rows rather than a `table`, so it is read row by row
+   * here: rank, name, played, score, frags, deaths, captures, returns, accuracy,
+   * streak, and a best run where the map has one. A name can contain spaces and
+   * punctuation, which is why the name is the one lazy field and everything
+   * after it is anchored to the shape of the numbers.
+   */
+  const list = [...html.matchAll(/<ol[\s\S]*?<\/ol>/g)].find((match) =>
+    match[0].includes('href="/players/'),
+  );
+
+  if (list) {
+    const rows = [...list[0].matchAll(/<li[\s\S]*?<\/li>/g)].map((row) => text(row[0]));
+    let tableCaps = 0;
+    let read = 0;
+    for (const row of rows) {
+      // Dashes are en dashes, and an accuracy can carry an asterisk marking
+      // matches left out of it.
+      const cells =
+        /^\d+ .+? (\d+) (\d+) (\d+) (\d+) (\d+|[-–]) (\d+|[-–]) (?:[\d.]+%|[-–])\s*\*?/.exec(
+          row,
+        );
+      if (!cells) {
+        fail(where, `could not read the row "${row.slice(0, 40)}"`);
+        continue;
+      }
+      read += 1;
+      tableCaps += number(cells[5]) ?? 0;
+    }
+    if (read > 0 && captures !== null && tableCaps !== captures) {
+      fail(where, `the header says ${captures} captures, the players total ${tableCaps}`);
+    }
+  } else if (matches) {
+    fail(where, "could not find the player list");
+  }
+
+  // A decided match was won by one side or the other.
+  const split = /How it goes (\d+) \/ (\d+)/.exec(body);
+  const drawn = /· (\d+) drawn/.exec(body);
+  if (split && matches !== null) {
+    const decided = number(split[1]) + number(split[2]) + (drawn ? number(drawn[1]) : 0);
+    if (decided !== matches) {
+      fail(where, `${split[1]} red, ${split[2]} blue${drawn ? ` and ${drawn[1]} drawn` : ""} is ${decided} of ${matches} matches`);
+    }
+  }
+
+  checked.push(where);
 }
 
 /* --- the archive index ---------------------------------------------------- */

@@ -11,6 +11,7 @@ import { and, eq, notInArray } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { MIN_COMPLETED_SECONDS } from "./completion";
 import { creditDrives, reconstructDrives } from "./drives";
 import type { SanitizedDay } from "./sanitize";
 
@@ -26,8 +27,41 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
   let playersWritten = 0;
   let capturesWritten = 0;
   const matchIds: string[] = [];
+  let cancelled = 0;
 
   for (const match of day.matches) {
+    /*
+     * A start that was abandoned is not stored at all.
+     *
+     * It used to be kept and excluded from every total, on the argument that a
+     * cancelled match did happen and the archive should not forget it. In
+     * practice it is a nil-nil sitting in the middle of a night that nobody
+     * played, it has to be marked everywhere it is listed, and the person who
+     * runs the league would rather it were gone. It is his archive.
+     *
+     * Dropping it here rather than deleting the row is what makes it stick: the
+     * VPS re-sends the last few days on every sync, so a row deleted by hand is
+     * back within fifteen minutes. Skipping it also leaves it out of `matchIds`,
+     * which is what the sweep below deletes against, so anything already stored
+     * goes on the next sync without a separate step.
+     *
+     * `final` and a clock are both required. A match still being played is
+     * pushed as `live` and is legitimately short; a match with no end time is
+     * missing a clock rather than short, and that distinction is the same one
+     * `matchCompleted` makes. Getting this wrong would silently discard real
+     * matches, so it errs toward keeping.
+     */
+    if (
+      match.status === "final" &&
+      match.startedAt &&
+      match.endedAt &&
+      (match.endedAt.getTime() - match.startedAt.getTime()) / 1000 <
+        MIN_COMPLETED_SECONDS
+    ) {
+      cancelled++;
+      continue;
+    }
+
     const [row] = await db
       .insert(matches)
       .values({
@@ -156,10 +190,16 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
       );
   }
 
+  if (cancelled > 0) {
+    console.info(
+      `[ingest] ${day.archiveDay}: skipped ${cancelled} cancelled ${cancelled === 1 ? "start" : "starts"}`,
+    );
+  }
+
   return {
     archiveDay: day.archiveDay,
     server: day.server,
-    matchesWritten: day.matches.length,
+    matchesWritten: matchIds.length,
     playersWritten,
     capturesWritten,
   };
