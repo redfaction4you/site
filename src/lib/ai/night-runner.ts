@@ -12,7 +12,7 @@
  * longer matches and the column is rewritten rather than left describing half
  * an evening.
  */
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -46,6 +46,70 @@ import { COLUMNIST_NAME } from "./opinion";
 
 /** How long after the last match before a night counts as finished. */
 const QUIET_MINUTES = 75;
+
+/**
+ * The least time between two things being announced, measured on the clock.
+ *
+ * **This is a rate limit and the "one per run" limits below are not.** They cap
+ * a single call to `runNightJobs`, which is a cap on nothing: `runNightJobs`
+ * runs on every ingest request, the VPS re-sends several recent days on each
+ * sync as a separate request each, and three requests arriving back to back
+ * spend three runs' worth of budget in the time it takes to POST three
+ * documents.
+ *
+ * That is not hypothetical. The first time a webhook was configured, three
+ * nights of backlog arrived in the channel at once; the limit was lowered from
+ * three to one and the note written above `announcePendingColumns` says that
+ * fixed it. It did not. The second time a webhook was configured, six items
+ * were queued and five of them landed in six seconds:
+ *
+ *     22:26:50  column 2026-08-05     22:26:53  opinion 2026-08-04
+ *     22:26:50  opinion 2026-08-05    22:26:56  opinion 2026-07-31
+ *     22:26:52  column 2026-08-04
+ *
+ * A per-call limit cannot express "not too often" because it does not know what
+ * time it is. This does, and it needs nothing stored: `posted_at` already
+ * records when the last thing went out.
+ *
+ * Fifteen minutes, which is the sync interval, so a normal night's column and
+ * opinion arrive about half an hour apart and a backlog drains at a readable
+ * pace instead of as a wall.
+ */
+const MIN_MINUTES_BETWEEN_POSTS = 15;
+
+/**
+ * When anything was last announced, across both kinds.
+ *
+ * Deliberately shared. Two separate throttles would let a column and an opinion
+ * go out in the same second, which is two thirds of what just happened.
+ */
+async function lastAnnouncedAt(): Promise<Date | null> {
+  const [row] = await db
+    .select({
+      at: sql<Date | null>`greatest(
+        (select max(${nightColumns.postedAt}) from ${nightColumns}),
+        (select max(${opinionPieces.postedAt}) from ${opinionPieces})
+      )`,
+    })
+    .from(sql`(select 1) as one`);
+
+  return row?.at ? new Date(row.at) : null;
+}
+
+/** True when something went out too recently for anything else to follow it. */
+async function announcedTooRecently(): Promise<boolean> {
+  const last = await lastAnnouncedAt();
+  if (!last) return false;
+
+  const minutes = (Date.now() - last.getTime()) / 60_000;
+  if (minutes >= MIN_MINUTES_BETWEEN_POSTS) return false;
+
+  console.log(
+    `[ai] last announcement was ${Math.round(minutes)} minutes ago, holding ` +
+      `until ${MIN_MINUTES_BETWEEN_POSTS}`,
+  );
+  return true;
+}
 
 /** Nights considered per run. A backlog fills in over successive syncs. */
 const MAX_PER_RUN = 2;
@@ -257,18 +321,24 @@ export async function backfillColumnImages(): Promise<number> {
 }
 
 /**
- * Posts the newest column that has not been announced yet.
+ * Posts the oldest column that has not been announced yet.
  *
  * Separate from writing so a Discord outage cannot cost us the column, and so
  * an unannounced column is retried on the next sync rather than lost.
  *
- * **One per run.** It used to take three, which is invisible in steady state
- * because a night produces one column, and not invisible at all the first time
- * the webhook is configured: three nights of backlog arrived in the channel at
- * once. One at a time means a backlog drains at the pace of the sync instead of
- * landing as a wall, and a normal night still posts within minutes.
+ * **Oldest first, not newest.** Newest first is invisible in steady state, when
+ * there is one thing waiting, and backwards the moment there is more than one:
+ * draining a backlog newest first writes the channel in reverse, so a reader
+ * scrolling down goes 5 August, 4 August, 31 July. A channel is a chronology.
+ * The night the piece is about is the order it should arrive in.
+ *
+ * One per run **and** not within `MIN_MINUTES_BETWEEN_POSTS` of the last
+ * announcement of any kind. The second half is the one that does the work; see
+ * the note on that constant for why the first half never did.
  */
 export async function announcePendingColumns(): Promise<number> {
+  if (await announcedTooRecently()) return 0;
+
   const pending = await db
     .select({
       archiveDay: nightColumns.archiveDay,
@@ -279,7 +349,7 @@ export async function announcePendingColumns(): Promise<number> {
     })
     .from(nightColumns)
     .where(isNull(nightColumns.postedAt))
-    .orderBy(desc(nightColumns.archiveDay))
+    .orderBy(asc(nightColumns.archiveDay))
     .limit(1);
 
   let posted = 0;
@@ -349,6 +419,8 @@ export async function announcePendingColumns(): Promise<number> {
  * the page behind and arrives somewhere the labelling did not follow.
  */
 export async function announcePendingOpinions(): Promise<number> {
+  if (await announcedTooRecently()) return 0;
+
   const [pending] = await db
     .select({
       archiveDay: opinionPieces.archiveDay,
@@ -357,8 +429,9 @@ export async function announcePendingOpinions(): Promise<number> {
       matchCount: opinionPieces.matchCount,
     })
     .from(opinionPieces)
-    .where(isNull(opinionPieces.postedAt))
-    .orderBy(desc(opinionPieces.archiveDay))
+    // Oldest first, for the reason on `announcePendingColumns`: a channel is a
+    // chronology and a backlog drained newest first writes it backwards.
+    .orderBy(asc(opinionPieces.archiveDay))
     .limit(1);
 
   if (!pending) return 0;
