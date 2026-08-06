@@ -30,12 +30,18 @@
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matchPlayers, matches, playerIdentities } from "@/lib/db/schema";
+import {
+  matchPlayers,
+  matches,
+  opinionPieces,
+  playerIdentities,
+} from "@/lib/db/schema";
 import { MIN_MATCHES_FOR_PAIR_RATE, buildPairings } from "@/lib/matches/pairings";
 import { MIN_COMPLETED_SECONDS } from "@/lib/matches/completion";
 import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import {
   MATCH_COMPLETED,
+  SOUND_SHOOTING,
   TOOK_PART,
   fetchAppearances,
 } from "@/lib/matches/queries";
@@ -107,20 +113,34 @@ export const MIN_MATCHES_FOR_OPINION = 12;
 export const MIN_PLAYERS_FOR_OPINION = 5;
 
 const SYSTEM = `You are ${COLUMNIST_NAME}, a sports analyst covering a Red Faction
-capture-the-flag league. You write a short piece about who plays alongside whom.
+capture-the-flag league. You write a short piece about the night just played.
 
 You are the analyst on the panel after the match, not the commentator during it.
 Everything else on this site reports what happened; you are the one part allowed
 a view. That is the job: this league is small, there is very little that can be
-concluded about pairings, and a great deal worth arguing about.
+concluded from it, and a great deal worth arguing about.
+
+WHAT TO WRITE ABOUT
+
+Whatever was actually interesting tonight. A match that turned on one flag. A
+player having the night of their season, or a bad one they will want back. A
+map that keeps producing the same kind of game. A flag run that should not have
+come off. Somebody who spent the night on returns and finished with nothing next
+to their name for it. Who was put with whom, and who never is.
+
+Pairings are your standing grievance, not your only subject. You have written
+about the same pairing three weeks running; that is a stuck record, and the
+piece below yours already lists what you have argued. Say something else. The
+running theme is worth a line when there is something new to add to it, and it
+is not worth a whole piece again.
 
 YOU ARE FOLLOWING A SEASON
 
 Not a night. You have watched every night on record and you remember them. The
-interesting thing is never the scoreline, it is the shape over time: a pairing
-that keeps being put back together, one that has quietly stopped happening, two
-players who have circled each other all season on opposite sides and have never
-once been given the same shirt. Say what has changed since the last time you
+interesting thing is rarely only the scoreline, it is the shape over time: a
+pairing that keeps being put back together, one that has quietly stopped
+happening, a player whose form has turned, two players who have circled each
+other all season on opposite sides. Say what has changed since the last time you
 wrote. Notice when something happened for the first time tonight.
 
 WHO YOU ARE
@@ -133,8 +153,9 @@ pairing that has never been tried.
 Have a personality. A wry aside is welcome. A running theme across weeks is
 better. What you must not do is invent a memory: you know only what is below.
 
-Back a pairing. Say what you want to see next week. Be willing to be wrong in
-public, which is the part worth reading.
+Have a view and say it. Back somebody, back a pairing, back a change. Say what
+you want to see next week. Be willing to be wrong in public, which is the part
+worth reading.
 
 THE RULE THAT MATTERS MOST
 
@@ -143,9 +164,11 @@ Say what you would like to see. Never say what the record proves.
   Allowed:   "the pairing worth trying is X with Y"
   Allowed:   "X and Y keep ending up on the same side"
   Allowed:   "I would like to see X carrying while Y holds the middle"
+  Allowed:   "X had the better of that one"  (about a match that was played)
   Forbidden: "X and Y are the strongest pairing"
   Forbidden: "X plays better with Y"
   Forbidden: "the numbers show X and Y work"
+  Forbidden: "X is the best carrier in the league"
 
 The difference is whether the sentence claims to be a measurement. A preference
 is yours. A finding belongs to the data, and on this much data there are almost
@@ -344,6 +367,80 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     .groupBy(IDENTITY_KEY)
     .orderBy(desc(sql`count(*)`));
 
+  /*
+   * Tonight, which he was never given.
+   *
+   * The whole fact sheet was pairings: who played, who has been beside whom, who
+   * has faced whom, and which pairs are untried. So the only piece he could
+   * write was a pairings piece, and he wrote the same one three times running:
+   * three consecutive headlines about ED ASSMASTER and Medeo not being put
+   * together. That is not the model repeating itself, it is the only subject it
+   * had.
+   *
+   * These are the matches that were actually played and what people actually
+   * did in them, so there is something else to notice.
+   */
+  const playedTonight = await db
+    .select({
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      redScore: matches.redScore,
+      blueScore: matches.blueScore,
+      winner: matches.winner,
+      overtime: matches.overtime,
+      seconds: sql<number | null>`extract(epoch from (${matches.endedAt} - ${matches.startedAt}))::int`,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.archiveDay, archiveDay),
+        eq(matches.status, "final"),
+        MATCH_COMPLETED,
+      ),
+    )
+    .orderBy(matches.startedAt);
+
+  const figures = await db
+    .select({
+      name: DISPLAY_NAME,
+      matchesPlayed: sql<number>`count(distinct ${matchPlayers.matchId})::int`,
+      caps: sql<number>`coalesce(sum(${matchPlayers.caps}), 0)::int`,
+      kills: sql<number>`coalesce(sum(${matchPlayers.kills}), 0)::int`,
+      deaths: sql<number>`coalesce(sum(${matchPlayers.deaths}), 0)::int`,
+      returns: sql<number>`coalesce(sum(${matchPlayers.flagReturns}), 0)::int`,
+      streak: sql<number>`coalesce(max(${matchPlayers.maxStreak}), 0)::int`,
+      // Sound matches only, like every other accuracy on the site. A runaway hit
+      // counter handed over as ground truth is the one error the fact checker
+      // cannot catch, because the number it was given was already wrong.
+      hit: sql<number>`coalesce(sum(${matchPlayers.shotsHit}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      fired: sql<number>`coalesce(sum(${matchPlayers.shotsFired}) filter (where ${SOUND_SHOOTING}), 0)::float8`,
+      // The strictest flag stat there is: carried from the enemy stand to their
+      // own without it ever touching the ground.
+      bestRunMs: sql<number | null>`min(${matchPlayers.fastestSoloCaptureMs})::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .leftJoin(
+      playerIdentities,
+      eq(playerIdentities.identityKey, matchPlayers.identityKey),
+    )
+    .where(and(eq(matches.archiveDay, archiveDay), TOOK_PART, MATCH_COMPLETED))
+    .groupBy(IDENTITY_KEY)
+    .orderBy(desc(sql`coalesce(sum(${matchPlayers.caps}), 0)`));
+
+  /*
+   * What he has already argued, so he stops arguing it again.
+   *
+   * A running theme is the best thing this column has and it turns into a stuck
+   * record the moment nothing tells him what he said last week.
+   */
+  const previous = await db
+    .select({ archiveDay: opinionPieces.archiveDay, headline: opinionPieces.headline })
+    .from(opinionPieces)
+    .where(lte(opinionPieces.archiveDay, archiveDay))
+    .orderBy(desc(opinionPieces.archiveDay))
+    .limit(4);
+
   const lines: string[] = [];
   lines.push(
     `THE SEASON SO FAR: ${season.nights} nights of play from ${season.firstNight} ` +
@@ -352,6 +449,51 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   );
   lines.push(`On tonight: ${tonight.map((row) => row.name).join(", ")}.`);
   lines.push("");
+
+  /*
+   * The night itself, before any of the pairing record.
+   *
+   * Deliberately first: it is what happened, the pairings are a reading of what
+   * happened, and a column handed only the reading writes about nothing else.
+   */
+  if (playedTonight.length) {
+    lines.push("TONIGHT, IN ORDER:");
+    for (const match of playedTonight) {
+      const margin = Math.abs(match.redScore - match.blueScore);
+      lines.push(
+        `  ${match.mapName}: ${match.redScore}-${match.blueScore}` +
+          (match.winner === "red" || match.winner === "blue"
+            ? `, ${match.winner} won`
+            : ", drawn") +
+          (match.overtime ? ", went to overtime" : "") +
+          (margin === 1 ? ", decided by one" : "") +
+          (match.seconds ? `, ran ${Math.floor(match.seconds / 60)}:${String(match.seconds % 60).padStart(2, "0")}` : ""),
+      );
+    }
+    lines.push("");
+  }
+
+  if (figures.length) {
+    lines.push("WHAT EACH PLAYER DID TONIGHT:");
+    for (const row of figures) {
+      const accuracy = row.fired > 0 ? `${((row.hit / row.fired) * 100).toFixed(1)}%` : "n/a";
+      lines.push(
+        `  ${row.name}: ${row.matchesPlayed} matches, ${row.caps} captures, ` +
+          `${row.kills} frags, ${row.deaths} deaths, ${row.returns} flag returns, ` +
+          `best streak ${row.streak}, ${accuracy} accuracy` +
+          (row.bestRunMs
+            ? `, quickest clean flag run ${(row.bestRunMs / 1000).toFixed(1)}s`
+            : ""),
+      );
+    }
+    lines.push("");
+    lines.push(
+      "A clean run is the flag carried from the enemy stand to their own without " +
+        "being dropped. Most captures are not one, so a player without one here " +
+        "is normal and not a criticism.",
+    );
+    lines.push("");
+  }
 
   /*
    * The background, before the numbers rather than after them.
@@ -445,6 +587,28 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
       : `${label(best)}, on ${best.matches}.`;
   };
 
+  /*
+   * What he has already said, and the instruction that goes with it.
+   *
+   * Three consecutive pieces argued that ED ASSMASTER and Medeo should be put
+   * together. Each was defensible on its own and the run of them is a stuck
+   * record, which is what a columnist with one fact sheet and a long memory
+   * produces.
+   */
+  if (previous.length) {
+    lines.push("");
+    lines.push("WHAT YOU HAVE ALREADY ARGUED, newest first:");
+    for (const piece of previous) {
+      lines.push(`  ${piece.archiveDay}: "${piece.headline}"`);
+    }
+    lines.push(
+      "Do not make the same argument again. If a running theme above is still " +
+        "unresolved you may refer back to it in a line, but the piece has to be " +
+        "about something else tonight: a match, a performance, a flag run, a map, " +
+        "somebody's night, a pairing you have not written about yet.",
+    );
+  }
+
   lines.push("");
   lines.push("WHO LEADS WHAT. Only call something the most if it is stated here:");
   const pairLabel = (pair: { a: string; b: string }) => `${pair.a} and ${pair.b}`;
@@ -454,6 +618,39 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
   lines.push(
     `  Most often against each other: ${most(pairings.rivalries, pairLabel) ?? "nothing yet"}`,
   );
+
+  /*
+   * Tonight's leaders, worked out here for the same reason the pairing ones are:
+   * reading down a table for the largest number is what models get wrong, and a
+   * tie written as a lead reads as authoritative while being false.
+   */
+  const leaderOf = (label: string, pick: (row: (typeof figures)[number]) => number) => {
+    if (figures.length === 0) return;
+    const best = figures.reduce((a, b) => (pick(b) > pick(a) ? b : a));
+    if (pick(best) <= 0) return;
+    const tied = figures.filter((row) => pick(row) === pick(best));
+    lines.push(
+      tied.length > 1
+        ? `  ${label}: ${tied.map((row) => row.name).join(", and ")}, all level on ${pick(best)}. No single player leads this.`
+        : `  ${label}: ${best.name}, on ${pick(best)}.`,
+    );
+  };
+
+  leaderOf("Most captures tonight", (row) => row.caps);
+  leaderOf("Most frags tonight", (row) => row.kills);
+  leaderOf("Most flag returns tonight", (row) => row.returns);
+  leaderOf("Longest streak tonight", (row) => row.streak);
+
+  const runners = figures.filter((row) => row.bestRunMs !== null);
+  if (runners.length) {
+    const quickest = runners.reduce((a, b) => ((b.bestRunMs ?? 0) < (a.bestRunMs ?? 0) ? b : a));
+    const tied = runners.filter((row) => row.bestRunMs === quickest.bestRunMs);
+    lines.push(
+      tied.length > 1
+        ? `  Quickest clean flag run tonight: ${tied.map((row) => row.name).join(", and ")}, all level on ${((quickest.bestRunMs ?? 0) / 1000).toFixed(1)}s.`
+        : `  Quickest clean flag run tonight: ${quickest.name}, ${((quickest.bestRunMs ?? 0) / 1000).toFixed(1)}s.`,
+    );
+  }
 
   lines.push("");
   lines.push(

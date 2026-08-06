@@ -53,11 +53,29 @@ export const MOMENTS = {
     action:
       "a single player caught mid celebration just after scoring: running, one arm " +
       "raised, mouth open in a shout, weapon low in the other hand",
+    /*
+     * A celebration is the one moment that should be as big as the side was.
+     *
+     * Every picture came back with one figure in it, because this said one and
+     * the frame is capped by what the moment asks for. A capture in a 3v3 is
+     * three people converging on whoever touched it down, and drawing it as one
+     * player alone in a flag room is a quieter event than the one that happened.
+     *
+     * Scales up to the squad that actually played, never past it, and never past
+     * three: beyond that a celebration reads as a crowd, and the reference set
+     * has one model a side, so a fourth figure adds nothing but a clone.
+     */
     figures: 1,
+    scalesTo: 3,
+    actionMany:
+      "the scorers celebrating together just after a capture: arms up, mouths " +
+      "open mid shout, one grabbing another by the shoulder, weapons held low",
     area: "own-flagroom",
-    carriesFlag: false,
     // The shot a sports desk actually runs after a goal: head and shoulders,
-    // face doing the work, everything else gone.
+    // face doing the work, everything else gone. A group needs the room to read
+    // as a group, so the framing opens up when there is more than one of them.
+    framingMany: "chest",
+    carriesFlag: false,
     framing: "shoulders",
   },
   "point-out": {
@@ -350,7 +368,21 @@ function promptFor(
     composition.subject === "red" ? composition.blueCount : composition.redCount,
   );
 
-  const subjectCount = Math.max(1, Math.min(moment.figures, onSide || 1));
+  /*
+   * How many of them are in it.
+   *
+   * A moment that scales asks for as many as were really on that side, capped by
+   * its own ceiling; every other moment asks for exactly what it describes. The
+   * real count is still the hard limit either way, so a picture can never show
+   * more people than played.
+   */
+  const scalesTo = "scalesTo" in moment ? (moment.scalesTo as number) : moment.figures;
+  const subjectCount = Math.max(1, Math.min(scalesTo, onSide || 1));
+  const action =
+    subjectCount > 1 && "actionMany" in moment
+      ? (moment.actionMany as string)
+      : moment.action;
+
   const needsOpponent =
     composition.moment === "face-off" || composition.moment === "point-out";
 
@@ -366,11 +398,22 @@ function promptFor(
     );
   }
 
-  lines.push(`The moment: ${moment.action}.`);
+  lines.push(`The moment: ${action}.`);
 
-  // Varied per night rather than fixed per moment, so a run of these does not
-  // look like the same photograph with different players in it.
-  const choices = FRAMING_CHOICES[composition.moment] ?? [moment.framing];
+  /*
+   * Varied per night rather than fixed per moment, so a run of these does not
+   * look like the same photograph with different players in it.
+   *
+   * A group loses the tightest crop. Head and shoulders is the right frame for
+   * one player shouting and the wrong one for three of them arriving together:
+   * it either cuts two of them out of frame or shrinks all three to fit, and
+   * both read as a mistake rather than a choice.
+   */
+  const wide = FRAMING_CHOICES[composition.moment]?.filter((crop) => crop !== "shoulders");
+  const choices =
+    (subjectCount > 1 && wide?.length ? wide : FRAMING_CHOICES[composition.moment]) ?? [
+      moment.framing,
+    ];
   const crop = choices[Math.abs(composition.variation) % choices.length];
   lines.push(FRAMING[crop] ?? FRAMING.full);
 

@@ -145,16 +145,53 @@ test("only the sides actually in frame get a character reference", () => {
 
 /* --- what the picture claims --------------------------------------------- */
 
-test("a solo celebration frames one player, not the whole squad", () => {
-  // A telephoto portrait does not claim to show everybody who played, any more
-  // than a photograph of a striker claims the other ten were absent.
-  const { prompt } = buildComposition(
+test("a celebration is as big as the side that played it", () => {
+  /*
+   * This asked for one figure whatever the match was, and every picture came
+   * back with one lone player in a flag room. A capture in a 3v3 is three people
+   * converging on whoever touched it down, and the reader who played in it knows
+   * that. Reversed on the say-so of the person who runs the league.
+   */
+  const trio = buildComposition(
     SCENE,
     composition({ moment: "capture-cheer", redCount: 3, blueCount: 3 }),
     REFS,
   );
+  assert.match(trio.prompt, /In frame: 3 figures in red, and nobody else/);
+  assert.match(trio.prompt, /celebrating together/);
+
+  const pair = buildComposition(
+    SCENE,
+    composition({ moment: "capture-cheer", redCount: 2, blueCount: 2 }),
+    REFS,
+  );
+  assert.match(pair.prompt, /In frame: 2 figures in red, and nobody else/);
+});
+
+test("a celebration in a one against one is still one player", () => {
+  // The cap is the squad, not the moment's appetite. Inventing a team mate to
+  // celebrate with would be a claim about who was there.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "capture-cheer", redCount: 1, blueCount: 1 }),
+    REFS,
+  );
 
   assert.match(prompt, /In frame: 1 figure in red, and nobody else/);
+  // And the singular wording, not the group one.
+  assert.match(prompt, /a single player caught mid celebration/);
+});
+
+test("a celebration stops at three however many played", () => {
+  // Past three it reads as a crowd, and the reference set has one model a side,
+  // so a fourth figure is a clone rather than a person.
+  const { prompt } = buildComposition(
+    SCENE,
+    composition({ moment: "capture-cheer", redCount: 6, blueCount: 6 }),
+    REFS,
+  );
+
+  assert.match(prompt, /In frame: 3 figures in red, and nobody else/);
 });
 
 test("a moment never shows more people than actually played", () => {

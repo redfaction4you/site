@@ -1314,10 +1314,19 @@ export const getMapRecord = cache(async function getMapRecord(
    */
   const ENOUGH_SHOTS = 200;
 
+  /*
+   * Kept fractional, and rounded once at the end.
+   *
+   * Rounding each match to whole seconds and then rounding their mean rounds
+   * twice, which put Relic Seeker's usual length at 10:45 against a straight
+   * average of 10:44. A second is nothing to a reader and the disagreement is
+   * not: this figure exists to be compared with the length of the matches under
+   * it, and it has to be the number those matches actually average.
+   */
   const durations = rows
     .map((row) =>
       row.startedAt && row.endedAt
-        ? Math.round((row.endedAt.getTime() - row.startedAt.getTime()) / 1000)
+        ? (row.endedAt.getTime() - row.startedAt.getTime()) / 1000
         : null,
     )
     .filter((seconds): seconds is number => seconds !== null);
