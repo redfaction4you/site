@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { MapShot } from "@/components/map-shot";
+import { mapSlug } from "@/lib/matches/maps";
 import {
   MAP_AVERAGE_REQUIREMENT,
   MIN_MATCHES_FOR_MAP_AVERAGE,
@@ -85,7 +86,7 @@ export function MapStatsTable({ maps }: { maps: MapSummary[] }) {
                 >
                   <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                     <Link
-                      href={`/matches/map/${encodeURIComponent(map.mapName)}`}
+                      href={`/matches/map/${mapSlug(map.mapName)}`}
                       className="group flex items-center gap-2"
                     >
                       <MapShot

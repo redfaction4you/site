@@ -46,7 +46,8 @@ npm run db:studio
 npm run ai:quota     # what each Gemini key can do today; -- --images too
 npm run vet          # the archive against itself
 npm run vet:queries  # every match query filters, or says why not
-npm run vet:pages    # a rendered page against itself; -- --base <url>
+npm run vet:pages    # a rendered page against itself; -- <url> for production
+npm run vet:names    # no page shows a name belonging to somebody called something else
 npm run drives:recompute  # rerun drive credit over stored events; -- --go
 ```
 
@@ -228,6 +229,25 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     against the match count. It found the last two failures on production while
     the database was entirely consistent. Point it at what the reader is
     looking at, not at localhost.
+    - **Pass the URL bare: `npm run vet:pages -- https://redfaction4you.com`.**
+      The documented `-- --base <url>` did not work and had not worked for as
+      long as it had been written down: npm parses `--base` as one of its own
+      config flags and drops it, so the script fell back to localhost and
+      printed a clean bill of health for a dev server while claiming to have
+      read production. A bare URL is now the base, and an argument that is
+      neither a URL nor a date stops the run rather than being ignored.
+    - **A disagreement is read twice before it is reported.** The VPS syncs
+      every fifteen minutes and this reads nineteen pages one after another, so
+      a sync landing mid-run produces exactly what a real bug produces: two
+      totals differing by about one match. It has happened. The second reading
+      is what tells them apart, and it matters most for `vet-live`, which runs
+      on a schedule with nobody watching.
+  - **`npm run vet:names`**, which asks the other question: not whether a page
+    contradicts itself about a figure, but whether it contradicts itself about a
+    person. The identity work fixed every total and no prose, so ten aliases
+    were live on production, including a front page reading "Special ED" over a
+    results strip that said Romek. Needs `DATABASE_URL` as well as a URL, which
+    is why it is a separate script rather than another check inside `vet:pages`.
   - **GitHub Actions**, `checks` on every push and `vet-live` after a deploy and
     every six hours, because the archive changes without anybody pushing.
   It covers the night pages, the archive index, `/players`, `/stats` and the
@@ -238,6 +258,28 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   is named in it. A new field appearing in the VPS export cannot leak through,
   because it simply is not copied. **Never** replace this with a spread of the
   source object.
+- **Grouping by identity fixes the totals and none of the prose.** `IDENTITY_KEY`
+  and `DISPLAY_NAME` answer "what is this person called" for anything that
+  carries an identity, which is every aggregate and no sentence. A kill in the
+  event log, a capture's assist list, a flag event's message, a match report, a
+  night column, an opinion piece and a player profile all carry a bare name and
+  nothing else, and every one of them was still printing whatever the scoreboard
+  said that evening. Ten were live on production: a front page reading "Special
+  ED" over a results strip that said Romek, a timeline tooltip reading "s9!nX
+  grabbed the red flag" above a scoreboard that said Skuldug, and match report
+  prose to match. **`aliasNames()` in `queries.ts` is the lookup for a bare name,
+  and `renameInText` in `names.ts` is the one for a sentence.** Both are applied
+  in the query rather than in a page, so a new surface gets it for free.
+  - **The substitution is at read time and the archive keeps the names as sent.**
+    Regenerating the prose would spend model requests from the allowance the
+    match reports draw on, change an article somebody has already read, and
+    re-run the fact checker over a piece that passed it. Replacing one of a
+    person's names with another of their names asserts nothing new.
+  - **`!`, `$` and `}` are name characters here.** `$t!nX`, `J!nX` and
+    `T1k}super` are real, so a naive word boundary turns `s9!nX` into
+    `Skuldug!nX`. `names.ts` treats `!` as part of a name only when something
+    name-like follows it, which also lets `skrub!` end a sentence.
+  - `npm run vet:names` is what catches the next one.
 - **`match_players.identity_key` is stored and never served.** It is the only
   stable key that could link a Discord account to an in-game player, which the
   build plan calls the hard part of player statistics. Every query in

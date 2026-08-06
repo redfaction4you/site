@@ -38,6 +38,7 @@ import {
   IDENTITY_KEY,
   playedBy,
 } from "@/lib/matches/identities";
+import { renameInText } from "@/lib/matches/names";
 import {
   MIN_COMPLETED_SECONDS,
   matchCompleted,
@@ -341,8 +342,18 @@ export const getMatch = cache(async function getMatch(
   if (!match) return null;
 
   // counts-everything: this match's own scoreboard, for the match above.
-  const players: PublicScoreRow[] = await db
+  const scoreRows = await db
     .select({
+      /*
+       * The name the row carries, replaced below by the one the site knows this
+       * person by.
+       *
+       * `identityKey` is selected only to look that up and is stripped before
+       * the row is returned. It is the one column that must never be served, so
+       * it is named here rather than reached for with a wildcard, and the
+       * mapping happens in this function rather than in the page.
+       */
+      identityKey: IDENTITY_KEY,
       name: matchPlayers.name,
       team: matchPlayers.team,
       spectator: matchPlayers.spectator,
@@ -387,7 +398,41 @@ export const getMatch = cache(async function getMatch(
       desc(matchPlayers.kills),
     );
 
-  const captures = await db
+  /*
+   * One person, one name, on the scoreboard as well.
+   *
+   * This page was the last thing on the site still printing the name the row
+   * carries. `canonicalNames` exists precisely so a narrow view does not work a
+   * name out from the handful of rows it happens to hold, and it was written
+   * for this: somebody who has played eight matches as Skuldug, three as s9!nX
+   * and two as s9 was Skuldug on `/players` and s9!nX on the scoreboard for 31
+   * July, with the s9!nX label linking to a page headed Skuldug. Ten of those
+   * were on production.
+   *
+   * The alternative reading, that a scoreboard is a record of that evening and
+   * should say what the server said that evening, loses to the link: whatever
+   * the name on the row, it goes to one person's page, and a label that
+   * disagrees with where it leads is the thing a reader actually trips over.
+   * The names as sent are still in the archive and still in the day document.
+   */
+  const named = await canonicalNames();
+
+  const players: PublicScoreRow[] = scoreRows.map(({ identityKey, ...row }) => ({
+    ...row,
+    name: named.get(identityKey) ?? row.name,
+  }));
+
+  /*
+   * The capture timeline names players too, and carries no identity key of its
+   * own, so it is resolved through this match's own scoreboard. Everybody who
+   * captured is on it, and doing it from these rows rather than from another
+   * query means the timeline cannot come to disagree with the table above it.
+   */
+  const aliases = await aliasNames();
+  const asPerson = (name: string | null) =>
+    name === null ? null : (aliases.get(name.toLocaleLowerCase("en-US")) ?? name);
+
+  const captureRows = await db
     .select({
       elapsedSeconds: matchCaptures.elapsedSeconds,
       team: matchCaptures.team,
@@ -403,8 +448,97 @@ export const getMatch = cache(async function getMatch(
     .where(eq(matchCaptures.matchId, match.id))
     .orderBy(CAPTURE_ORDER.first, CAPTURE_ORDER.second);
 
-  return { ...match, players, captures };
+  const captures = captureRows.map((row) => ({
+    ...row,
+    playerName: asPerson(row.playerName),
+    // Assists are a list of names from the same match, so they resolve the same
+    // way. Left exactly as sent where a name is not on the scoreboard, which is
+    // possible for somebody who left before the snapshot.
+    assists: Array.isArray(row.assists)
+      ? row.assists.map((name) => asPerson(name) ?? name)
+      : row.assists,
+  }));
+
+  /*
+   * The flag timeline carries names in five separate fields and in a sentence.
+   *
+   * These are the last place an alias survived, and they are the least visible:
+   * a tooltip on a bar in the capture timeline reading "s9!nX grabbed the red
+   * flag" above a scoreboard that says Skuldug. Four of them were on the 31
+   * July match pages.
+   *
+   * `message` is a sentence the server composed, so the name is replaced inside
+   * it rather than looked up. Only whole words, and only names that are on this
+   * match's scoreboard, so nothing that merely contains a player's name as a
+   * substring is touched.
+   */
+  const flagEvents = match.flagEvents.map((event) => ({
+    ...event,
+    playerName: asPerson(event.playerName),
+    killerName: asPerson(event.killerName),
+    victimName: asPerson(event.victimName),
+    previousCarrierName: asPerson(event.previousCarrierName),
+    message: renameInText(event.message, aliases),
+  }));
+
+  const rosterEvents = match.rosterEvents.map((event) => ({
+    ...event,
+    playerName: asPerson(event.playerName),
+  }));
+
+  /*
+   * The kill feed, which is where most of the remaining aliases were. It is
+   * thousands of events on a long match and the only place a name that never
+   * reached the scoreboard can appear.
+   */
+  // `victimName` is never null, unlike every other name here: something died.
+  const kills = match.kills.map((kill) => ({
+    ...kill,
+    killerName: asPerson(kill.killerName),
+    victimName: asPerson(kill.victimName) ?? kill.victimName,
+  }));
+
+  // The written report, which named people as the scoreboard named them on the
+  // night rather than as the site does.
+  const report = match.report ? renameInText(match.report, aliases) : match.report;
+
+  return { ...match, flagEvents, rosterEvents, kills, report, players, captures };
 });
+
+/**
+ * Every name anybody has ever played under, pointing at the one they are known by.
+ *
+ * `canonicalNames` answers "what is this identity called", which is the right
+ * question when a row carries an identity. Plenty of what the site renders does
+ * not: a kill in the event log, a capture's assist list, and every sentence the
+ * server or a model wrote all carry a bare name and nothing else. This is the
+ * lookup for those.
+ *
+ * Keys are lowercased. An entry maps to itself where the name is already the
+ * canonical one, which callers filter out; keeping them makes this the complete
+ * answer to "who is this name" rather than a list of exceptions.
+ */
+export const aliasNames = cache(async function aliasNames(): Promise<
+  Map<string, string>
+> {
+  const rows = await db
+    .select({ key: IDENTITY_KEY, name: matchPlayers.name })
+    // counts-everything: naming somebody is not a total, the same reason
+    // `canonicalNames` reads every row. A name used only in a match that did
+    // not count is still a name that appears on that match's page.
+    .from(matchPlayers)
+    .groupBy(IDENTITY_KEY, matchPlayers.name);
+
+  const canonical = await canonicalNames();
+
+  const aliases = new Map<string, string>();
+  for (const row of rows) {
+    const name = canonical.get(row.key);
+    if (name) aliases.set(row.name.toLocaleLowerCase("en-US"), name);
+  }
+  return aliases;
+});
+
 
 export type MatchDetail = NonNullable<Awaited<ReturnType<typeof getMatch>>>;
 
@@ -698,12 +832,36 @@ export const getOpinion = cache(async function getOpinion(archiveDay: string) {
     .where(eq(opinionPieces.archiveDay, archiveDay))
     .limit(1);
 
-  return row ?? null;
+  return row ? await asWritten(row) : null;
 });
+
+/**
+ * Written prose, with everybody called what the site calls them.
+ *
+ * A column names players by the name they were using the night it was written,
+ * because that is what the fact sheet handed over. Months later the site knows
+ * that person by one name and the article beside the scoreboard is the only
+ * thing still using another, which reads as two players. The front page said
+ * "Special ED" over a results strip that said Romek.
+ *
+ * Substitution rather than regeneration. A rewrite costs a model request from
+ * an allowance the match reports draw on, produces different prose for a reader
+ * who has already read it, and would be re-running the fact checker over a
+ * piece that passed it. Replacing one of a person's names with another of their
+ * names asserts nothing new.
+ */
+async function asWritten<T extends { headline: string; body: string }>(row: T): Promise<T> {
+  const aliases = await aliasNames();
+  return {
+    ...row,
+    headline: renameInText(row.headline, aliases),
+    body: renameInText(row.body, aliases),
+  };
+}
 
 /** Everything the columnist has written, newest first. */
 export const listOpinions = cache(async function listOpinions(limit = 60) {
-  return db
+  const rows = await db
     .select({
       archiveDay: opinionPieces.archiveDay,
       headline: opinionPieces.headline,
@@ -715,6 +873,8 @@ export const listOpinions = cache(async function listOpinions(limit = 60) {
     .from(opinionPieces)
     .orderBy(desc(opinionPieces.archiveDay))
     .limit(limit);
+
+  return Promise.all(rows.map(asWritten));
 });
 
 /** The written profile, if one has been generated for this player. */
@@ -730,7 +890,11 @@ export const getPlayerProfile = cache(async function getPlayerProfile(name: stri
     .where(eq(playerProfiles.nameKey, name.toLocaleLowerCase("en-US")))
     .limit(1);
 
-  return row ?? null;
+  if (!row) return null;
+
+  // The last piece of stored prose. A profile names the player it is about and
+  // the people they play with, both as they were named when it was written.
+  return { ...row, body: renameInText(row.body, await aliasNames()) };
 });
 
 // ---------------------------------------------------------------------------
@@ -1700,7 +1864,7 @@ export const canonicalNames = cache(async function canonicalNames(): Promise<
 
 /** Every written column, newest first. */
 export const listColumns = cache(async function listColumns() {
-  return db
+  const rows = await db
     .select({
       archiveDay: nightColumns.archiveDay,
       headline: nightColumns.headline,
@@ -1713,6 +1877,8 @@ export const listColumns = cache(async function listColumns() {
     .from(nightColumns)
     .orderBy(desc(nightColumns.archiveDay))
     .limit(60);
+
+  return Promise.all(rows.map(asWritten));
 });
 
 export const getColumn = cache(async function getColumn(archiveDay: string) {
@@ -1733,7 +1899,7 @@ export const getColumn = cache(async function getColumn(archiveDay: string) {
     .where(eq(nightColumns.archiveDay, archiveDay))
     .limit(1);
 
-  return row ?? null;
+  return row ? await asWritten(row) : null;
 });
 
 /**

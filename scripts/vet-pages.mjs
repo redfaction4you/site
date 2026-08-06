@@ -2,8 +2,12 @@
  * Vets the pages, not the data.
  *
  *   npm run vet:pages                                    # a local dev server
- *   npm run vet:pages -- --base https://redfaction4you.com
+ *   npm run vet:pages -- https://redfaction4you.com      # production
  *   npm run vet:pages -- 2026-07-31                      # one night
+ *
+ * **Pass the URL bare, not as `--base`.** npm swallows `--base` as one of its
+ * own flags before this script ever sees it, so `-- --base <url>` silently vets
+ * localhost instead. `node scripts/vet-pages.mjs --base <url>` still works.
  *
  * `npm run vet` reads the archive and asks whether it contradicts itself. This
  * reads the rendered page and asks whether it contradicts itself, which is a
@@ -30,13 +34,68 @@
  * Read only, over HTTP. It touches no database and can be pointed at anything.
  */
 
+/*
+ * A URL is a base URL however it arrives, and anything else is an error.
+ *
+ * `--base` used to be the only way to say it, and there is one thing wrong with
+ * that: `npm run vet:pages -- --base https://redfaction4you.com`, which is what
+ * the docs said, does not work. npm parses `--base` as one of its own config
+ * flags, warns about it on a line nobody reads, and passes the bare URL through.
+ * This script then ignored the positional argument and vetted localhost, and
+ * printed "0 disagreements on http://localhost:3000" in letters small enough to
+ * be taken for the production run that was asked for.
+ *
+ * So a bare URL is now the base, `--base` still works for anybody with it in
+ * their fingers, and an argument that is neither a URL nor a date stops the run
+ * rather than being dropped. The failure mode this whole script exists to catch
+ * is a confident number about the wrong thing; it should not have one of its own.
+ */
+import { spawnSync } from "node:child_process";
+
 const args = process.argv.slice(2);
-const baseArg = args.indexOf("--base");
-const BASE = (baseArg >= 0 ? args[baseArg + 1] : "http://localhost:3000").replace(
-  /\/$/,
-  "",
-);
-const only = args.find((arg) => /^\d{4}-\d{2}-\d{2}$/.test(arg));
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const URL_LIKE = /^https?:\/\//i;
+
+let base = null;
+let only = null;
+let isRetry = false;
+
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+
+  if (arg === "--retry") {
+    isRetry = true;
+    continue;
+  }
+
+  if (arg === "--base") {
+    base = args[++i];
+    if (!base) {
+      console.error("--base needs a URL after it.");
+      process.exit(2);
+    }
+    continue;
+  }
+
+  if (URL_LIKE.test(arg)) {
+    base = arg;
+    continue;
+  }
+
+  if (DATE.test(arg)) {
+    only = arg;
+    continue;
+  }
+
+  console.error(
+    `Unrecognised argument: ${arg}\n` +
+      "Expected a base URL (http:// or https://), a date as YYYY-MM-DD, or neither.",
+  );
+  process.exit(2);
+}
+
+const BASE = (base ?? "http://localhost:3000").replace(/\/$/, "");
 
 const problems = [];
 const checked = [];
@@ -506,6 +565,38 @@ if (!only && index.totals) {
   }
 }
 
+/*
+ * A disagreement is read twice before it is believed.
+ *
+ * This reads nineteen pages one after another over HTTP, and the VPS syncs
+ * every fifteen minutes. A sync landing between the fetch of `/players` and the
+ * fetch of the nights it is compared against produces exactly the output a real
+ * bug produces: two totals that differ by about one match. It has happened
+ * here, twice: a run reporting 6,691 frags against 6,838 was followed by two
+ * consecutive clean runs on the same deployment with nothing changed.
+ *
+ * The archive moving is not a fault in the pages and must not fail a build.
+ * `vet-live` runs on a schedule with nobody watching, and a check that cries
+ * wolf every few days is a check people learn to ignore, which is worse than
+ * not having it. A real disagreement is still there on the second reading; a
+ * sync is not.
+ *
+ * Re-run rather than re-read in place, because the whole file is one top to
+ * bottom pass and a second pass through it is a second process. `--retry` is
+ * what stops that going on forever.
+ */
+if (problems.length > 0 && !isRetry) {
+  console.log(
+    `\n${problems.length} ${problems.length === 1 ? "disagreement" : "disagreements"} on the first reading. ` +
+      "Reading again, in case the archive moved during it.\n",
+  );
+
+  const again = spawnSync(process.execPath, [process.argv[1], ...args, "--retry"], {
+    stdio: "inherit",
+  });
+  process.exit(again.status ?? 1);
+}
+
 for (const problem of problems) {
   console.log(`  ! ${problem.where}`);
   console.log(`    ${problem.detail}`);
@@ -513,7 +604,8 @@ for (const problem of problems) {
 
 console.log(
   `\n${checked.length} ${checked.length === 1 ? "page" : "pages"} read on ${BASE}: ` +
-    `${problems.length} ${problems.length === 1 ? "disagreement" : "disagreements"}.\n`,
+    `${problems.length} ${problems.length === 1 ? "disagreement" : "disagreements"}` +
+    `${isRetry ? ", on a second reading" : ""}.\n`,
 );
 
 process.exit(problems.length > 0 ? 1 : 0);

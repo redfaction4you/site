@@ -6,6 +6,7 @@ import {
   listMatchesForDay,
   listColumns,
 } from "@/lib/matches/queries";
+import { mapSlug } from "@/lib/matches/maps";
 import { absoluteUrl } from "@/lib/site";
 
 /**
@@ -102,7 +103,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const map of maps) {
     entries.push({
-      url: absoluteUrl(`/matches/map/${encodeURIComponent(map.mapName)}`),
+      // `mapSlug`, not the encoded name. The route is `/matches/map/ankh-b12`
+      // and every other link on the site builds it that way; an encoded
+      // `Ankh%20b12` 404s, which is nine dead URLs in a sitemap.
+      url: absoluteUrl(`/matches/map/${mapSlug(map.mapName)}`),
       lastModified,
       changeFrequency: "weekly",
       priority: 0.6,
