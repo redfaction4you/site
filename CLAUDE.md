@@ -147,7 +147,11 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
 - **`DISCORD_NEWS_WEBHOOK` is set in `.env.local` and unset in production.** This
   entry used to say it was unset in both, and it is the wrong way round: `vercel
   env ls production` has no such variable, and the local `.env.local` has a live
-  one. Two consequences, and the first is the dangerous one.
+  one. **This is a live fault, not a preference**: six columns and opinion pieces
+  are queued behind it. `/api/health` now reports `announce.stale` and answers
+  503 for it, and `vet-live` fails on that, so it cannot happen quietly twice.
+  Adding the variable needs a fresh build, not a redeploy — see the Vercel entry
+  below. Two consequences, and the first is the dangerous one.
   - **A local run posts to the real channel.** There is one webhook and it is the
     community's. Anything that reaches `announcePendingColumns` or
     `announcePendingOpinions` from a local server announces for real, including

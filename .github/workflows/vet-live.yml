@@ -35,4 +35,27 @@ jobs:
         if: github.event_name == 'push'
         run: sleep 180
       - name: Vet the live pages
-        run: node scripts/vet-pages.mjs --base https://redfaction4you.com
+        run: node scripts/vet-pages.mjs https://redfaction4you.com
+
+      # Is the pipeline running, as opposed to the pages agreeing with
+      # themselves. /api/health answers 503 when the sync has stopped, when the
+      # backup has been skipped, or when something written has been waiting to
+      # be announced for more than six hours.
+      #
+      # That last one is here because it happened and nothing noticed.
+      # DISCORD_NEWS_WEBHOOK was set locally and never added to production, so
+      # the site wrote every column and every opinion piece, queued them, posted
+      # none, and reported itself perfectly healthy for five days. The person who
+      # found it was the person wondering where the write-ups had gone.
+      #
+      # The body is printed on failure because "503" on its own sends whoever
+      # reads this straight to the database to work out which of the three it is.
+      - name: Check the pipeline is running
+        run: |
+          body=$(curl -sS --max-time 30 -w '\n%{http_code}' https://redfaction4you.com/api/health)
+          code=$(printf '%s' "$body" | tail -n1)
+          printf '%s\n' "$body" | head -n-1
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/health answered $code"
+            exit 1
+          fi

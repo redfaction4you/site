@@ -16,7 +16,26 @@ const EMBED_LIMIT = 4096;
 
 function webhookUrl(): string | null {
   const url = process.env.DISCORD_NEWS_WEBHOOK?.trim();
-  if (!url) return null;
+  if (!url) {
+    /*
+     * Said out loud, every time.
+     *
+     * This used to return null in silence, on the reasoning at the top of this
+     * file that unconfigured is a normal state. It is a normal state for a
+     * deployment nobody wants Discord posts from, and it was not that: the
+     * variable was set locally, never added to production, and the site wrote
+     * six columns and opinion pieces that queued up and went nowhere for five
+     * days. Nothing in any log said so. A line per attempt is cheap and is the
+     * difference between a silent failure and a findable one.
+     *
+     * `/api/health` is the other half of this and the half a monitor can act on.
+     */
+    console.warn(
+      "[discord] DISCORD_NEWS_WEBHOOK is not set, so nothing will be announced. " +
+        "In production this is almost certainly a mistake: see /api/health.",
+    );
+    return null;
+  }
   // A webhook URL that is not a webhook URL is a configuration mistake worth
   // refusing rather than POSTing somebody's match results to.
   if (!/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\//i.test(url)) {
@@ -24,6 +43,16 @@ function webhookUrl(): string | null {
     return null;
   }
   return url;
+}
+
+/**
+ * Whether announcing can work at all, without revealing the webhook.
+ *
+ * A boolean about the environment, for `/api/health` to report. The URL itself
+ * never leaves this module.
+ */
+export function discordConfigured(): boolean {
+  return webhookUrl() !== null;
 }
 
 function truncate(text: string, limit: number): string {
