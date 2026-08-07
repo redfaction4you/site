@@ -18,6 +18,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { storeDmDay } from "@/lib/dm/ingest";
 import { sanitizeDmDay } from "@/lib/dm/sanitize";
+import { recordSyncPing } from "@/lib/sync-ping";
 
 export const runtime = "nodejs";
 
@@ -67,6 +68,11 @@ export async function POST(request: Request) {
     }
 
     const day = sanitizeDmDay(JSON.parse(body));
+
+    // Whether or not there is anything to write, so health can tell a quiet
+    // deathmatch server from one that has stopped. See `sync-ping.ts`.
+    await recordSyncPing(day.server);
+
     const result = await storeDmDay(day);
 
     return Response.json({

@@ -15,6 +15,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { backfillReports } from "@/lib/ai/backfill";
 import { runNightJobs } from "@/lib/ai/night-runner";
+import { recordSyncPing } from "@/lib/sync-ping";
 import { storeDay } from "@/lib/matches/ingest";
 import { nightForVetting } from "@/lib/matches/queries";
 import { summarise, vetNight } from "@/lib/matches/vet";
@@ -71,6 +72,13 @@ export async function POST(request: Request) {
     }
 
     const day = sanitizeDay(JSON.parse(body));
+
+    // Recorded before anything is written, and whether or not there is anything
+    // to write. This answers "is the VPS still talking to us", which stopped
+    // being the same question as "when did we last write a row" the day
+    // unchanged days stopped being rewritten. See `sync-ping.ts`.
+    await recordSyncPing(day.server);
+
     const result = await storeDay(day);
 
     // Decoration, not part of the contract. It writes a few reports and leaves

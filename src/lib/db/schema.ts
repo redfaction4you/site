@@ -905,6 +905,33 @@ export const archiveDays = pgTable(
   (row) => [primaryKey({ columns: [row.server, row.archiveDay] })],
 );
 
+/**
+ * When each server last reached the ingest, whether or not it had news.
+ *
+ * `/api/health` used to answer "is the VPS still syncing" with
+ * `max(matches.ingested_at)`, which was the same question until 6 August. Then
+ * unchanged days stopped being rewritten — 288 pointless rewrites a day of data
+ * that could not have changed — and the two questions came apart. A quiet
+ * afternoon writes nothing, so the newest `ingested_at` sits still, so health
+ * reported the sync stale and answered 503, and `vet-live` failed on it every
+ * six hours. It was doing that today with the VPS syncing perfectly every
+ * fifteen minutes and saying `unchanged` in its own log each time.
+ *
+ * **An alarm that is usually wrong is worse than no alarm**, because the
+ * response to it becomes ignoring it. So arrival is recorded separately from
+ * writing: one row per server, one update per sync, and it answers exactly what
+ * it is asked.
+ *
+ * Deliberately not folded into `archive_days.written_at`. That column is half
+ * of the decision to re-verify a day every six hours, and touching it on every
+ * sync would mean the re-verify never fires.
+ */
+export const syncPings = pgTable("sync_pings", {
+  /** The server as the payload names it, so the two games are separate rows. */
+  server: text("server").primaryKey(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const playerIdentities = pgTable("player_identities", {
   identityKey: text("identity_key").primaryKey(),
 

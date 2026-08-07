@@ -14,6 +14,8 @@ import { desc, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { matches, nightColumns, opinionPieces } from "@/lib/db/schema";
 import { listBackups } from "@/lib/backup";
+import { listSyncPings } from "@/lib/sync-ping";
+import { quietSince } from "@/lib/sync-freshness";
 import { discordConfigured } from "@/lib/ai/discord";
 
 /**
@@ -44,9 +46,21 @@ const ANNOUNCE_STALE_HOURS = 6;
 export type Health = {
   ok: boolean;
   sync: {
+    /** When any server last reached the ingest, news or not. */
     lastAt: string | null;
     minutesAgo: number | null;
     stale: boolean;
+    /** Servers that have gone quiet, named, with how long ago each was heard. */
+    quiet: string[];
+    /**
+     * When a row was last actually written, which is not the same thing.
+     *
+     * Kept because it is genuinely interesting — hours here with a fresh
+     * `lastAt` means the servers are talking and nothing is being played — and
+     * because it is what this check used to read, so a reader comparing the two
+     * can see why it was wrong.
+     */
+    lastWriteAt: string | null;
   };
   backup: {
     lastAt: string | null;
@@ -84,8 +98,27 @@ export async function getHealth(): Promise<Health> {
     .from(matches);
 
   const lastIngest = row?.lastIngest ? new Date(row.lastIngest) : null;
-  const minutesAgo = lastIngest
-    ? Math.round((Date.now() - lastIngest.getTime()) / 60_000)
+
+  /*
+   * When each server last reached us, which is a different question from when
+   * a row was last written and had been standing in for it.
+   *
+   * Unchanged days stopped being rewritten on 6 August, so `max(ingested_at)`
+   * only moves when something actually happened or when the six hourly
+   * re-verify fires. A quiet afternoon therefore read as a dead pipeline: this
+   * endpoint answered 503 for most of 7 August, and `vet-live` failed with it,
+   * while the VPS was syncing every fifteen minutes and writing `unchanged` in
+   * its own log each time. An alarm that is usually wrong gets ignored, and
+   * then it is not an alarm.
+   *
+   * The pings are the answer now. `lastIngest` stays, as the honest fallback
+   * for the window after this ships and before the first sync lands, and as
+   * what `matchCount` and `nightCount` are read from anyway.
+   */
+  const pings = await listSyncPings();
+  const lastArrival = pings[0]?.lastSeenAt ?? lastIngest;
+  const minutesAgo = lastArrival
+    ? Math.round((Date.now() - lastArrival.getTime()) / 60_000)
     : null;
 
   let lastBackup: Date | null = null;
@@ -132,7 +165,19 @@ export async function getHealth(): Promise<Health> {
 
   // Never synced and never backed up is a new deployment, not a fault. Only
   // something that has happened and then stopped counts as stale.
-  const syncStale = minutesAgo !== null && minutesAgo > SYNC_STALE_MINUTES;
+  /*
+   * Any server that has gone quiet, not the newest of them.
+   *
+   * With one server these are the same answer. With two they are not, and the
+   * difference is the whole point: once deathmatch syncs every fifteen minutes,
+   * the match server could stop for a week while the newest ping stayed four
+   * minutes old. Before any ping exists at all, this falls back to the old
+   * reading so the check is never simply off.
+   */
+  const quiet = quietSince(pings, SYNC_STALE_MINUTES);
+  const syncStale = pings.length
+    ? quiet.length > 0
+    : minutesAgo !== null && minutesAgo > SYNC_STALE_MINUTES;
   const backupStale = hoursAgo !== null && hoursAgo > BACKUP_STALE_HOURS;
 
   /*
@@ -149,7 +194,15 @@ export async function getHealth(): Promise<Health> {
 
   return {
     ok: !syncStale && !backupStale && !announceStale,
-    sync: { lastAt: lastIngest?.toISOString() ?? null, minutesAgo, stale: syncStale },
+    sync: {
+      lastAt: lastArrival?.toISOString() ?? null,
+      minutesAgo,
+      stale: syncStale,
+      // Named, so a failure says which machine stopped rather than that
+      // something did. There will be two of them.
+      quiet: quiet.map((entry) => `${entry.server} (${entry.minutesAgo}m)`),
+      lastWriteAt: lastIngest?.toISOString() ?? null,
+    },
     backup: { lastAt: lastBackup?.toISOString() ?? null, hoursAgo, stale: backupStale },
     announce: {
       configured: discordConfigured(),

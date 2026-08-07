@@ -258,6 +258,19 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   map index, which are three cuts of the same rows and therefore have to agree:
   the nights by evening, `/players` by person, `/matches/maps` by level. Match
   pages, pairings and the per-map pages are not cross-checked by anything.
+- **"Is the sync alive" is answered by arrivals, not by writes.** Health used
+  `max(matches.ingested_at)`, which was the same question until unchanged days
+  stopped being rewritten on 6 August. After that a quiet afternoon wrote
+  nothing, so `/api/health` answered 503 and `vet-live` failed with it, for most
+  of 7 August, while the VPS synced every fifteen minutes and logged `unchanged`
+  each time. **An alarm that is usually wrong gets ignored, and then it is not an
+  alarm.** Both ingests now record a row in `sync_pings` whether or not there is
+  anything to store, and `quietSince` judges **each server on its own** — with
+  two servers, reading the newest ping would let deathmatch cover for the match
+  server going dark. A retired server has to have its row deleted or it holds
+  health red, which is the right way round. `sync.lastWriteAt` keeps the old
+  reading, because hours there against a fresh `lastAt` means the servers are
+  talking and nothing is being played.
 - **Deathmatch is a different game with different tables, and the routing
   between them is checked.** `POST /api/rf4u/archive/dm` takes the DM server's
   day document into `dm_rounds` and `dm_players`; `src/lib/dm/` is its sanitizer

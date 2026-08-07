@@ -127,6 +127,13 @@
       "when": 1786091911642,
       "tag": "0017_tricky_salo",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786096529524,
+      "tag": "0018_new_power_man",
+      "breakpoints": true
     }
   ]
 }
