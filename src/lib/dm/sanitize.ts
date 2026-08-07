@@ -54,6 +54,8 @@ import {
  */
 export type PublicDmPlayer = {
   name: string;
+  /** The side, on a team round. Null on a free-for-all, which is most of them. */
+  team: string | null;
   kills: number;
   deaths: number;
   score: number;
@@ -63,16 +65,16 @@ export type PublicDmPlayer = {
   damageGiven: number;
   damageTaken: number;
   /**
-   * How long they were actually in this round.
+   * When they arrived and when they were last seen, in this round.
    *
-   * **Expected to be zero until the broadcaster is asked for it.** The field is
-   * read because the column exists and the DM record wants time on the server,
-   * but nothing in the documented contract fills it in, and the archive has
-   * already published two stat boards built on counters the server sends and
-   * never populates. `storeDmDay` reports how many rows carried one, so the
-   * first real sync answers the question instead of a page full of dashes
-   * answering it later.
+   * The export has no `seconds_played` and never did — the guess that it might
+   * was wrong, and reading the real payload settled it. It has these, and they
+   * are real session spans rather than snapshot windows: on match 42 every
+   * player had one row spanning 1,077 seconds, which is that match exactly.
    */
+  firstSeen: Date | null;
+  lastSeen: Date | null;
+  /** The span above, in seconds. The denominator of every rate on the DM pages. */
   secondsPlayed: number;
   weaponStats: PublicWeaponStat[];
   /** Private. Stored, never served. Same HMAC, same salt, so same person. */
@@ -103,14 +105,44 @@ const MAX_FIELDS = [
   "maxStreak",
   "damageGiven",
   "damageTaken",
-  "secondsPlayed",
+  // secondsPlayed is deliberately absent: it is derived from the two instants
+  // below, and taking the largest of two spans would throw away the earlier
+  // arrival. See `mergeDmPlayers`.
   // shotsHit and shotsFired are deliberately absent, exactly as they are on the
   // CTF side. They are one measurement. See `chooseShotTuple`.
 ] as const;
 
+/** The earlier of two instants, ignoring a missing one. */
+function earliest(left: Date | null, right: Date | null): Date | null {
+  if (!left || !right) return left ?? right;
+  return left.getTime() <= right.getTime() ? left : right;
+}
+
+/** The later of two instants, ignoring a missing one. */
+function latest(left: Date | null, right: Date | null): Date | null {
+  if (!left || !right) return left ?? right;
+  return left.getTime() >= right.getTime() ? left : right;
+}
+
+/** The span between two instants in whole seconds, or 0 where there is not one. */
+function spanSeconds(from: Date | null, to: Date | null): number {
+  if (!from || !to) return 0;
+  return Math.max(0, Math.round((to.getTime() - from.getTime()) / 1000));
+}
+
 function sanitizePlayer(source: Record<string, unknown> = {}): PublicDmPlayer {
+  const firstSeen = timestamp(source.first_seen);
+  const lastSeen = timestamp(source.last_seen);
+
   return {
     name: text(source.name, 80) || "Unknown player",
+    // Empty on a free-for-all, which is most rounds. Stored as null rather than
+    // an empty string so "no sides" and "side unknown" cannot be told apart by
+    // accident later.
+    team: text(source.team, 24).toLowerCase() || null,
+    firstSeen,
+    lastSeen,
+    secondsPlayed: spanSeconds(firstSeen, lastSeen),
     kills: whole(source.kills),
     deaths: whole(source.deaths),
     score: whole(source.score),
@@ -119,7 +151,6 @@ function sanitizePlayer(source: Record<string, unknown> = {}): PublicDmPlayer {
     shotsFired: Math.max(0, finite(source.shots_fired)),
     damageGiven: Math.max(0, finite(source.damage_given)),
     damageTaken: Math.max(0, finite(source.damage_taken)),
-    secondsPlayed: whole(source.seconds_played),
     weaponStats: sanitizeWeaponStats(source.weapon_stats),
     identityKey: nullableText(source.identity_id, 128),
     shots: readShotTuple(source),
@@ -151,7 +182,24 @@ export function mergeDmPlayers(
   merged.shotsFired = shots.shotsFired;
 
   merged.identityKey = left.identityKey ?? right.identityKey;
+  merged.team = left.team ?? right.team;
   merged.weaponStats = mergeWeaponStats(left.weaponStats, right.weaponStats);
+
+  /*
+   * The session is the outside of both snapshots, and the time is derived from
+   * it afterwards.
+   *
+   * Not `Math.max` on the two spans, which is the obvious move and is wrong in
+   * the case that matters: two snapshots of somebody who was there the whole
+   * round each cover part of it, and the longer part is not the round. Taking
+   * the earliest arrival and the latest sighting gives the span they were
+   * actually present for. It is the same reasoning as `chooseShotTuple` from
+   * the other end — those two numbers are one measurement and must not be
+   * combined independently; these two are the ends of one span.
+   */
+  merged.firstSeen = earliest(left.firstSeen, right.firstSeen);
+  merged.lastSeen = latest(left.lastSeen, right.lastSeen);
+  merged.secondsPlayed = spanSeconds(merged.firstSeen, merged.lastSeen);
 
   return merged;
 }

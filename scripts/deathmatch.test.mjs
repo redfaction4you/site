@@ -54,15 +54,17 @@ function samplePayload() {
             shots_fired: 300,
             damage_given: 2100,
             damage_taken: 1800,
-            seconds_played: 700,
+            // The earlier snapshot: arrived first, stopped being seen sooner.
+            first_seen: "2026-08-07T03:00:30.000Z",
+            last_seen: "2026-08-07T03:06:00.000Z",
             identity_id: "a1b2c3",
             weapon_stats: [
               { weapon: "Rail Driver", weapon_id: 9, shots_hit: 20, shots_fired: 40, kills: 8 },
             ],
-            // None of the below may survive.
+            // None of the below may survive. `team` used to be on this list and
+            // is not any more: team deathmatch is coming and it has sides.
             ip: "203.0.113.9",
             position: { x: 12, y: 4, z: -8 },
-            team: "red",
             caps: 3,
             flag_pickups: 2,
             private_alias_history: ["Gaymer"],
@@ -78,7 +80,9 @@ function samplePayload() {
             shots_fired: 310,
             damage_given: 2400,
             damage_taken: 1950,
-            seconds_played: 780,
+            // The later snapshot: seen arriving later, still there at the end.
+            first_seen: "2026-08-07T03:02:00.000Z",
+            last_seen: "2026-08-07T03:11:30.000Z",
             identity_id: "a1b2c3",
           },
           {
@@ -91,7 +95,8 @@ function samplePayload() {
             shots_fired: 240,
             damage_given: 1700,
             damage_taken: 2000,
-            seconds_played: 780,
+            first_seen: "2026-08-07T03:00:00.000Z",
+            last_seen: "2026-08-07T03:12:00.000Z",
             identity_id: "d4e5f6",
           },
           {
@@ -145,8 +150,10 @@ test("every field on a stored player is one this file names", () => {
     "damageGiven",
     "damageTaken",
     "deaths",
+    "firstSeen",
     "identityKey",
     "kills",
+    "lastSeen",
     "maxStreak",
     "name",
     "score",
@@ -154,12 +161,12 @@ test("every field on a stored player is one this file names", () => {
     "shots",
     "shotsFired",
     "shotsHit",
+    "team",
     "weaponStats",
   ]);
 
   // Named individually as well, because the list above would pass if one of
   // these were spelled the same and meant something else.
-  assert.equal(romek.team, undefined);
   assert.equal(romek.caps, undefined);
   assert.equal(romek.flagPickups, undefined);
   assert.equal(romek.ip, undefined);
@@ -181,7 +188,52 @@ test("duplicate snapshots are merged by maximum, never summed", () => {
   // 18 and 21 are the same player counted twice, not 39 frags.
   assert.equal(romek.kills, 21);
   assert.equal(romek.deaths, 13);
-  assert.equal(romek.secondsPlayed, 780);
+  // Time is deliberately not in this list: it is a span rather than a counter,
+  // and the test above is where it is checked.
+});
+
+test("time on the server is the outside of every snapshot, not the longest one", () => {
+  const [romek] = sampleRound().players;
+
+  /*
+   * The metric the whole deathmatch record is built on, and the one place it
+   * could quietly go wrong. Two snapshots of the same person: the first has
+   * them arriving at 03:00:30 and last seen at 03:06, the second arriving at
+   * 03:02 and last seen at 03:11:30. Neither span is the session. The session
+   * is 03:00:30 to 03:11:30, which is 660 seconds.
+   *
+   * Taking the larger of the two spans is the obvious move and gives 570.
+   */
+  assert.equal(romek.firstSeen.toISOString(), "2026-08-07T03:00:30.000Z");
+  assert.equal(romek.lastSeen.toISOString(), "2026-08-07T03:11:30.000Z");
+  assert.equal(romek.secondsPlayed, 660);
+});
+
+test("a free-for-all has no sides, and a team round keeps them", () => {
+  // Most rounds are a free-for-all and null says so. Stored as null rather than
+  // an empty string so "no sides" cannot be mistaken for "side unknown".
+  assert.equal(sampleRound().players[0].team, null);
+
+  const teamed = samplePayload();
+  teamed.matches[0].mode = "tdm";
+  teamed.matches[0].players[0].team = "Red";
+  teamed.matches[0].players[2].team = "blue";
+
+  const players = sanitizeDmDay(teamed).rounds[0].players;
+  assert.equal(players.find((p) => p.name === "Romek").team, "red");
+  assert.equal(players.find((p) => p.name === "Skuldug").team, "blue");
+});
+
+test("a round with no times recorded reports no time, rather than guessing one", () => {
+  const payload = samplePayload();
+  for (const player of payload.matches[0].players) {
+    delete player.first_seen;
+    delete player.last_seen;
+  }
+
+  const [romek] = sanitizeDmDay(payload).rounds[0].players;
+  assert.equal(romek.firstSeen, null);
+  assert.equal(romek.secondsPlayed, 0);
 });
 
 test("a newer broken shooting pair never displaces an older sound one", () => {

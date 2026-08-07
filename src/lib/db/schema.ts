@@ -826,6 +826,19 @@ export const dmPlayers = pgTable(
 
     name: text("name").notNull(),
 
+    /**
+     * The side, on the rare round that has them, and null on a free-for-all.
+     *
+     * Team deathmatch is coming and it is a third thing rather than a flavour
+     * of this one: it is scored on frags, so it belongs nowhere near a board
+     * built on flags, and it has sides, which plain deathmatch does not. The
+     * column exists before the first TDM round rather than after, because the
+     * VPS only re-sends its three most recent days — a round played before the
+     * column existed would keep everybody's shooting and forget who they were
+     * playing with, and only be recoverable for three days.
+     */
+    team: text("team"),
+
     kills: integer("kills").default(0).notNull(),
     deaths: integer("deaths").default(0).notNull(),
     score: integer("score").default(0).notNull(),
@@ -841,7 +854,32 @@ export const dmPlayers = pgTable(
     damageGiven: doublePrecision("damage_given").default(0).notNull(),
     damageTaken: doublePrecision("damage_taken").default(0).notNull(),
 
-    /** How long they were actually on the server for this round, in seconds. */
+    /**
+     * When this person arrived and when they were last seen, in this round.
+     *
+     * **The deathmatch record is built on these.** The unit here is time spent
+     * on the server, not a match: maps load, people join, people play, and
+     * voting a map in to start it as a contest is a CTF habit that will only
+     * occasionally happen here. That makes time the headline rather than a
+     * column, which is also where the prior art lands — XonStat ranks Xonotic's
+     * front page on time played.
+     *
+     * There is no `seconds_played` in the export and there never was. These two
+     * are in it, and they are real session spans rather than snapshot windows:
+     * measured against match 42, all four players had a single row spanning
+     * 1,077 seconds, which is that match exactly.
+     */
+    firstSeen: timestamp("first_seen", { withTimezone: true }),
+    lastSeen: timestamp("last_seen", { withTimezone: true }),
+
+    /**
+     * The span above in seconds, worked out at ingest.
+     *
+     * Derived and stored rather than computed on every read, because it is the
+     * denominator of every rate on the DM pages — frags per minute and the
+     * rest — and on a server where nobody ever wins, a rate is the honest
+     * headline. A total only measures attendance.
+     */
     secondsPlayed: integer("seconds_played").default(0).notNull(),
 
     weaponStats: jsonb("weapon_stats")
