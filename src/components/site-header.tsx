@@ -35,9 +35,20 @@ export async function SiteHeader() {
           </span>
         </Link>
 
+        {/*
+          `lg`, not `md`, because that is where the row actually fits.
+
+          Measured rather than chosen: the wordmark is 109 pixels, eight links
+          are 551, the search and the two menus are 169, and the two gaps are
+          48. That is 877 before the page's own padding, so the full row needs
+          about 910 and was being switched on at 768. Between those two widths
+          it ran off the side of the screen and gave every page on the site a
+          horizontal scrollbar — 84 pixels of one at 820 wide. The mobile
+          scroller below handles that band instead, which is what it is for.
+        */}
         <nav
           aria-label="Main"
-          className="hidden flex-1 items-center gap-0.5 md:flex"
+          className="hidden flex-1 items-center gap-0.5 lg:flex"
         >
           {VISIBLE_NAV.map((item) => (
             <Link
@@ -82,7 +93,7 @@ export async function SiteHeader() {
       */}
       <nav
         aria-label="Main, compact"
-        className="flex gap-1 overflow-x-auto border-t border-basalt-800 px-3 py-2 md:hidden"
+        className="flex gap-1 overflow-x-auto border-t border-basalt-800 px-3 py-2 lg:hidden"
       >
         {VISIBLE_NAV.map((item) => (
           <Link
