@@ -238,6 +238,41 @@ test("overtime is found by the clock going backwards, not by the wall clock", ()
   assert.ok(line.captures[1].at > line.captures[0].at);
 });
 
+test("extra time starts at the whistle, not at the first thing that happens in it", () => {
+  /*
+   * Match 42, from the archive: 1077 seconds, four captures on the regulation
+   * clock and a golden goal reading 7:57. That last pair fixes the answer from
+   * both ends — a capture 477 seconds into extra time, at the very end of a
+   * 1077 second match, can only mean extra time began at 600 seconds.
+   *
+   * The boundary used to be pinned to the first event whose clock had gone
+   * backwards, and the first flag event of that period was 2:18 after the
+   * whistle, so the picture drew extra time beginning at 12:18 while the list
+   * beside it said the golden goal came at 7:57.
+   */
+  const line = buildTimeline({
+    flagEvents: [],
+    kills: [],
+    captures: [
+      { ...capture(110, "blue", "SiD", 0, 1), observedAt: at(109) },
+      { ...capture(218, "red", "J!nX", 1, 1), observedAt: at(218) },
+      { ...capture(413, "red", "J!nX", 2, 1), observedAt: at(413) },
+      { ...capture(562, "blue", "ED ASSMASTER", 2, 2), observedAt: at(562) },
+      { ...capture(477, "red", "cowboy dan", 3, 2), observedAt: at(1077) },
+    ],
+    startedAt: START,
+    endedAt: new Date(START.getTime() + 1_077_000),
+  });
+
+  assert.ok(line.overtimeFrom !== null);
+  assert.equal(Math.round(line.overtimeFrom * 1077), 600);
+
+  // Which is the same as saying the picture and the list agree: the golden goal
+  // sits 477 seconds into the period the boundary opens.
+  const into = (line.captures[4].at - line.overtimeFrom) * 1077;
+  assert.equal(Math.round(into), 477);
+});
+
 /* --- frags ---------------------------------------------------------------- */
 
 test("frags are bucketed by side", () => {

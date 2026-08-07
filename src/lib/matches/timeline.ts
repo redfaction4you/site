@@ -335,13 +335,28 @@ export function buildTimeline({
    *
    * Found by the match clock going backwards, which is exactly what overtime
    * does to it and the reason nothing else here reads that field.
+   *
+   * **The restart is not the first event after it, and this used to say it
+   * was.** Extra time begins at the whistle and the first thing anybody does in
+   * it happens some way in — a reset, a walk out of the base, two minutes of
+   * nothing. On match 42 the boundary was drawn at 12:18 when regulation had
+   * ended at 10:00, so the picture showed a golden goal five and a half minutes
+   * into extra time while the list beside it said 7:57. Two readings of one
+   * moment, and no way for a reader to tell which was wrong.
+   *
+   * The event carries the answer: its own match clock says how far into the new
+   * period it is, so subtracting that from where it sits gives the whistle. On
+   * match 42 that lands on 600 seconds exactly, which is what the golden goal's
+   * 7:57 implies from the other end.
    */
   let overtimeFrom: number | null = null;
   let highest = -1;
   for (const entry of timed) {
     const elapsed = entry.event.elapsedSeconds;
     if (elapsed < highest - 5) {
-      overtimeFrom = time.at(entry.event);
+      const into = time.seconds ? elapsed / time.seconds : 0;
+      // Clamped against a skewed stamp putting the whistle before the match.
+      overtimeFrom = Math.min(1, Math.max(0, time.at(entry.event) - into));
       break;
     }
     highest = Math.max(highest, elapsed);
