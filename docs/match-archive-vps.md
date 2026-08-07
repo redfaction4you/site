@@ -100,6 +100,32 @@ To load the full history rather than the last three days:
 powershell -File C:\RFMatchBroadcast\sync-rf4u-website-archive.ps1 -Backfill
 ```
 
+## The deathmatch server has its own endpoint
+
+`https://redfaction4you.com/api/rf4u/archive/dm`, same secret, same document
+shape, different tables. It is live and nothing is posting to it yet: the DM
+server runs without `-telemetry` until a second broadcaster instance is set up.
+
+The setup, when that happens, is the one above with three differences: its own
+`.env` with `RF4U_ARCHIVE_SYNC_URL` pointing at `/dm`, its own scheduled task,
+and **the same identity salt as the match server**, so one person is one person
+on both and a merge made on `/admin` applies to both.
+
+**Each endpoint refuses the other's game.** The one thing that can go wrong here
+is a URL copied into the wrong `.env`, and a night of deathmatch written into
+the match archive would look completely normal — every column exists, the flag
+counters would just be zero — while spreading through every board and total on
+the site. So the match endpoint rejects a payload whose matches are deathmatch,
+and the deathmatch endpoint rejects anything that is not. Both answer 400 and
+name the endpoint the payload should have gone to. Nothing is lost by a
+rejection: the broadcaster keeps its own SQLite and re-sends its recent days
+every fifteen minutes, so a day refused overnight lands once the URL is fixed.
+
+The response reports `playersTimed`, which is how many player rows carried a
+`seconds_played`. **If that is 0 on the first real sync, the broadcaster does not
+record time on the server** and the cumulative record has to be built without
+it. That is worth knowing before a column of dashes says it on a page.
+
 ## Re-running is safe
 
 Ingest is idempotent. Matches upsert on `(server, source_match_id)`, and a
@@ -128,3 +154,6 @@ local.
   parseable `range.from` nor any match with a start time.
 - **Nothing appears but the sync logs success** — check the day actually has
   matches. `/matches` shows the most recent night that has any.
+- **400 saying the payload is the wrong game** — a sync is pointed at the other
+  server's endpoint. The message names the one it should be using. Fix the URL
+  in that server's `.env.rf4u`; the next sync catches up on its own.

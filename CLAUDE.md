@@ -258,6 +258,36 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   map index, which are three cuts of the same rows and therefore have to agree:
   the nights by evening, `/players` by person, `/matches/maps` by level. Match
   pages, pairings and the per-map pages are not cross-checked by anything.
+- **Deathmatch is a different game with different tables, and the routing
+  between them is checked.** `POST /api/rf4u/archive/dm` takes the DM server's
+  day document into `dm_rounds` and `dm_players`; `src/lib/dm/` is its sanitizer
+  and ingest. The tables were chosen over a `mode` column because the query
+  guard counted 65 reads that would each have to remember an `IS_CTF` filter.
+  - **The guarantee is only as good as which URL is in which `.env` on the
+    VPS**, so each endpoint refuses the other's game and says which one to use.
+    `modes.ts` is the rule. A misrouted night of DM would land in `matches`
+    looking entirely normal, with the flag counters simply zero.
+  - **The two checks are deliberately not symmetrical, and there is a test
+    saying so.** The DM endpoint requires a recognised deathmatch mode, because
+    nothing has ever flowed into it and strictness is free. The match endpoint
+    only refuses deathmatch and still accepts a mode nobody has heard of,
+    because `mode` is not in the documented contract and refusing `CTF Pro`
+    would break a sync that has worked since July to defend against a payload
+    that does not exist. Verified against all 7 nights on production before it
+    shipped.
+  - **A DM round is kept for provenance and never browsed.** No night pages, no
+    round pages, no completion rule: a rotation cut short by a map vote is still
+    time in which people fragged each other. Rows with nothing recorded are
+    dropped at ingest rather than filtered at read, which is the opposite of the
+    CTF side and the same reasoning as the separate tables — a row that cannot
+    be selected beats one every future query must remember to exclude.
+  - **The shooting rules are imported from `matches/sanitize.ts`, never
+    restated.** Hits and shots are one measurement on both servers. A second
+    copy of that rule would be the copy that drifts.
+  - **`seconds_played` is read and expected to be zero.** It is not in the
+    documented contract. The ingest reports `playersTimed` in its response so
+    the first real sync answers whether time on the server can be shown, rather
+    than a column of dashes answering it later. That has happened twice.
 - **`sanitize.ts` is a security boundary and an allowlist.** Every stored field
   is named in it. A new field appearing in the VPS export cannot leak through,
   because it simply is not copied. **Never** replace this with a spread of the

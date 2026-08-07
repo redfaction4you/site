@@ -17,33 +17,44 @@
  *   anything not named below
  */
 
+import { describeModes, isDeathmatchMode } from "./modes.ts";
+
 /** RF4U match nights are grouped by this calendar day, not by UTC. */
 export const ARCHIVE_TIME_ZONE = "America/Los_Angeles";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-function finite(value: unknown): number {
+/*
+ * The primitives below are exported for `../dm/sanitize.ts` and nothing else.
+ *
+ * Deathmatch arrives from the same broadcaster over the same wire and gets the
+ * same treatment: the same string clamping, the same refusal to believe a
+ * shooting pair that contradicts itself. Re-typing any of that over there would
+ * mean two copies of the rule that produced 1067% accuracy, and the copy that
+ * is not being read is the one that would drift.
+ */
+export function finite(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-function whole(value: unknown): number {
+export function whole(value: unknown): number {
   return Math.max(0, Math.round(finite(value)));
 }
 
 /** Strips control characters and caps length. Applied to every string. */
-function text(value: unknown, maximum = 160): string {
+export function text(value: unknown, maximum = 160): string {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .trim()
     .slice(0, maximum);
 }
 
-function nullableText(value: unknown, maximum = 160): string | null {
+export function nullableText(value: unknown, maximum = 160): string | null {
   return text(value, maximum) || null;
 }
 
-function timestamp(value: unknown): Date | null {
+export function timestamp(value: unknown): Date | null {
   const raw = text(value, 40);
   if (!raw) return null;
   const date = new Date(raw);
@@ -125,7 +136,7 @@ export type PublicWeaponStat = {
  * - With no timestamps anywhere, fall back to the richest valid tuple, which is
  *   what every row archived before the broadcaster carried them will hit.
  */
-type ShotTuple = {
+export type ShotTuple = {
   shotsHit: number;
   shotsFired: number;
   /** False when the pair contradicts itself, so nothing may be derived from it. */
@@ -137,7 +148,7 @@ type ShotTuple = {
 /** Floating point slack. Hits can land a hair over shots without being broken. */
 const SHOT_TOLERANCE = 0.001;
 
-function readShotTuple(source: Record<string, unknown>): ShotTuple {
+export function readShotTuple(source: Record<string, unknown>): ShotTuple {
   const shotsHit = Math.max(0, finite(source.shots_hit));
   const shotsFired = Math.max(0, finite(source.shots_fired));
 
@@ -291,7 +302,7 @@ const MAX_FIELDS = [
  * nothing to a reader and would only invite someone to key data off a number
  * that could change between client versions. The name is the thing.
  */
-function sanitizeWeaponStats(source: unknown): PublicWeaponStat[] {
+export function sanitizeWeaponStats(source: unknown): PublicWeaponStat[] {
   if (!Array.isArray(source)) return [];
 
   return source
@@ -446,7 +457,7 @@ export function mergePlayers(left: PublicPlayer, right: PublicPlayer): PublicPla
  * incoherent one, and among coherent readings the one with more shots is the
  * later, because a snapshot counter only climbs.
  */
-function mergeWeaponStats(
+export function mergeWeaponStats(
   left: PublicWeaponStat[],
   right: PublicWeaponStat[],
 ): PublicWeaponStat[] {
@@ -579,6 +590,18 @@ function sanitizeMatch(source: Record<string, unknown> = {}): PublicMatch {
     sourceMatchId: whole(source.id),
     status: text(source.status, 24) || "unknown",
     mapName: text(source.map_name, 120) || "Unknown map",
+    /*
+     * A missing mode is read as CTF here and is rejected outright on the
+     * deathmatch side, which is deliberate rather than inconsistent.
+     *
+     * `mode` is not in the documented contract — the sample payload carries
+     * `"ctf"` and nothing promises it always will — so the strict reading would
+     * break a sync that has worked since July over a field nobody guaranteed.
+     * The match server only ever plays one game, so the guess is safe there.
+     * Nothing flows on the deathmatch side yet, so strictness is free, and a
+     * payload that will not say which game it is should not be believed by the
+     * endpoint that has no history to fall back on.
+     */
     mode: text(source.mode, 24).toUpperCase() || "CTF",
     startedAt: timestamp(source.started_at),
     endedAt: timestamp(source.ended_at),
@@ -632,7 +655,7 @@ export function isValidDay(value: unknown): boolean {
  * or an id. Because ingest removes matches that disappear from a re-synced day,
  * anything already stored and later cancelled is cleaned up on the next sync.
  */
-const DISCARDED_STATUSES = new Set(["cancelled", "canceled", "aborted"]);
+export const DISCARDED_STATUSES = new Set(["cancelled", "canceled", "aborted"]);
 
 /** Sanitises a whole day's export. Throws if it is not usable. */
 export function sanitizeDay(source: unknown): SanitizedDay {
@@ -645,6 +668,41 @@ export function sanitizeDay(source: unknown): SanitizedDay {
     .map(sanitizeMatch)
     .filter((match) => !DISCARDED_STATUSES.has(match.status.toLowerCase()))
     .slice(0, 128);
+
+  /*
+   * Deathmatch is refused here, and everything else is still accepted.
+   *
+   * Deathmatch has its own tables precisely so a frag from a free-for-all can
+   * never be ranked against a frag from a five-a-side. That guarantee is worth
+   * exactly as much as the routing behind it, and the routing is a URL in an
+   * environment file on the VPS, written by hand, twice, for two servers
+   * running the same broadcaster. A deathmatch night written into `matches`
+   * would look entirely normal — every column exists, the flag counters would
+   * simply be zero — and it would spread through every board and every total on
+   * the site with nothing anywhere saying so.
+   *
+   * **Refusing anything that is not recognisably CTF would be the stricter
+   * reading and the wrong one.** `mode` is not in the documented export
+   * contract; the sample payload carries `"ctf"` and nothing promises the
+   * broadcaster will never send `CTF Pro` or a variant nobody here has thought
+   * of. This endpoint has 35 matches of working history behind it, and breaking
+   * that to defend against a mode that does not exist would trade a real sync
+   * for a hypothetical one. The threat is specific — the deathmatch sync
+   * pointed at this URL — so the check is specific.
+   *
+   * A refusal costs nothing either way: the broadcaster keeps its own SQLite and
+   * re-sends its recent days every fifteen minutes, so a day rejected at four
+   * in the morning lands intact once the URL is corrected.
+   */
+  const foreign = matches.filter((match) => isDeathmatchMode(match.mode));
+  if (foreign.length) {
+    throw new Error(
+      `This endpoint stores capture the flag, and ${foreign.length} of ${matches.length} ` +
+        `${matches.length === 1 ? "match is" : "matches are"} ` +
+        `${describeModes(foreign.map((match) => match.mode))}. ` +
+        `Deathmatch belongs at /api/rf4u/archive/dm.`,
+    );
+  }
 
   let archiveDay: string;
   if (isValidDay(payload.calendarDate)) {

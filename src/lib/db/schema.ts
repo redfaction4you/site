@@ -771,6 +771,18 @@ export const dmRounds = pgTable(
     /** The broadcaster's own id for the round, for idempotent re-sends. */
     sourceRoundId: integer("source_round_id").notNull(),
 
+    /**
+     * Which day's document this arrived in, and nothing a reader ever sees.
+     *
+     * There are no DM night pages and there will not be, so this is not here to
+     * group anything. It is here because the unit the VPS syncs is a day, and a
+     * round that has been deleted upstream can only be deleted here by sweeping
+     * the day it belonged to for rounds the document no longer mentions. The
+     * CTF ingest does exactly this with `matches.archiveDay`, and without the
+     * column the deathmatch archive could only ever grow.
+     */
+    archiveDay: date("archive_day").notNull(),
+
     mapName: text("map_name").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -784,6 +796,7 @@ export const dmRounds = pgTable(
     // so this has to be the key an ingest can upsert on.
     unique("dm_rounds_server_source_id_key").on(round.server, round.sourceRoundId),
     index("dm_rounds_started_at_idx").on(round.startedAt),
+    index("dm_rounds_archive_day_idx").on(round.server, round.archiveDay),
   ],
 );
 
