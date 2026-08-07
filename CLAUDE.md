@@ -379,6 +379,23 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 - **Ingest is idempotent** — the VPS re-sends recent days on every sync.
   Matches upsert on `(server, source_match_id)`; players and captures are
   replaced. A match deleted upstream is deleted here.
+- **An unchanged day is not rewritten, and the replace is one transaction.**
+  The VPS sends its three most recent days every fifteen minutes whether or not
+  anything moved, so 31 July was fully rewritten every fifteen minutes for a
+  week: 288 ingests a day at 1.3 MB a document. Worse, the replace was a delete
+  awaited and then an insert awaited, so between the two the match had **no
+  players**, and a page rendered in that gap showed an empty scoreboard. That is
+  the real cause of a `vet:pages` run that failed once and passed twice on
+  identical data, which was wrongly written off as the archive moving.
+  - `archive_days` holds a SHA-256 of the sanitised day. Matching and less than
+    six hours old means nothing is written and the vetting is skipped too.
+  - **The hash is written last.** A run that throws part way leaves the old
+    value, so the next sync rewrites rather than trusting an unfinished write.
+  - **Six hours, not forever.** A hash says the payload has not changed, not
+    that the rows are still there. Deleting a row by hand used to be undone by
+    the next sync and that repair is worth four rewrites a day to keep.
+  - `db.batch`, not `db.transaction`: `neon-http` cannot hold an interactive
+    transaction across awaits, which is why nothing here has ever used one.
 - **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
   to that evening even though it is the next day in UTC. Timestamps stay UTC;
   only the grouping is local.
@@ -460,6 +477,23 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 - Stored in Postgres rather than the day-sized documents the handoff package
   used, because player statistics need to query across matches and a per-day
   document cannot answer that without reading all of them.
+
+## Weight, measured rather than guessed
+
+Numbers from 6 August, so they can be re-checked. `scripts/vet-pages.mjs` is the
+model for measuring: read the real thing over HTTP rather than reasoning about it.
+
+- **A match page was 749 kB**, of which 465 kB was the React payload, and 750 of
+  its 774 player links were one list: the frag log, rendered in full inside a
+  `<details>` that is closed. Moved to `/matches/[day]/[match]/frags` and the
+  page is 255 kB. Nothing was truncated; an archive that stops listing after a
+  hundred rows is worse than one that asks for a click.
+- **The database is small and is not the problem.** 704 kB of matches, 440 kB of
+  players, 174 kB of kill events across every match on record. When a page is
+  heavy it is the rendering, not the data: that frag log was about seventy-five
+  times the size of the rows behind it.
+- **The VPS is not busy**: two cores at 4%, the broadcaster on 44 MB, 49 GB of
+  disk free. See `../STACK.md` before optimising anything there.
 
 ## Conventions
 
