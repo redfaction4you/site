@@ -480,8 +480,13 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
 
 ## Weight, measured rather than guessed
 
-Numbers from 6 August, so they can be re-checked. `scripts/vet-pages.mjs` is the
-model for measuring: read the real thing over HTTP rather than reasoning about it.
+`npm run weigh` times and weighs every page in the sitemap and names anything
+over 300 kB or 1000 ms. Point it at production the way `vet:pages` is pointed:
+`npm run weigh -- https://redfaction4you.com`.
+
+Numbers from 6 August, so they can be re-checked. The whole site went from
+18.1 MB to 9.1 MB across 62 pages in one change, and none of it was visible in
+the source: read the real response rather than reasoning about the components.
 
 - **A match page was 749 kB**, of which 465 kB was the React payload, and 750 of
   its 774 player links were one list: the frag log, rendered in full inside a

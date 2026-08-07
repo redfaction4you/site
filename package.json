@@ -26,6 +26,7 @@
     "vet": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-archive.mjs",
     "vet:pages": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-pages.mjs",
     "vet:names": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vet-names.mjs",
+    "weigh": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/page-weight.mjs",
     "drives:recompute": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/recompute-drives.mjs",
     "vet:queries": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/query-guard.mjs"
   },
