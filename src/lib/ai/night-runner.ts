@@ -452,12 +452,26 @@ export async function announcePendingColumns(): Promise<number> {
 }
 
 /**
- * Posts the newest opinion piece that has not been announced yet.
+ * Posts the oldest opinion piece that has not been announced yet.
  *
  * One per run, same as the columns, and separate from them so a failure to post
  * one cannot stop the other. The piece is already labelled as opinion on the
  * site; `announceOpinion` labels it again in the embed, because an embed leaves
  * the page behind and arrives somewhere the labelling did not follow.
+ *
+ * **`isNull(postedAt)` is the whole function.** It was deleted by accident while
+ * the ordering was being changed from newest-first to oldest-first, and without
+ * it this selects the oldest row in the table rather than the oldest unposted
+ * one — which is the same row every time, forever. The 30 July piece went to
+ * Discord four times in an hour and would have gone every fifteen minutes
+ * indefinitely.
+ *
+ * It took three wrong diagnoses to find, all of them looking at when things
+ * happened rather than at what was being asked for, because every symptom
+ * pointed at delivery: the row was being re-stamped, so it looked like something
+ * was un-claiming it. Nothing was. It was never being filtered in the first
+ * place, and `/api/health` said `pending: 0` throughout because it asks the
+ * question this query had stopped asking.
  */
 export async function announcePendingOpinions(): Promise<number> {
   if (await announcedTooRecently()) return 0;
@@ -470,6 +484,7 @@ export async function announcePendingOpinions(): Promise<number> {
       matchCount: opinionPieces.matchCount,
     })
     .from(opinionPieces)
+    .where(isNull(opinionPieces.postedAt))
     // Oldest first, for the reason on `announcePendingColumns`: a channel is a
     // chronology and a backlog drained newest first writes it backwards.
     .orderBy(asc(opinionPieces.archiveDay))
