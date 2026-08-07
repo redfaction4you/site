@@ -32,8 +32,65 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-export default async function PlayersPage() {
-  const [players, form] = await Promise.all([listPlayers(), recentForm()]);
+/**
+ * How many recent nights count as still playing.
+ *
+ * Nights on record, not days on the calendar. This server plays about twice a
+ * week, so thirty days is eight or nine sessions and would call somebody active
+ * who has not turned up since last month; and if nothing were played for a
+ * while, a calendar window would empty this list entirely and imply the server
+ * had no players rather than no matches. Counting nights asks the question
+ * people actually mean: have they been around lately.
+ *
+ * Four is roughly a fortnight here, so missing one session does not remove
+ * anybody.
+ */
+const RECENT_NIGHTS = 4;
+
+type Props = {
+  searchParams: Promise<{ show?: string }>;
+};
+
+export default async function PlayersPage({ searchParams }: Props) {
+  const [everyone, form, params] = await Promise.all([
+    listPlayers(),
+    recentForm(),
+    searchParams,
+  ]);
+
+  /*
+   * A filter, not a deletion.
+   *
+   * Somebody who played twice a month ago is a real person who played two real
+   * matches, and an archive whose whole argument is that it does not lose things
+   * should not start dropping them for being quiet. They also cannot distort a
+   * ranking: every board here carries a qualification bar, so one or two matches
+   * never reaches one.
+   *
+   * What they can do is make this page harder to read, which is a display
+   * problem and gets a display answer. A link, so the filtered view is a URL
+   * somebody can paste, the same trade every filter on this site makes.
+   */
+  const nights = [...new Set(everyone.map((p) => p.lastSeen).filter(Boolean))]
+    .sort()
+    .reverse() as string[];
+  const cutoff = nights[RECENT_NIGHTS - 1] ?? nights[nights.length - 1] ?? null;
+
+  /*
+   * Everyone by default, and the filter is the option.
+   *
+   * The other way round was tempting and wrong. This is an archive; its whole
+   * argument is that it does not quietly drop things, and a page that hides
+   * people unless you know to ask is doing exactly that. Somebody who played
+   * two matches in July played two real matches.
+   */
+  const recentOnly = params.show === "recent";
+  const recent = cutoff
+    ? everyone.filter((player) => player.lastSeen && player.lastSeen >= cutoff)
+    : everyone;
+
+  const players = recentOnly ? recent : everyone;
+  const quiet = everyone.length - recent.length;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-16">
@@ -47,6 +104,39 @@ export default async function PlayersPage() {
           to it was a sentence on one page. It is an entry in the strip now,
           alongside everything else the archive has that the masthead's six
           sections do not mention. */}
+
+      {quiet > 0 ? (
+        <nav
+          aria-label="Which players to show"
+          className="mt-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-basalt-800 pb-2 text-xs"
+        >
+          <Link
+            href="/players"
+            aria-current={recentOnly ? undefined : "page"}
+            className={
+              "font-display uppercase tracking-widest " +
+              (recentOnly ? "text-steel-500 hover:text-rust-300" : "text-rust-400")
+            }
+          >
+            Everyone ({everyone.length})
+          </Link>
+          <Link
+            href="/players?show=recent"
+            aria-current={recentOnly ? "page" : undefined}
+            className={
+              "font-display uppercase tracking-widest " +
+              (recentOnly ? "text-rust-400" : "text-steel-500 hover:text-rust-300")
+            }
+          >
+            Still playing ({recent.length})
+          </Link>
+          <span className="text-steel-600">
+            {recentOnly
+              ? `${quiet} ${quiet === 1 ? "person is" : "people are"} hidden, having last played before ${cutoff}`
+              : `${quiet} of them ${quiet === 1 ? "has" : "have"} not played in the last ${RECENT_NIGHTS} nights`}
+          </span>
+        </nav>
+      ) : null}
 
       {players.length === 0 ? (
         <div className="panel mt-10 p-8 text-center">
