@@ -95,16 +95,33 @@ export async function POST(request: Request) {
      * worth more than no record, and an ingest that a surprising number can break
      * is a worse problem than the number.
      */
-    let vetted = "not run";
-    try {
-      const anomalies = vetNight(result.archiveDay, await nightForVetting(result.archiveDay));
-      vetted = summarise(anomalies);
-      for (const anomaly of anomalies) {
-        const how = anomaly.severity === "error" ? console.error : console.warn;
-        how(`[vet] ${anomaly.check}: ${anomaly.detail}`);
+    /*
+     * Only when the day actually changed.
+     *
+     * Vetting re-reads the whole night and re-reports what it finds, and the
+     * VPS re-sends its three most recent days every fifteen minutes whether or
+     * not anything moved. So the same two `side-reshuffled` notes about 31 July
+     * were being written to the log 288 times a day, a week after that night
+     * finished. A check nobody can read for the noise is a check nobody reads.
+     *
+     * An unchanged day cannot have developed a new anomaly, because it is the
+     * same rows that were vetted last time.
+     */
+    let vetted = result.unchanged ? "unchanged" : "not run";
+    if (!result.unchanged) {
+      try {
+        const anomalies = vetNight(
+          result.archiveDay,
+          await nightForVetting(result.archiveDay),
+        );
+        vetted = summarise(anomalies);
+        for (const anomaly of anomalies) {
+          const how = anomaly.severity === "error" ? console.error : console.warn;
+          how(`[vet] ${anomaly.check}: ${anomaly.detail}`);
+        }
+      } catch (error) {
+        console.warn("[vet] threw, continuing:", error);
       }
-    } catch (error) {
-      console.warn("[vet] threw, continuing:", error);
     }
 
     // Writes the nightly column once a night has gone quiet, and announces any
@@ -114,6 +131,9 @@ export async function POST(request: Request) {
     return Response.json({
       ok: true,
       day: result.archiveDay,
+      // So the VPS sync log says which days it actually wrote rather than
+      // reporting a rewrite it did not do.
+      unchanged: result.unchanged,
       matches: result.matchesWritten,
       players: result.playersWritten,
       captures: result.capturesWritten,

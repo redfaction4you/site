@@ -742,6 +742,52 @@ export const playerProfiles = pgTable(
  * `match_players`. It is the primary key here because it is the only stable
  * handle on a person, and it must never reach a page.
  */
+/**
+ * What each day's payload looked like the last time it was written.
+ *
+ * The VPS re-sends its three most recent days every fifteen minutes, whether or
+ * not anything about them changed, and 31 July has been re-sent every fifteen
+ * minutes for a week. Each of those did real work: every match upserted, and
+ * every player and capture row for that day deleted and re-inserted. Two costs
+ * came out of that, and the second is the one a reader sees.
+ *
+ * The waste is 288 rewrites a day of data that cannot change. The visible
+ * problem is that the replace is a delete followed by an insert, so between
+ * them a match has no players at all, and a page rendered in that window shows
+ * an empty scoreboard or a total short by one match. At sixteen matches every
+ * fifteen minutes that is about fifteen hundred openings a day, and it is what
+ * produced a `vet:pages` failure that could not be reproduced a minute later.
+ *
+ * So a day is fingerprinted and only rewritten when the fingerprint moves.
+ *
+ * **The hash is written last, after the rows.** A run that fails partway leaves
+ * the old fingerprint, so the next sync tries again rather than trusting a
+ * write that did not finish.
+ */
+export const archiveDays = pgTable(
+  "archive_days",
+  {
+    server: text("server").notNull(),
+    archiveDay: date("archive_day").notNull(),
+
+    /** SHA-256 of the sanitised day, as it was when last stored. */
+    contentHash: text("content_hash").notNull(),
+
+    /**
+     * When the rows were last actually written, as opposed to checked.
+     *
+     * A matching hash is not proof the rows are right: somebody can delete one
+     * by hand, and until now the next sync always put it back. Keeping that
+     * property costs one full rewrite every few hours rather than ninety-six a
+     * day. See `REVERIFY_AFTER_MS` in ingest.ts.
+     */
+    writtenAt: timestamp("written_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (row) => [primaryKey({ columns: [row.server, row.archiveDay] })],
+);
+
 export const playerIdentities = pgTable("player_identities", {
   identityKey: text("identity_key").primaryKey(),
 

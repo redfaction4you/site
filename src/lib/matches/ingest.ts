@@ -7,10 +7,12 @@
  * players and captures are replaced wholesale, because a later snapshot of a
  * match supersedes an earlier one rather than adding to it.
  */
+import { createHash } from "node:crypto";
 import { and, eq, notInArray } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import { db } from "@/lib/db";
-import { matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
+import { archiveDays, matchCaptures, matchPlayers, matches } from "@/lib/db/schema";
 import { MIN_COMPLETED_SECONDS } from "./completion";
 import { creditDrives, reconstructDrives } from "./drives";
 import type { SanitizedDay } from "./sanitize";
@@ -21,9 +23,62 @@ export type IngestResult = {
   matchesWritten: number;
   playersWritten: number;
   capturesWritten: number;
+  /** True when the payload matched what is already stored and nothing was written. */
+  unchanged: boolean;
 };
 
+/**
+ * How long a day is trusted on its fingerprint alone before being rewritten.
+ *
+ * A matching hash says the payload has not changed. It does not say the rows
+ * are still there: somebody can delete one by hand, and the thing that used to
+ * put it back was the very rewrite this skips. Six hours keeps that repair and
+ * still turns ninety-six rewrites a day into four.
+ */
+const REVERIFY_AFTER_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * What this day's payload looks like, as one value.
+ *
+ * `SanitizedDay` is built field by field in a fixed order by `sanitize.ts`, so
+ * `JSON.stringify` over it is stable between runs. Dates serialise to ISO
+ * strings, which are stable too. It does not need to be a canonical hash; it
+ * needs to change whenever the day changes and not otherwise.
+ */
+function fingerprint(day: SanitizedDay): string {
+  return createHash("sha256").update(JSON.stringify(day)).digest("hex");
+}
+
 export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
+  const hash = fingerprint(day);
+
+  const [seen] = await db
+    .select({ contentHash: archiveDays.contentHash, writtenAt: archiveDays.writtenAt })
+    .from(archiveDays)
+    .where(
+      and(eq(archiveDays.server, day.server), eq(archiveDays.archiveDay, day.archiveDay)),
+    )
+    .limit(1);
+
+  const fresh =
+    seen !== undefined &&
+    Date.now() - new Date(seen.writtenAt).getTime() < REVERIFY_AFTER_MS;
+
+  if (seen?.contentHash === hash && fresh) {
+    return {
+      archiveDay: day.archiveDay,
+      server: day.server,
+      matchesWritten: 0,
+      playersWritten: 0,
+      capturesWritten: 0,
+      unchanged: true,
+    };
+  }
+
+  return writeDay(day, hash);
+}
+
+async function writeDay(day: SanitizedDay, hash: string): Promise<IngestResult> {
   let playersWritten = 0;
   let capturesWritten = 0;
   const matchIds: string[] = [];
@@ -105,16 +160,33 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
 
     matchIds.push(row.id);
 
-    // Replace rather than merge. The payload is the authority on who played.
-    await db.delete(matchPlayers).where(eq(matchPlayers.matchId, row.id));
-    await db.delete(matchCaptures).where(eq(matchCaptures.matchId, row.id));
-
     // Who actually moved the flag on each capture. The scoreboard only records
     // who touched it down, so this is reconstructed from the event log.
     const credit = creditDrives(reconstructDrives(match.flagEvents, match.captures));
 
+    /*
+     * The replace goes out as one batch, which Neon runs as one transaction.
+     *
+     * It used to be a delete awaited, then an insert awaited, and between those
+     * two round trips the match had no players. Any page rendering in that gap
+     * showed an empty scoreboard, and any total counted the night one match
+     * short. It ran for every match in three days every fifteen minutes, so the
+     * gap was open something like fifteen hundred times a day, and it is what
+     * made `vet:pages` fail once and pass twice on identical data.
+     *
+     * `db.batch` is the only transaction this driver has: `neon-http` cannot
+     * hold an interactive one open across awaits, which is why nothing here has
+     * ever used `db.transaction`. A batch is enough, because the whole replace
+     * is known before any of it is sent.
+     */
+    const replace: BatchItem<"pg">[] = [
+      db.delete(matchPlayers).where(eq(matchPlayers.matchId, row.id)),
+      db.delete(matchCaptures).where(eq(matchCaptures.matchId, row.id)),
+    ];
+
     if (match.players.length) {
-      await db.insert(matchPlayers).values(
+      replace.push(
+        db.insert(matchPlayers).values(
         match.players.map((player) => ({
           matchId: row.id,
           name: player.name,
@@ -151,28 +223,34 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
             fastestSoloCaptureMs: null,
           }),
         })),
+        ),
       );
       playersWritten += match.players.length;
     }
 
     if (match.captures.length) {
-      await db.insert(matchCaptures).values(
-        match.captures.map((capture) => ({
-          matchId: row.id,
-          elapsedSeconds: capture.elapsedSeconds,
-          team: capture.team,
-          redScore: capture.redScore,
-          blueScore: capture.blueScore,
-          quantity: capture.quantity,
-          playerName: capture.playerName,
-          assists: capture.assists,
-          driveParticipants: capture.driveParticipants,
-          message: capture.message,
-          observedAt: capture.observedAt,
-        })),
+      replace.push(
+        db.insert(matchCaptures).values(
+          match.captures.map((capture) => ({
+            matchId: row.id,
+            elapsedSeconds: capture.elapsedSeconds,
+            team: capture.team,
+            redScore: capture.redScore,
+            blueScore: capture.blueScore,
+            quantity: capture.quantity,
+            playerName: capture.playerName,
+            assists: capture.assists,
+            driveParticipants: capture.driveParticipants,
+            message: capture.message,
+            observedAt: capture.observedAt,
+          })),
+        ),
       );
       capturesWritten += match.captures.length;
     }
+
+    // `batch` is typed as a non-empty tuple; the two deletes are always there.
+    await db.batch(replace as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
   }
 
   // A match deleted upstream, voided, or a mistake corrected, should vanish
@@ -196,11 +274,29 @@ export async function storeDay(day: SanitizedDay): Promise<IngestResult> {
     );
   }
 
+  /*
+   * Recorded last, on purpose.
+   *
+   * Everything above has to have succeeded for this fingerprint to be true. A
+   * run that throws part way leaves the previous value in place, so the next
+   * sync sees a mismatch and writes the day again rather than trusting a write
+   * that did not finish. Storing it first would turn one failed ingest into a
+   * day that is never repaired.
+   */
+  await db
+    .insert(archiveDays)
+    .values({ server: day.server, archiveDay: day.archiveDay, contentHash: hash })
+    .onConflictDoUpdate({
+      target: [archiveDays.server, archiveDays.archiveDay],
+      set: { contentHash: hash, writtenAt: new Date() },
+    });
+
   return {
     archiveDay: day.archiveDay,
     server: day.server,
     matchesWritten: matchIds.length,
     playersWritten,
     capturesWritten,
+    unchanged: false,
   };
 }
