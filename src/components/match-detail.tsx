@@ -22,6 +22,7 @@ import { MatchFootageList } from "@/components/match-footage";
 import { footageForMatch } from "@/lib/match-footage";
 import { FootageMark } from "@/components/footage-mark";
 import { MatchTimeline } from "@/components/match-timeline";
+import { PlayerLink } from "@/components/player-link";
 import { buildTimeline } from "@/lib/matches/timeline";
 
 function percent(value: number): string {
@@ -43,18 +44,7 @@ const TEAM_TEXT: Record<string, string> = {
   blue: "text-cobalt-400",
 };
 
-/** Player names link to their record. Used everywhere a name appears. */
-function PlayerLink({ name, className }: { name: string | null; className?: string }) {
-  if (!name) return <span className="text-steel-500">unknown</span>;
-  return (
-    <Link
-      href={`/players/${encodeURIComponent(name)}`}
-      className={className ?? "text-steel-200 hover:text-rust-300 hover:underline"}
-    >
-      {name}
-    </Link>
-  );
-}
+// `PlayerLink` moved to its own file when the frag log became its own page.
 
 type ScoreColumn = {
   key: keyof PublicScoreRow;
@@ -817,38 +807,34 @@ export async function MatchDetailView({
       <div className="mt-4">
         {/* Event streams, collapsed. */}
         <div className="grid gap-3 lg:grid-cols-2">
-          <EventSection title="Frags" count={match.kills.length}>
-            <table className="w-full text-sm">
-              <tbody>
-                {match.kills.map((kill, i) => (
-                  <tr key={i} className="border-b border-basalt-800 last:border-0">
-                    <td className="w-14 px-3 py-1 font-mono tabular-nums text-steel-500">
-                      {clock(kill.elapsedSeconds)}
-                    </td>
-                    <td className="px-2 py-1 text-steel-400">
-                      {kill.suicide ? (
-                        <>
-                          <PlayerLink name={kill.victimName} /> died
-                        </>
-                      ) : (
-                        <>
-                          <PlayerLink name={kill.killerName} />
-                          <span className="mx-1.5 text-steel-600">fragged</span>
-                          <PlayerLink name={kill.victimName} />
-                        </>
-                      )}
-                      {kill.teamKill ? (
-                        <span className="ml-2 text-xs text-rust-400">team frag</span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-1 text-right text-xs text-steel-500">
-                      {kill.weapon ?? ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </EventSection>
+          {/*
+            The frag log is a link, not a list.
+
+            It used to render here inside a closed `<details>`, every row of it,
+            and it was by a long way the most expensive thing this site served:
+            match 21 on 31 July weighed 749 kB, of which 465 kB was the React
+            payload, and 750 of the page's 774 player links were this one list.
+            Every visitor downloaded all of it — once as markup and again as
+            serialised component data — to read a scoreboard, and the triangle
+            stayed shut.
+
+            Nothing is truncated. The whole log is one click away on a URL
+            somebody can link to, which is the same trade every filter here
+            makes.
+          */}
+          {match.kills.length > 0 ? (
+            <Link
+              href={`/matches/${match.archiveDay}/${match.sourceMatchId}/frags`}
+              className="panel flex items-baseline justify-between p-3 hover:border-rust-500"
+            >
+              <span className="font-display text-xs font-semibold text-steel-200">
+                Frags <span className="text-steel-500">({match.kills.length})</span>
+              </span>
+              <span className="font-mono text-[0.625rem] text-steel-600">
+                open the log
+              </span>
+            </Link>
+          ) : null}
 
           <EventSection title="Flag events" count={match.flagEvents.length}>
             <table className="w-full text-sm">
