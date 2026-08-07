@@ -419,20 +419,29 @@ export async function announcePendingColumns(): Promise<number> {
       matches: played,
     });
 
-    if (result === "rejected") {
-      // Certainly never arrived, so there is nothing to duplicate and it goes
-      // back in the queue. `unknown` deliberately does not land here.
-      await db
-        .update(nightColumns)
-        .set({ postedAt: null })
-        .where(eq(nightColumns.archiveDay, column.archiveDay));
-      continue;
-    }
-
-    if (result === "unknown") {
+    /*
+     * Claimed once, and never un-claimed. At most once, whatever happens.
+     *
+     * A rollback on a certain failure was the obvious refinement and it is
+     * removed, because "certain" is a claim about a distributed system made
+     * from one end of it. The same opinion piece went to Discord four times in
+     * an hour while this was being fixed twice: post-then-record accounted for
+     * the first duplicates, the rollback path was the only remaining thing that
+     * could re-open a claimed row, and I could not prove from the logs that it
+     * was not doing so. Rather than keep reasoning about it while a channel
+     * filled up, the retry is gone.
+     *
+     * The trade, stated plainly: a piece whose post genuinely failed will now
+     * never be announced, and will sit on the site unposted. That is visible in
+     * `/api/health` as a pending item, recoverable by clearing `posted_at` by
+     * hand, and it is a far smaller harm than the same article arriving four
+     * times. Delivering at most once and sometimes zero beats delivering at
+     * least once and sometimes four.
+     */
+    if (result !== "sent") {
       console.warn(
-        `[ai] column ${column.archiveDay} may or may not have posted; left claimed ` +
-          `rather than risk a duplicate. Check the channel.`,
+        `[ai] column ${column.archiveDay} did not confirm as sent (${result}); ` +
+          `left claimed rather than retried. Clear posted_at by hand to try again.`,
       );
     }
 
@@ -472,8 +481,19 @@ export async function announcePendingOpinions(): Promise<number> {
   // permanent disagreement, because a Discord post is not re-rendered.
   const aliases = await aliasNames();
 
+  /*
+   * Logged before anything is sent, because the last two attempts at this were
+   * debugged from timestamps after the fact and neither was conclusive. If a
+   * piece is ever announced twice again, this line says which run picked it up
+   * and what it believed at the time.
+   */
+  console.log(
+    `[ai] announcing opinion ${pending.archiveDay}, which had posted_at=null at ` +
+      `${new Date().toISOString()}`,
+  );
+
   // Claimed before it is sent, for the reason set out in
-  // `announcePendingColumns`: this is the piece that went out twice.
+  // `announcePendingColumns`: this is the piece that went out four times.
   await db
     .update(opinionPieces)
     .set({ postedAt: new Date() })
@@ -486,18 +506,12 @@ export async function announcePendingOpinions(): Promise<number> {
     columnist: COLUMNIST_NAME,
   });
 
-  if (result === "rejected") {
-    await db
-      .update(opinionPieces)
-      .set({ postedAt: null })
-      .where(eq(opinionPieces.archiveDay, pending.archiveDay));
-    return 0;
-  }
-
-  if (result === "unknown") {
+  // Claimed once and never un-claimed, for the reason set out in
+  // `announcePendingColumns`. This is the piece that went out four times.
+  if (result !== "sent") {
     console.warn(
-      `[ai] opinion ${pending.archiveDay} may or may not have posted; left claimed ` +
-        `rather than risk a duplicate. Check the channel.`,
+      `[ai] opinion ${pending.archiveDay} did not confirm as sent (${result}); ` +
+        `left claimed rather than retried. Clear posted_at by hand to try again.`,
     );
   }
 
