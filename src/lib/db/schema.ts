@@ -743,6 +743,110 @@ export const playerProfiles = pgTable(
  * handle on a person, and it must never reach a page.
  */
 /**
+ * Deathmatch, which is a different game and gets different tables.
+ *
+ * The obvious approach was the `mode` column that `matches` already has. It was
+ * tried and measured: the query guard reported 65 reads of the match tables
+ * that would each have to remember a mode filter, and a rule applied in most
+ * places and missed in one is the failure this archive has had three times
+ * over. Rows that cannot be seen by a CTF query are safer than rows that must
+ * be filtered out by every one of them.
+ *
+ * **Deathmatch is not match based.** It is whoever is on the server, whenever.
+ * The telemetry still emits a round per map rotation and those are kept here for
+ * provenance — so a total can be traced back to something — but nothing browses
+ * them. There are no DM night pages and no DM match pages, because "which
+ * evening was that" is not a question anybody asks about a free-for-all server.
+ * What a reader wants is the cumulative record.
+ */
+export const dmRounds = pgTable(
+  "dm_rounds",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    /** Which server sent this, so two DM servers could never merge by accident. */
+    server: text("server").notNull(),
+    /** The broadcaster's own id for the round, for idempotent re-sends. */
+    sourceRoundId: integer("source_round_id").notNull(),
+
+    mapName: text("map_name").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+
+    ingestedAt: timestamp("ingested_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (round) => [
+    // The VPS re-sends recent data on every sync, exactly as it does for CTF,
+    // so this has to be the key an ingest can upsert on.
+    unique("dm_rounds_server_source_id_key").on(round.server, round.sourceRoundId),
+    index("dm_rounds_started_at_idx").on(round.startedAt),
+  ],
+);
+
+/**
+ * One player's shooting in one round.
+ *
+ * Deliberately much narrower than `match_players`. There are no flags in
+ * deathmatch, so no captures, hold time, returns, pickups, carrier kills or
+ * reconstructed drives, and no teams, so no side. Everything absent here is
+ * absent because the game does not have it, rather than because it was not
+ * worth storing.
+ *
+ * `identityKey` is the same HMAC the CTF server issues, from the same salt, so
+ * one person is one person across both servers and a merge made on `/admin`
+ * applies to both. It is stored and never served, exactly as on `match_players`.
+ */
+export const dmPlayers = pgTable(
+  "dm_players",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    roundId: text("round_id")
+      .notNull()
+      .references(() => dmRounds.id, { onDelete: "cascade" }),
+
+    name: text("name").notNull(),
+
+    kills: integer("kills").default(0).notNull(),
+    deaths: integer("deaths").default(0).notNull(),
+    score: integer("score").default(0).notNull(),
+    maxStreak: integer("max_streak").default(0).notNull(),
+
+    /**
+     * Fractional on purpose, the same as on `match_players`: the Automatic
+     * Shotgun fires eight pellets, so three landing is three eighths of a hit.
+     * See `accuracy.ts`; the same soundness rule applies to these counters.
+     */
+    shotsHit: doublePrecision("shots_hit").default(0).notNull(),
+    shotsFired: doublePrecision("shots_fired").default(0).notNull(),
+    damageGiven: doublePrecision("damage_given").default(0).notNull(),
+    damageTaken: doublePrecision("damage_taken").default(0).notNull(),
+
+    /** How long they were actually on the server for this round, in seconds. */
+    secondsPlayed: integer("seconds_played").default(0).notNull(),
+
+    weaponStats: jsonb("weapon_stats")
+      .$type<PublicWeaponStat[]>()
+      .default([])
+      .notNull(),
+
+    /** Private. Stored, never served. */
+    identityKey: text("identity_key"),
+  },
+  (row) => [
+    index("dm_players_round_idx").on(row.roundId),
+    index("dm_players_identity_idx").on(row.identityKey),
+    index("dm_players_name_idx").on(row.name),
+  ],
+);
+
+/**
  * What each day's payload looked like the last time it was written.
  *
  * The VPS re-sends its three most recent days every fifteen minutes, whether or
