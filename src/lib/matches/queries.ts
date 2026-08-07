@@ -550,6 +550,32 @@ export type MatchLink = {
 };
 
 /**
+ * Just enough of every match to build a link to it.
+ *
+ * For the sitemap, which wants a URL per match and nothing else. It was calling
+ * `listMatchesForDay` once per night, and that query fetches every participant
+ * so it can count them, so a sitemap of six nights cost thirteen round trips and
+ * pulled back every scoreboard in the archive to throw all of it away.
+ *
+ * counts-everything: a match that was cancelled still has a page, and a page
+ * that answers belongs in the sitemap. This lists what exists, not what counted.
+ */
+export const listMatchLinks = cache(async function listMatchLinks(): Promise<
+  { archiveDay: string; sourceMatchId: number }[]
+> {
+  return db
+    .select({
+      archiveDay: matches.archiveDay,
+      sourceMatchId: matches.sourceMatchId,
+    })
+    // counts-everything: a match that was cancelled still has a page, and a
+    // page that answers belongs in the sitemap. This lists what exists rather
+    // than what counted.
+    .from(matches)
+    .orderBy(desc(matches.archiveDay), asc(matches.sourceMatchId));
+});
+
+/**
  * The matches either side of this one, in the order they were played.
  *
  * Deliberately across the whole archive rather than within the night: the last

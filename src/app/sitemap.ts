@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
 
 import {
+  listColumns,
   listDays,
   listMapNames,
-  listMatchesForDay,
-  listColumns,
+  listMatchLinks,
 } from "@/lib/matches/queries";
 import { mapSlug } from "@/lib/matches/maps";
 import { absoluteUrl } from "@/lib/site";
@@ -41,19 +41,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]);
 
   /*
-   * Every match, fetched a night at a time.
+   * Every match, in one query rather than one per night.
    *
-   * `listMatchesForDay` is the query the night pages use, so a match reachable
-   * from a night page is a match in here and the two cannot disagree about what
-   * exists. One query per night is a few dozen at present and this route is not
-   * on anybody's critical path.
+   * This used to call `listMatchesForDay` in a loop, which is a query per night
+   * and, worse, a second query inside each of those for the participants that a
+   * sitemap has no use for. Six nights made it thirteen round trips to build a
+   * list of URLs. It is the wrong shape rather than a present cost: the number
+   * of queries grew with the archive, and the archive is the thing that grows.
+   *
+   * `listMatchLinks` asks for the three columns a URL needs and nothing else.
    */
-  const nights = await Promise.all(
-    days.map(async (day) => ({
-      archiveDay: day.archiveDay,
-      matches: await listMatchesForDay(day.archiveDay),
-    })),
-  );
+  const nights = await listMatchLinks();
 
   const newest = days[0]?.archiveDay;
   const lastModified = newest ? new Date(`${newest}T12:00:00Z`) : new Date();
@@ -70,26 +68,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/discord"), changeFrequency: "monthly", priority: 0.4 },
   ];
 
-  for (const night of nights) {
-    // The date at midday UTC rather than midnight: the archive's days are
-    // Pacific, so midnight UTC on the stated day is the previous evening there.
-    const modified = new Date(`${night.archiveDay}T12:00:00Z`);
+  // The date at midday UTC rather than midnight: the archive's days are
+  // Pacific, so midnight UTC on the stated day is the previous evening there.
+  const middayOf = (day: string) => new Date(`${day}T12:00:00Z`);
 
+  for (const day of days) {
     entries.push({
-      url: absoluteUrl(`/matches/${night.archiveDay}`),
-      lastModified: modified,
+      url: absoluteUrl(`/matches/${day.archiveDay}`),
+      lastModified: middayOf(day.archiveDay),
       changeFrequency: "monthly",
       priority: 0.7,
     });
+  }
 
-    for (const match of night.matches) {
-      entries.push({
-        url: absoluteUrl(`/matches/${night.archiveDay}/${match.sourceMatchId}`),
-        lastModified: modified,
-        changeFrequency: "monthly",
-        priority: 0.6,
-      });
-    }
+  for (const match of nights) {
+    entries.push({
+      url: absoluteUrl(`/matches/${match.archiveDay}/${match.sourceMatchId}`),
+      lastModified: middayOf(match.archiveDay),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    });
   }
 
   for (const column of columns) {
