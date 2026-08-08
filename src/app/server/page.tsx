@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 
 import { LiveFeed } from "@/components/live-feed";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LiveScoreboard } from "@/components/live-scoreboard";
 import Link from "next/link";
+
+import { MapShot } from "@/components/map-shot";
 
 import { dayLabel } from "@/components/match-archive";
 import { MatchTimes } from "@/components/match-times";
@@ -20,6 +21,7 @@ import {
 import { mapSlug } from "@/lib/matches/maps";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
+import { dmTotals, listDmPlayers } from "@/lib/dm/queries";
 import {
   getDmServerStatus,
   getServerStatus,
@@ -69,6 +71,14 @@ function formatAgo(minutes: number): string {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"}`;
   return `${Math.round(hours / 24)} days`;
+}
+
+/** Time on the DM server, the way /stats/dm writes it. */
+function dmTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
 /** Seconds to m:ss, for the match clock. */
@@ -204,6 +214,11 @@ export default async function ServerPage() {
 
   const dmOnline = dmStatus.state === "online" ? dmStatus : null;
 
+  // The DM record for the panel: top three by time, plus the totals line.
+  // Cached queries shared with /stats/dm, so this costs the page nothing new.
+  const [dmPlayers, dm] = await Promise.all([listDmPlayers(), dmTotals()]);
+  const dmLeaders = dmPlayers.slice(0, 3);
+
   const mostPlayed = rotation[0]?.played ?? 0;
 
   const syncMinutesAgo = lastSync
@@ -242,31 +257,27 @@ export default async function ServerPage() {
         every visit. The scoreboard takes that space when there is a game, and
         the times chart takes it when there is not, so the top of the page is
         never mostly nothing.
+
+        Headed like the DM section below, so the page reads as two sibling
+        servers rather than "the server, and an afterthought".
       */}
-      <div className="mt-5 grid gap-x-8 gap-y-6 lg:grid-cols-[19rem_1fr]">
+      <h2 className="section-heading mt-6">The match server</h2>
+      <div className="mt-4 grid items-start gap-x-8 gap-y-6 lg:grid-cols-[19rem_1fr]">
         <div className="min-w-0">
           <StatusBadge status={status} />
 
           {online?.map ? (
             <div className="mt-3 flex gap-3">
-              {online.mapInfo ? (
-                <a
-                  href={online.mapInfo.pageUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="relative block h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-basalt-700 bg-basalt-850"
-                  title={`${online.mapInfo.name} on FactionFiles`}
-                >
-                  <Image
-                    src={online.mapInfo.imageUrl}
-                    alt=""
-                    fill
-                    sizes="112px"
-                    className="object-cover"
-                    unoptimized
-                  />
-                </a>
-              ) : null}
+              {/*
+                Our own screenshot, not FactionFiles' preview. The preview URL
+                answered 200 with nothing renderable and the page showed an
+                empty bordered box that read as broken — the owner sent the
+                screenshot. MapShot renders nothing when a map has no photo,
+                which is the honest version of the same state.
+              */}
+              <span className="w-28 shrink-0 empty:hidden">
+                <MapShot mapName={online.map} className="w-28" sizes="112px" />
+              </span>
               <div className="min-w-0">
                 <p className="truncate text-sm text-steel-200">{online.map}</p>
                 <p className="text-xs text-steel-500">
@@ -281,6 +292,16 @@ export default async function ServerPage() {
                     <span className="mx-1.5 text-steel-600">-</span>
                     <span className="text-cobalt-400">{online.game.blueScore}</span>
                   </p>
+                ) : null}
+                {online.mapInfo ? (
+                  <a
+                    href={online.mapInfo.pageUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-0.5 inline-block text-[0.6875rem] text-steel-500 hover:text-rust-300"
+                  >
+                    on FactionFiles
+                  </a>
                 ) : null}
               </div>
             </div>
@@ -418,19 +439,26 @@ export default async function ServerPage() {
       */}
       <section className="mt-10">
         <h2 className="section-heading">The deathmatch server</h2>
-        <div className="mt-4 grid gap-x-8 gap-y-4 lg:grid-cols-[19rem_1fr]">
+        <div className="mt-4 grid items-start gap-x-8 gap-y-4 lg:grid-cols-[19rem_1fr]">
           <div className="min-w-0">
             <StatusBadge status={dmStatus} />
 
             {dmOnline?.map ? (
-              <div className="mt-3 min-w-0">
-                <p className="truncate text-sm text-steel-200">{dmOnline.map}</p>
-                <p className="text-xs text-steel-500">
-                  {dmOnline.gameType ?? ""}
-                  {dmOnline.humans > 0
-                    ? ` · ${dmOnline.humans} playing`
-                    : " · empty"}
-                </p>
+              <div className="mt-3 flex min-w-0 gap-3">
+                {/* Renders nothing until somebody photographs a DM map, which
+                    is the normal state and not an error. */}
+                <span className="w-28 shrink-0 empty:hidden">
+                  <MapShot mapName={dmOnline.map} className="w-28" sizes="112px" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-steel-200">{dmOnline.map}</p>
+                  <p className="text-xs text-steel-500">
+                    {dmOnline.gameType ?? ""}
+                    {dmOnline.humans > 0
+                      ? ` · ${dmOnline.humans} playing`
+                      : " · empty"}
+                  </p>
+                </div>
               </div>
             ) : null}
             {dmStatus.state === "offline" ? (
@@ -455,7 +483,7 @@ export default async function ServerPage() {
 
           <div className="min-w-0">
             {dmOnline?.game?.players.length ? (
-              <div>
+              <div className="mb-4">
                 <h3 className="rule-heading">On the server now</h3>
                 <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                   {dmOnline.game.players.map((player) => (
@@ -470,19 +498,64 @@ export default async function ServerPage() {
                   ))}
                 </ul>
               </div>
-            ) : (
-              <p className="text-sm leading-relaxed text-steel-400">
-                No matches here and no waiting for one: join and play. Frags,
-                accuracy, streaks and time on the server all count towards{" "}
-                <Link
-                  href="/stats/dm"
-                  className="text-steel-200 underline decoration-basalt-600 underline-offset-2 hover:text-rust-300"
-                >
-                  the deathmatch record
-                </Link>
-                , which ranks on time played.
-              </p>
-            )}
+            ) : null}
+
+            {/*
+              The record so far, which is what this column showed nothing of.
+              The first version put one floating sentence here and the owner's
+              screenshot made the emptiness plain. These are the same figures
+              /stats/dm ranks on, cut down to "who has actually been here".
+            */}
+            {dmLeaders.length > 0 ? (
+              <div>
+                <h3 className="rule-heading">Most time on the server</h3>
+                <ul className="mt-2 max-w-[26rem] space-y-1.5">
+                  {dmLeaders.map((player) => (
+                    <li
+                      key={player.name}
+                      className="flex items-baseline justify-between gap-3 text-sm"
+                    >
+                      <Link
+                        href={`/players/${encodeURIComponent(player.name)}`}
+                        className="min-w-0 truncate text-steel-200 hover:text-rust-300"
+                      >
+                        {player.name}
+                      </Link>
+                      <span className="shrink-0 font-mono text-sm tabular-nums text-steel-100">
+                        {dmTime(player.secondsPlayed)}
+                        <span className="ml-2 text-xs text-steel-500">
+                          {player.kills} frags
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 font-mono text-xs text-steel-600">
+                  {dm.rounds} {dm.rounds === 1 ? "round" : "rounds"} ·{" "}
+                  {dmTime(dm.secondsPlayed)} recorded ·{" "}
+                  <Link href="/stats/dm" className="text-steel-400 hover:text-rust-300">
+                    the full record
+                  </Link>
+                </p>
+              </div>
+            ) : null}
+
+            <p
+              className={
+                "max-w-[36rem] text-sm leading-relaxed text-steel-400 " +
+                (dmLeaders.length > 0 ? "mt-4 border-t border-basalt-800 pt-3" : "")
+              }
+            >
+              No matches here and no waiting for one: join and play. Frags,
+              accuracy, streaks and time on the server all count towards{" "}
+              <Link
+                href="/stats/dm"
+                className="text-steel-200 underline decoration-basalt-600 underline-offset-2 hover:text-rust-300"
+              >
+                the deathmatch record
+              </Link>
+              , which ranks on time played.
+            </p>
           </div>
         </div>
       </section>
