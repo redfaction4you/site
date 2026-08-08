@@ -5,6 +5,7 @@ import type {
   MatchSummary,
   PublicScoreRow,
 } from "@/lib/matches/queries";
+import { recordsBrokenOnNight } from "@/lib/matches/queries";
 import { dayLabel, duration, matchTime } from "@/components/match-archive";
 import { MapShot } from "@/components/map-shot";
 import {
@@ -360,6 +361,11 @@ export async function MatchDetailView({
   // One broken row would otherwise carry the whole side's figure past 100% and
   // make the sound records look wrong too.
   const footage = await footageForMatch(match.archiveDay, match.sourceMatchId);
+  // The records that fell in THIS match, for the strip under the scoreboard.
+  // Same computation the night article's note uses, filtered to one match.
+  const matchRecords = (await recordsBrokenOnNight(match.archiveDay)).filter(
+    (record) => record.sourceMatchId === match.sourceMatchId,
+  );
 
   const soundShooters = active.filter((p) => shootingIsSound(p.shotsHit, p.shotsFired));
   const shotsFired = soundShooters.reduce((sum, p) => sum + p.shotsFired, 0);
@@ -543,6 +549,79 @@ export async function MatchDetailView({
         </p>
       ) : null}
 
+      {/*
+        Records that fell in this match, said on the match itself.
+
+        The night's article carries the same note pointing here; this is the
+        other direction (owner, 7 August 2026): somebody browsing matches should
+        see where a record fell and have a route to the write-up and the player.
+        Computed by `recordsBrokenOnNight`, never written by the model.
+      */}
+      {matchRecords.length > 0 ? (
+        <div className="plate mt-4 border-l-2 border-l-oxide-400 p-3">
+          <ul className="space-y-1.5">
+            {matchRecords.map((record) => (
+              <li
+                key={`${record.kind}-${record.mapName}`}
+                className="text-sm leading-relaxed text-steel-300"
+              >
+                <span className="text-oxide-400" aria-hidden="true">
+                  ★{" "}
+                </span>
+                {record.kind === "fastest-run"
+                  ? `New fastest run on ${record.mapName} — ${(record.value / 1000).toFixed(2)}s`
+                  : record.kind === "best-streak"
+                    ? `New best streak in one match — ${record.value}`
+                    : record.kind === "most-caps"
+                      ? `New record for captures in one match — ${record.value}`
+                      : `The biggest win on record — by ${record.value}`}
+                {record.playerName ? (
+                  <>
+                    {" "}
+                    by <PlayerLink name={record.playerName} />
+                  </>
+                ) : null}
+                <span className="text-steel-500">
+                  {" "}
+                  ·{" "}
+                  <Link
+                    href={`/news/${match.archiveDay}`}
+                    className="hover:text-rust-300"
+                  >
+                    the night&rsquo;s write-up
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/*
+        The written report, under the result it describes and above the chart
+        that explains it — the order the owner asked for on 7 August 2026:
+        scoreboard, then what happened, then how it was won. It opened the page
+        once and that was backwards; the scoreboard still leads. Prose nobody
+        wrote is still labelled as such.
+      */}
+      {match.report ? (
+        <div className="panel mt-4 p-4">
+          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
+            {match.report
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean)
+              .map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+          </div>
+          <p className="mt-3 text-[0.6875rem] text-steel-600">
+            Written automatically from the scoreboard and event log
+            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
+            figures recorded on this page.
+          </p>
+        </div>
+      ) : null}
 
       {/*
         How the match went, and the footage of it, side by side.
@@ -783,35 +862,6 @@ export async function MatchDetailView({
           ) : null}
         </div>
       </details>
-
-      {/*
-        The write-up, under the figures it was written from.
-
-        It used to open the page, on the reasoning that it says what happened
-        and the numbers below are there to check it against. That had it exactly
-        backwards for the people who actually use this site: the record is the
-        thing, the prose is derived from it, and a reader who came to look up a
-        scoreboard had to scroll past two hundred pixels of generated paragraphs
-        to reach it. Prose nobody wrote is still labelled as such.
-      */}
-      {match.report ? (
-        <div className="panel mt-4 p-4">
-          <div className="space-y-2.5 text-sm leading-relaxed text-steel-300">
-            {match.report
-              .split(/\n{2,}/)
-              .map((paragraph) => paragraph.trim())
-              .filter(Boolean)
-              .map((paragraph, i) => (
-                <p key={i}>{paragraph}</p>
-              ))}
-          </div>
-          <p className="mt-3 text-[0.6875rem] text-steel-600">
-            Written automatically from the scoreboard and event log
-            {match.reportModel ? ` by ${match.reportModel}` : ""}. It can only use the
-            figures recorded on this page.
-          </p>
-        </div>
-      ) : null}
 
       <div className="mt-4">
         {/* Event streams, collapsed. */}
