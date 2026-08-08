@@ -12,7 +12,7 @@
 import { desc, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matches, nightColumns, opinionPieces } from "@/lib/db/schema";
+import { dmPlayers, dmRounds, matches, nightColumns, opinionPieces } from "@/lib/db/schema";
 import { listBackups } from "@/lib/backup";
 import { listSyncPings } from "@/lib/sync-ping";
 import { quietSince } from "@/lib/sync-freshness";
@@ -83,6 +83,18 @@ export type Health = {
   archive: {
     matches: number;
     nights: number;
+  };
+  /**
+   * The deathmatch archive contradicting itself, surfaced here because this is
+   * the one endpoint `vet-live` polls without secrets. `npm run vet:dm` is the
+   * same pair of questions by hand, with the rows named.
+   */
+  dm: {
+    /** Players with kills or deaths but zero seconds — the ranking column failing. */
+    untimedPlayers: number;
+    /** Sub-30-second rounds carrying stats — the phantom-round shape. */
+    phantomRounds: number;
+    broken: boolean;
   };
 };
 
@@ -192,8 +204,34 @@ export async function getHealth(): Promise<Health> {
   const announceStale =
     oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS;
 
+  /*
+   * The deathmatch archive contradicting itself. Both shapes have existed:
+   * the ranking column arriving empty was designed out before launch, and a
+   * phantom boundary round reached production on 7 August 2026 and was swept
+   * by hand. `vet-live` polls this endpoint, so either recurring turns the
+   * check red within six hours with nobody watching.
+   */
+  // counts-everything (dm): integrity questions read every row on purpose.
+  const [dmIntegrity] = await db
+    .select({
+      untimed: sql<number>`count(*) filter (
+        where (${dmPlayers.kills} > 0 or ${dmPlayers.deaths} > 0)
+          and ${dmPlayers.secondsPlayed} = 0
+      )::int`,
+      phantoms: sql<number>`count(distinct ${dmRounds.id}) filter (
+        where ${dmRounds.endedAt} is not null
+          and ${dmRounds.endedAt} - ${dmRounds.startedAt} < interval '30 seconds'
+          and (${dmPlayers.kills} > 0 or ${dmPlayers.deaths} > 0)
+      )::int`,
+    })
+    .from(dmRounds)
+    .leftJoin(dmPlayers, sql`${dmPlayers.roundId} = ${dmRounds.id}`);
+
+  const dmBroken =
+    (dmIntegrity?.untimed ?? 0) > 0 || (dmIntegrity?.phantoms ?? 0) > 0;
+
   return {
-    ok: !syncStale && !backupStale && !announceStale,
+    ok: !syncStale && !backupStale && !announceStale && !dmBroken,
     sync: {
       lastAt: lastArrival?.toISOString() ?? null,
       minutesAgo,
@@ -211,6 +249,11 @@ export async function getHealth(): Promise<Health> {
       stale: announceStale,
     },
     archive: { matches: row?.matchCount ?? 0, nights: row?.nightCount ?? 0 },
+    dm: {
+      untimedPlayers: dmIntegrity?.untimed ?? 0,
+      phantomRounds: dmIntegrity?.phantoms ?? 0,
+      broken: dmBroken,
+    },
   };
 }
 
