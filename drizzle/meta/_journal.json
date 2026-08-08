@@ -141,6 +141,13 @@
       "when": 1786142848213,
       "tag": "0019_far_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786167527053,
+      "tag": "0020_amusing_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

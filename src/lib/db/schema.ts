@@ -887,6 +887,17 @@ export const dmPlayers = pgTable(
       .default([])
       .notNull(),
 
+    /**
+     * Powerup pickups, emitted since the 7 August continuous-telemetry DLL:
+     * the damage amp, invulnerability, super armor and super health. Some maps
+     * have them and some do not, and who controls them says something the frag
+     * count does not — the owner asked for exactly these four.
+     */
+    powerupAmps: integer("powerup_amps").default(0).notNull(),
+    powerupInvulns: integer("powerup_invulns").default(0).notNull(),
+    powerupSuperArmors: integer("powerup_super_armors").default(0).notNull(),
+    powerupSuperHealths: integer("powerup_super_healths").default(0).notNull(),
+
     /** Private. Stored, never served. */
     identityKey: text("identity_key"),
   },

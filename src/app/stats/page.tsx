@@ -13,6 +13,7 @@ import { mapSummaries } from "@/lib/matches/map-stats";
 import { weaponTotals } from "@/lib/matches/weapon-stats";
 import { getTicker } from "@/lib/matches/ticker";
 import { StatTable } from "@/components/stat-table";
+import { StatsTabs } from "@/components/stats-tabs";
 import { RecordsPanel } from "@/components/records-panel";
 import { MapStatsTable } from "@/components/map-stats-table";
 import { WeaponStatsTable } from "@/components/weapon-stats-table";
@@ -95,6 +96,8 @@ export default async function StatsPage({ searchParams }: Props) {
           <span className="text-steel-300">{maps.length}</span> maps
         </p>
       </div>
+
+      <StatsTabs active="ctf" />
 
       {/*
         Four sections is enough to need a way past them.

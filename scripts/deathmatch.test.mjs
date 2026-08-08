@@ -156,6 +156,11 @@ test("every field on a stored player is one this file names", () => {
     "lastSeen",
     "maxStreak",
     "name",
+    // The four powerups, added with the 7 August continuous-telemetry DLL.
+    "powerupAmps",
+    "powerupInvulns",
+    "powerupSuperArmors",
+    "powerupSuperHealths",
     "score",
     "secondsPlayed",
     "shots",

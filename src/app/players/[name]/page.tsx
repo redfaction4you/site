@@ -6,6 +6,7 @@ import { dayLabel } from "@/components/match-archive";
 import { FormRun } from "@/components/form-run";
 import { PlayerRecord } from "@/components/player-record";
 import { MIN_MATCHES_FOR_PROFILE } from "@/lib/ai/player-profile";
+import { getDmPlayer } from "@/lib/dm/queries";
 import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
 import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
@@ -153,13 +154,15 @@ export default async function PlayerPage({ params }: Props) {
   const { name } = await params;
   const decoded = decodeURIComponent(name);
 
-  const [player, history, profile, everyone, pairings] = await Promise.all([
-    getPlayer(decoded),
-    getPlayerRecord(decoded),
-    getPlayerProfile(decoded),
-    listPlayers(),
-    getPlayerPairings(decoded),
-  ]);
+  const [player, history, profile, everyone, pairings, dmRecord] =
+    await Promise.all([
+      getPlayer(decoded),
+      getPlayerRecord(decoded),
+      getPlayerProfile(decoded),
+      listPlayers(),
+      getPlayerPairings(decoded),
+      getDmPlayer(decoded),
+    ]);
 
   if (!player) notFound();
 
@@ -416,6 +419,49 @@ export default async function PlayerPage({ params }: Props) {
           ) : null}
         </StatGroup>
       </div>
+
+      {/*
+        The deathmatch record, apart from the CTF one and never merged into it.
+
+        A deathmatch frag and a CTF frag are different things and averaging
+        them describes nobody — decided 7 August 2026. Same person, two
+        records: everything above is CTF, this block is the DM server, framed
+        on time played because that server has no matches to count.
+      */}
+      {dmRecord ? (
+        <div className="mt-4">
+          <StatGroup title="Deathmatch, separately">
+            <Figure
+              label="Time on the server"
+              value={
+                dmRecord.secondsPlayed >= 3600
+                  ? `${Math.floor(dmRecord.secondsPlayed / 3600)}h ${Math.floor((dmRecord.secondsPlayed % 3600) / 60)}m`
+                  : dmRecord.secondsPlayed >= 60
+                    ? `${Math.floor(dmRecord.secondsPlayed / 60)}m`
+                    : `${dmRecord.secondsPlayed}s`
+              }
+            />
+            <Figure label="Frags" value={String(dmRecord.kills)} />
+            <Figure label="Deaths" value={String(dmRecord.deaths)} />
+            <Figure label="Best streak" value={String(dmRecord.bestStreak)} />
+            <Figure
+              label="Accuracy"
+              value={(() => {
+                const dmAccuracy = accuracyOf(dmRecord.shotsHit, dmRecord.shotsFired);
+                return dmAccuracy === null ? "-" : percent(dmAccuracy);
+              })()}
+            />
+            <div className="col-span-2 self-end">
+              <Link
+                href="/stats/dm"
+                className="text-[0.6875rem] text-steel-500 underline decoration-basalt-600 underline-offset-2 hover:text-steel-300"
+              >
+                The deathmatch board
+              </Link>
+            </div>
+          </StatGroup>
+        </div>
+      ) : null}
 
       {/*
         Who they actually play with, and who they play against.

@@ -76,6 +76,15 @@ export type PublicDmPlayer = {
   lastSeen: Date | null;
   /** The span above, in seconds. The denominator of every rate on the DM pages. */
   secondsPlayed: number;
+  /**
+   * Powerup pickups, sent since the 7 August continuous-telemetry DLL: the
+   * damage amp, invulnerability, super armor and super health. Zero on rounds
+   * recorded before that DLL, and zero on maps that simply have none.
+   */
+  powerupAmps: number;
+  powerupInvulns: number;
+  powerupSuperArmors: number;
+  powerupSuperHealths: number;
   weaponStats: PublicWeaponStat[];
   /** Private. Stored, never served. Same HMAC, same salt, so same person. */
   identityKey: string | null;
@@ -105,6 +114,11 @@ const MAX_FIELDS = [
   "maxStreak",
   "damageGiven",
   "damageTaken",
+  // Powerup counts are running totals like kills, so the largest reading wins.
+  "powerupAmps",
+  "powerupInvulns",
+  "powerupSuperArmors",
+  "powerupSuperHealths",
   // secondsPlayed is deliberately absent: it is derived from the two instants
   // below, and taking the largest of two spans would throw away the earlier
   // arrival. See `mergeDmPlayers`.
@@ -147,6 +161,10 @@ function sanitizePlayer(source: Record<string, unknown> = {}): PublicDmPlayer {
     deaths: whole(source.deaths),
     score: whole(source.score),
     maxStreak: whole(source.max_streak),
+    powerupAmps: whole(source.powerup_amps),
+    powerupInvulns: whole(source.powerup_invulns),
+    powerupSuperArmors: whole(source.powerup_super_armors),
+    powerupSuperHealths: whole(source.powerup_super_healths),
     shotsHit: Math.max(0, finite(source.shots_hit)),
     shotsFired: Math.max(0, finite(source.shots_fired)),
     damageGiven: Math.max(0, finite(source.damage_given)),
