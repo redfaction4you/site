@@ -84,6 +84,12 @@ export default async function StatsPage({ searchParams }: Props) {
             it. Same twelve pixels, now the thing it looks like. */}
         <h1 className="eyebrow">Stats</h1>
         <p className="font-mono text-xs text-steel-600">
+          {/* "All time" said plainly. A reader compared a figure here with the
+              same figure on a player page, found them different, and reasonably
+              assumed one page was recent and the other career. Both are career;
+              what actually differed was that they had two identities. Neither
+              page saying its period made a data problem look like a bug. */}
+          <span className="text-steel-300">all time</span> ·{" "}
           <span className="text-steel-300">{players.length}</span> players ·{" "}
           <span className="text-steel-300">{boards.length}</span> boards ·{" "}
           <span className="text-steel-300">{maps.length}</span> maps

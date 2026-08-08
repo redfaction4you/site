@@ -167,6 +167,25 @@
     font-size: 15px;
   }
 
+  /*
+   * Phones get the browser default back.
+   *
+   * 15px is a density knob, and density is what a phone has least use for: the
+   * screen is 375px wide and held at arm's length, so the thing to optimise is
+   * whether a figure can be read, not how many fit. Measured on a real page at
+   * 375px before this: body copy landed at 11.25px and the labels under every
+   * number at 8.4px, which is smaller than anything a browser would choose.
+   *
+   * Moving the root rather than the components keeps every proportion the
+   * design already has — type, padding, gaps and the spacing scale all move
+   * together, which is the whole argument for the knob existing.
+   */
+  @media (max-width: 640px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
   body {
     color: var(--color-steel-200);
     background-color: var(--color-basalt-950);
@@ -305,6 +324,56 @@
     color: var(--color-steel-500);
   }
 
+  /*
+   * The three label styles have a floor on phones.
+   *
+   * They are the smallest type on the site and they are also the type that says
+   * what a number means, so they are the last thing that should shrink. The root
+   * bump above lifts them from 8.4px to 9-11px; this takes them the rest of the
+   * way. Wide letter-spacing costs legibility at small sizes as well, so it comes
+   * in a little too.
+   */
+  @media (max-width: 640px) {
+    .eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.24em;
+    }
+    .rule-heading,
+    .figure-label {
+      font-size: 0.6875rem;
+      letter-spacing: 0.12em;
+    }
+
+    /*
+     * A wide table has to say that it is wide.
+     *
+     * The match history is eleven columns and 767px of it in a 344px phone, so
+     * five columns are off the right edge with nothing to suggest they exist —
+     * a reader who never swipes concludes the archive does not record accuracy.
+     * Hiding columns was the other option and it is the wrong one here: this is
+     * an archive whose argument is that it does not quietly drop things.
+     *
+     * Pure CSS, no markup: the two `local` gradients scroll with the content and
+     * uncover the two fixed shadows only while there is more in that direction,
+     * so the hint disappears at each end by construction rather than by script.
+     */
+    .panel.overflow-x-auto {
+      background-image:
+        linear-gradient(to right, var(--color-basalt-850) 40%, transparent),
+        linear-gradient(to left, var(--color-basalt-850) 40%, transparent),
+        linear-gradient(to right, rgb(0 0 0 / 0.45), transparent),
+        linear-gradient(to left, rgb(0 0 0 / 0.45), transparent);
+      background-position: 0 0, 100% 0, 0 0, 100% 0;
+      background-repeat: no-repeat;
+      background-size:
+        32px 100%,
+        32px 100%,
+        14px 100%,
+        14px 100%;
+      background-attachment: local, local, scroll, scroll;
+    }
+  }
+
   /* A strip thin enough that a scrollbar under it reads as a rendering fault.
      The fade at its edge does the same job. */
   .scrollbar-none {
@@ -330,6 +399,38 @@
    Sits outside @layer so it beats Tailwind's font-bold utility. */
 .font-brand {
   font-weight: 400;
+}
+
+/*
+ * The smallest type on the site has a floor on phones.
+ *
+ * `.eyebrow`, `.figure-label` and `.rule-heading` are handled in @layer
+ * components, but most of the small type is not those classes: it is
+ * `text-[0.5625rem]` and `text-[0.625rem]` written inline, 118 times across 37
+ * files, mostly on table headers and stat captions. Editing all of them would
+ * be a large diff that has to stay consistent forever; one rule here is
+ * reversible and cannot drift.
+ *
+ * 9px and 10px are below what any browser would choose unprompted, and they are
+ * disproportionately the text that says what a number means. Desktop keeps the
+ * density it was designed with — this only applies where the screen is small.
+ *
+ * Outside @layer deliberately, the same reason `.font-brand` above is: it has
+ * to beat Tailwind's utilities, which these are.
+ */
+@media (max-width: 640px) {
+  /* The W/L squares in a form run; the letter has to keep fitting its box. */
+  [class*="text-[0.5rem]"] {
+    font-size: 0.625rem;
+  }
+
+  [class*="text-[0.5625rem]"] {
+    font-size: 0.6875rem;
+  }
+
+  [class*="text-[0.625rem]"] {
+    font-size: 0.75rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

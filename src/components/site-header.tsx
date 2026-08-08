@@ -99,7 +99,7 @@ export async function SiteHeader() {
           <Link
             key={item.href}
             href={item.href}
-            className="shrink-0 rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-steel-300 hover:text-steel-100"
+            className="flex shrink-0 items-center rounded-sm px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-steel-300 hover:text-steel-100"
           >
             {item.label}
           </Link>
@@ -108,7 +108,7 @@ export async function SiteHeader() {
             than leaving a phone with no way to search at all. */}
         <Link
           href="/search"
-          className="shrink-0 rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-rust-400 hover:text-rust-300"
+          className="flex shrink-0 items-center rounded-sm px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-rust-400 hover:text-rust-300"
         >
           Search
         </Link>

@@ -232,8 +232,13 @@ export default async function PlayerPage({ params }: Props) {
 
             Newest on the right, the way a run of results reads everywhere else.
           */}
+          {/* Shown on phones too. It was `hidden sm:block`, so the one figure
+              this page exists to make easy — whether somebody is playing well
+              now — was the one figure a phone did not get. It fits: five to ten
+              small squares are narrower than the won-and-lost figure beside
+              them. */}
           {form.length > 0 ? (
-            <div className="hidden sm:block">
+            <div>
               <p className="figure-label mb-1.5">Recent form</p>
               <FormRun
                 size="md"
@@ -329,7 +334,21 @@ export default async function PlayerPage({ params }: Props) {
         comparable; a flat grid of nine weighted every figure the same and
         invited none of them to be read against another.
       */}
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
+      {/*
+        Said out loud, because a reader asked.
+        Every figure below is a career total and so is every board on /stats,
+        but neither page said so, and somebody comparing the two reasonably
+        guessed one of them was "recent" — which is exactly the sort of thing
+        that makes two correct pages look like they disagree.
+      */}
+      <p className="mt-6 text-sm text-steel-400">
+        Everything below covers all {player.matchesPlayed} recorded{" "}
+        {player.matchesPlayed === 1 ? "match" : "matches"}, not just the latest
+        night. The boards on <Link href="/stats" className="underline decoration-basalt-600 underline-offset-4 hover:text-steel-200">Stats</Link>{" "}
+        use the same totals.
+      </p>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
         <StatGroup title="Fighting">
           <Figure label="Frags" value={String(player.kills)} />
           <Figure label="Deaths" value={String(player.deaths)} />

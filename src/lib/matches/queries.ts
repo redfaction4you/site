@@ -786,7 +786,18 @@ export const recentForm = cache(async function recentForm(
 ): Promise<Map<string, (boolean | null)[]>> {
   const rows = await db
     .select({
-      nameKey: sql<string>`lower(${matchPlayers.name})`,
+      /*
+       * Resolved to a person, not to the name on the row.
+       *
+       * This keyed on `lower(match_players.name)` and the page looked it up by
+       * display name, so anybody whose rows carry more than one name got a form
+       * strip built from only the matches they happened to play under the name
+       * the site calls them. Romek's Gaymer and Special ED nights were missing
+       * from his, and five of Skuldug's six names from his. The totals beside
+       * the strip were right the whole time, which is what made it invisible —
+       * the same shape as `playerTotalColumns` once selecting `min(name)`.
+       */
+      identityKey: IDENTITY_KEY,
       team: matchPlayers.team,
       winner: matches.winner,
       startedAt: matches.startedAt,
@@ -796,15 +807,21 @@ export const recentForm = cache(async function recentForm(
     .where(and(TOOK_PART, eq(matches.status, "final"), MATCH_COMPLETED))
     .orderBy(desc(matches.startedAt));
 
+  /*
+   * Keyed by name on the way out, so the identity never leaves this function.
+   * `match_players.identity_key` is the one column that must not reach a page.
+   */
+  const canonical = await canonicalNames();
   const byPlayer = new Map<string, (boolean | null)[]>();
 
   for (const row of rows) {
-    const runs = byPlayer.get(row.nameKey) ?? [];
+    const nameKey = (canonical.get(row.identityKey) ?? row.identityKey).toLowerCase();
+    const runs = byPlayer.get(nameKey) ?? [];
     if (runs.length >= perPlayer) continue;
     // Null rather than false with no winner: a match without a result is not a
     // defeat, the same rule the player page's history uses.
     runs.push(row.winner ? row.winner === row.team : null);
-    byPlayer.set(row.nameKey, runs);
+    byPlayer.set(nameKey, runs);
   }
 
   // Collected newest first, read oldest first, the way a run of form is written.
