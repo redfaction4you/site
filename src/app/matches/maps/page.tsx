@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { GameTabs } from "@/components/game-tabs";
 import { MapShot } from "@/components/map-shot";
 import { mapSlug } from "@/lib/matches/maps";
 import { getMapRecord, listMapNames } from "@/lib/matches/queries";
@@ -57,6 +58,8 @@ export default async function MapsPage() {
           <span className="text-steel-300">{names.length}</span> maps
         </p>
       </div>
+
+      <GameTabs ctfHref="/matches/maps" dmHref="/matches/maps/dm" active="ctf" />
 
       {maps.length === 0 ? (
         <p className="py-10 text-sm text-steel-500">

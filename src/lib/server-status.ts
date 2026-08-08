@@ -258,8 +258,29 @@ async function getMapInfo(rflName: string | undefined): Promise<MapInfo | null> 
   };
 }
 
-export async function getServerStatus(): Promise<ServerStatus> {
-  const address = process.env.NEXT_PUBLIC_SERVER_ADDRESS;
+/**
+ * The deathmatch server, same lookup at its own port.
+ *
+ * `NEXT_PUBLIC_DM_SERVER_ADDRESS` wins where set; absent one, the host is the
+ * match server's — the two run on the same machine — and the port is 17756,
+ * which is a recorded fact of the install rather than a guess. Deriving it
+ * means the section works without a Vercel env change and a fresh build, which
+ * is the trap new env vars fall into here.
+ */
+export async function getDmServerStatus(): Promise<ServerStatus> {
+  const configured = process.env.NEXT_PUBLIC_DM_SERVER_ADDRESS;
+  if (configured) return getServerStatus(configured);
+
+  const ctf = process.env.NEXT_PUBLIC_SERVER_ADDRESS;
+  const host = ctf?.split(":")[0];
+  if (!host) return { state: "unknown", reason: "No server address configured." };
+  return getServerStatus(`${host}:17756`);
+}
+
+export async function getServerStatus(
+  addressOverride?: string,
+): Promise<ServerStatus> {
+  const address = addressOverride ?? process.env.NEXT_PUBLIC_SERVER_ADDRESS;
   if (!address) return { state: "unknown", reason: "No server address configured." };
 
   const [host, port] = address.split(":");

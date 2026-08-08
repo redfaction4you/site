@@ -124,6 +124,45 @@ export const getDmPlayer = cache(async function getDmPlayer(
   return everyone.find((player) => player.name.toLowerCase() === lower) ?? null;
 });
 
+export type DmMapSummary = {
+  mapName: string;
+  rounds: number;
+  secondsPlayed: number;
+  kills: number;
+  players: number;
+  lastPlayed: string | null;
+};
+
+/**
+ * Every map the DM server has recorded play on, most played first.
+ *
+ * Played is measured in time, not rounds — a rotation nobody joined stores
+ * nothing, and two short rounds are less play than one long one. The same
+ * frame as the player board above.
+ *
+ * counts-everything (dm): no completion rule exists on this side; a rotation
+ * cut short by a vote was still play on that map.
+ */
+export const listDmMaps = cache(async function listDmMaps(): Promise<
+  DmMapSummary[]
+> {
+  const rows = await db
+    .select({
+      mapName: dmRounds.mapName,
+      rounds: sql<number>`count(distinct ${dmRounds.id})::int`,
+      secondsPlayed: sql<number>`coalesce(sum(${dmPlayers.secondsPlayed}), 0)::int`,
+      kills: sql<number>`coalesce(sum(${dmPlayers.kills}), 0)::int`,
+      players: sql<number>`count(distinct ${DM_IDENTITY_KEY})::int`,
+      lastPlayed: sql<string | null>`(max(${dmRounds.startedAt}) at time zone 'America/Los_Angeles')::date::text`,
+    })
+    .from(dmRounds)
+    .leftJoin(dmPlayers, sql`${dmPlayers.roundId} = ${dmRounds.id}`)
+    .groupBy(dmRounds.mapName)
+    .orderBy(sql`sum(${dmPlayers.secondsPlayed}) desc nulls last`);
+
+  return rows;
+});
+
 /** Headline figures for the DM tab: how much play the archive holds. */
 export const dmTotals = cache(async function dmTotals() {
   const [row] = await db

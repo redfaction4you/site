@@ -20,7 +20,11 @@ import {
 import { mapSlug } from "@/lib/matches/maps";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
-import { getServerStatus, type ServerStatus } from "@/lib/server-status";
+import {
+  getDmServerStatus,
+  getServerStatus,
+  type ServerStatus,
+} from "@/lib/server-status";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
 
 export const metadata: Metadata = {
@@ -44,6 +48,20 @@ const SERVER = {
 };
 
 const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
+
+/**
+ * The deathmatch server: same machine, its own port. The address shown falls
+ * back to the match server's host with the DM port, which is how the status
+ * lookup derives it too.
+ */
+const DM_SERVER = {
+  name: process.env.NEXT_PUBLIC_DM_SERVER_NAME ?? "RedFaction4You.com [DM]",
+  address:
+    process.env.NEXT_PUBLIC_DM_SERVER_ADDRESS ??
+    (process.env.NEXT_PUBLIC_SERVER_ADDRESS
+      ? `${process.env.NEXT_PUBLIC_SERVER_ADDRESS.split(":")[0]}:17756`
+      : null),
+};
 
 /** Minutes into something a person would say out loud. */
 function formatAgo(minutes: number): string {
@@ -164,6 +182,7 @@ export default async function ServerPage() {
     totals,
     latest,
     status,
+    dmStatus,
     startTimes,
     lastSync,
     rotation,
@@ -174,6 +193,7 @@ export default async function ServerPage() {
     archiveTotals(),
     latestDay(),
     getServerStatus(),
+    getDmServerStatus(),
     getMatchStartTimes(),
     lastSyncAt(),
     mapRotation(),
@@ -181,6 +201,8 @@ export default async function ServerPage() {
     serverRecords(),
     liveMatch(),
   ]);
+
+  const dmOnline = dmStatus.state === "online" ? dmStatus : null;
 
   const mostPlayed = rotation[0]?.played ?? 0;
 
@@ -383,6 +405,87 @@ export default async function ServerPage() {
           )}
         </div>
       </div>
+
+      {/*
+        The second server, which this page never mentioned.
+
+        Everything above is the match server. The DM server has run beside it
+        since 6 August and the owner asked where it was — same machine, its own
+        port, no matches: people just join and play, and the archive records
+        time on the server rather than results. Compact on purpose: the panel
+        answers "is anyone on, and how do I join", and the record itself lives
+        under Stats.
+      */}
+      <section className="mt-10">
+        <h2 className="section-heading">The deathmatch server</h2>
+        <div className="mt-4 grid gap-x-8 gap-y-4 lg:grid-cols-[19rem_1fr]">
+          <div className="min-w-0">
+            <StatusBadge status={dmStatus} />
+
+            {dmOnline?.map ? (
+              <div className="mt-3 min-w-0">
+                <p className="truncate text-sm text-steel-200">{dmOnline.map}</p>
+                <p className="text-xs text-steel-500">
+                  {dmOnline.gameType ?? ""}
+                  {dmOnline.humans > 0
+                    ? ` · ${dmOnline.humans} playing`
+                    : " · empty"}
+                </p>
+              </div>
+            ) : null}
+            {dmStatus.state === "offline" ? (
+              <p className="mt-2 text-sm text-steel-500">
+                Normal between sessions.
+              </p>
+            ) : null}
+
+            <dl className="mt-4 space-y-1.5 border-t border-basalt-800 pt-3 text-xs">
+              <Line label="Address">
+                {DM_SERVER.address ? (
+                  <code className="font-mono text-steel-100">{DM_SERVER.address}</code>
+                ) : (
+                  <span className="text-steel-500">ask in Discord</span>
+                )}
+              </Line>
+              <Line label="Client">{dmOnline?.client ?? SERVER.client}</Line>
+              <Line label="Slots">{dmOnline?.maxPlayers ?? "-"}</Line>
+              <Line label="Name">{DM_SERVER.name}</Line>
+            </dl>
+          </div>
+
+          <div className="min-w-0">
+            {dmOnline?.game?.players.length ? (
+              <div>
+                <h3 className="rule-heading">On the server now</h3>
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  {dmOnline.game.players.map((player) => (
+                    <li key={player.name} className="text-sm text-steel-200">
+                      {player.name}
+                      {player.kills != null ? (
+                        <span className="ml-1.5 font-mono text-xs tabular-nums text-steel-500">
+                          {player.kills}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed text-steel-400">
+                No matches here and no waiting for one: join and play. Frags,
+                accuracy, streaks and time on the server all count towards{" "}
+                <Link
+                  href="/stats/dm"
+                  className="text-steel-200 underline decoration-basalt-600 underline-offset-2 hover:text-rust-300"
+                >
+                  the deathmatch record
+                </Link>
+                , which ranks on time played.
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/*
         What actually happens here, which the page never said.
