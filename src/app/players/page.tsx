@@ -39,13 +39,14 @@ function percent(value: number): string {
  * week, so thirty days is eight or nine sessions and would call somebody active
  * who has not turned up since last month; and if nothing were played for a
  * while, a calendar window would empty this list entirely and imply the server
- * had no players rather than no matches. Counting nights asks the question
- * people actually mean: have they been around lately.
+ * had no players rather than no matches.
  *
- * Four is roughly a fortnight here, so missing one session does not remove
- * anybody.
+ * It was four nights, roughly a fortnight, and the owner called that far too
+ * quick — a regular back from a month's holiday is not "quiet", 7 August 2026.
+ * Ninety days is the decision. The empty-window worry is handled below instead
+ * of by counting nights: if the window would hide everybody, it hides nobody.
  */
-const RECENT_NIGHTS = 4;
+const RECENT_DAYS = 90;
 
 type Props = {
   searchParams: Promise<{ show?: string }>;
@@ -71,10 +72,9 @@ export default async function PlayersPage({ searchParams }: Props) {
    * problem and gets a display answer. A link, so the filtered view is a URL
    * somebody can paste, the same trade every filter on this site makes.
    */
-  const nights = [...new Set(everyone.map((p) => p.lastSeen).filter(Boolean))]
-    .sort()
-    .reverse() as string[];
-  const cutoff = nights[RECENT_NIGHTS - 1] ?? nights[nights.length - 1] ?? null;
+  // Days are America/Los_Angeles ISO strings, so the cutoff is one too.
+  const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000)
+    .toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
 
   /*
    * Everyone by default, and the filter is the option.
@@ -85,9 +85,12 @@ export default async function PlayersPage({ searchParams }: Props) {
    * two matches in July played two real matches.
    */
   const recentOnly = params.show === "recent";
-  const recent = cutoff
-    ? everyone.filter((player) => player.lastSeen && player.lastSeen >= cutoff)
-    : everyone;
+  const withinWindow = everyone.filter(
+    (player) => player.lastSeen && player.lastSeen >= cutoff,
+  );
+  // A dormant spell must read as "no matches lately", not "no players": if the
+  // window would hide everybody, it hides nobody.
+  const recent = withinWindow.length > 0 ? withinWindow : everyone;
 
   const players = recentOnly ? recent : everyone;
   const quiet = everyone.length - recent.length;
@@ -132,8 +135,8 @@ export default async function PlayersPage({ searchParams }: Props) {
           </Link>
           <span className="text-steel-600">
             {recentOnly
-              ? `${quiet} ${quiet === 1 ? "person is" : "people are"} hidden, having last played before ${cutoff}`
-              : `${quiet} of them ${quiet === 1 ? "has" : "have"} not played in the last ${RECENT_NIGHTS} nights`}
+              ? `${quiet} ${quiet === 1 ? "person is" : "people are"} hidden, having last played over ${RECENT_DAYS} days ago`
+              : `${quiet} of them ${quiet === 1 ? "has" : "have"} not played in the last ${RECENT_DAYS} days`}
           </span>
         </nav>
       ) : null}
