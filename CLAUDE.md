@@ -48,6 +48,7 @@ npm run vet          # the archive against itself
 npm run vet:queries  # every match query filters, or says why not
 npm run vet:pages    # a rendered page against itself; -- <url> for production
 npm run vet:names    # no page shows a name belonging to somebody called something else
+npm run vet:dm       # the deathmatch archive against itself; exits non-zero on a finding
 npm run drives:recompute  # rerun drive credit over stored events; -- --go
 ```
 
