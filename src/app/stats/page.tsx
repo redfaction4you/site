@@ -83,7 +83,7 @@ export default async function StatsPage({ searchParams }: Props) {
         {/* The page had no heading at all, only an eyebrow-styled paragraph, so
             its outline started at h2 and a screen reader was given no title for
             it. Same twelve pixels, now the thing it looks like. */}
-        <h1 className="eyebrow">Stats</h1>
+        <h1 className="font-display text-2xl font-bold uppercase tracking-[0.14em] text-steel-100">Stats</h1>
         <p className="font-mono text-xs text-steel-600">
           {/* "All time" said plainly. A reader compared a figure here with the
               same figure on a player page, found them different, and reasonably
@@ -107,15 +107,17 @@ export default async function StatsPage({ searchParams }: Props) {
         can copy out of the address bar is worth more here than a highlight that
         follows the viewport.
       */}
+      {/* Pills rather than bare words: the owner could not tell these were
+          controls. Same anchors underneath — every one is still a URL. */}
       <nav
         aria-label="Sections"
-        className="flex flex-wrap gap-x-5 gap-y-1 border-b border-basalt-800 py-2"
+        className="flex flex-wrap gap-2 border-b border-basalt-800 py-3"
       >
         {SECTIONS.map((section) => (
           <a
             key={section.id}
             href={`#${section.id}`}
-            className="font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-steel-400 hover:text-rust-300"
+            className="rounded-full border border-basalt-600 px-3.5 py-1.5 font-display text-xs font-semibold uppercase tracking-widest text-steel-300 transition-colors hover:border-rust-500 hover:text-rust-300"
           >
             {section.label}
           </a>
@@ -124,7 +126,7 @@ export default async function StatsPage({ searchParams }: Props) {
 
       {records.length ? (
         <section id="records" className="scroll-mt-4 pt-5">
-          <h2 className="rule-heading">Records</h2>
+          <h2 className="section-heading">Records</h2>
           <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
             The best anybody has managed in a single match, and the matches they
             managed it in. Every one is a link to the game it was set in.
@@ -133,7 +135,7 @@ export default async function StatsPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      <h2 id="players" className="rule-heading scroll-mt-4 pt-7">
+      <h2 id="players" className="section-heading scroll-mt-4 pt-7">
         Players
       </h2>
 
@@ -196,7 +198,7 @@ export default async function StatsPage({ searchParams }: Props) {
                         <Link
                           href={`/stats/${board.key}`}
                           title={board.blurb}
-                          className="group/board flex items-baseline justify-between gap-2 font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-300 hover:text-rust-300"
+                          className="group/board flex items-baseline justify-between gap-2 font-display text-xs font-bold uppercase tracking-widest text-steel-200 hover:text-rust-300"
                         >
                           <span className="truncate">{board.label}</span>
                           {entries.length > SHOWN ? (
@@ -226,7 +228,7 @@ export default async function StatsPage({ searchParams }: Props) {
                               </span>
                               <span
                                 className={
-                                  "min-w-0 flex-1 truncate text-xs group-hover:text-rust-300 " +
+                                  "min-w-0 flex-1 truncate text-sm group-hover:text-rust-300 " +
                                   (entry.rank === 1
                                     ? "font-semibold text-steel-100"
                                     : "text-steel-200")
@@ -234,7 +236,7 @@ export default async function StatsPage({ searchParams }: Props) {
                               >
                                 {entry.player.name}
                               </span>
-                              <span className="shrink-0 font-mono text-xs tabular-nums text-steel-100">
+                              <span className="shrink-0 font-mono text-sm tabular-nums text-steel-100">
                                 {entry.display}
                               </span>
                             </Link>
@@ -273,7 +275,7 @@ export default async function StatsPage({ searchParams }: Props) {
         as two more grids of names.
       */}
       <section id="maps" className="scroll-mt-4 pt-8">
-        <h2 className="rule-heading">Maps</h2>
+        <h2 className="section-heading">Maps</h2>
         <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
           How each map actually plays. Not a ranking: a map that runs long and
           finishes 3-2 is a different game from one that runs long and finishes
@@ -283,7 +285,7 @@ export default async function StatsPage({ searchParams }: Props) {
       </section>
 
       <section id="weapons" className="scroll-mt-4 pt-8">
-        <h2 className="rule-heading">Weapons</h2>
+        <h2 className="section-heading">Weapons</h2>
         <p className="mb-3 mt-1.5 text-xs leading-relaxed text-steel-500">
           Every frag on record, by what caused it, and how much shooting each one
           took.

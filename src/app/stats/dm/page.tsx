@@ -40,7 +40,7 @@ export default async function DmStatsPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
-        <h1 className="eyebrow">Stats</h1>
+        <h1 className="font-display text-2xl font-bold uppercase tracking-[0.14em] text-steel-100">Stats</h1>
         <p className="font-mono text-xs text-steel-600">
           <span className="text-steel-300">all time</span> ·{" "}
           <span className="text-steel-300">{players.length}</span> players ·{" "}
@@ -73,7 +73,7 @@ export default async function DmStatsPage() {
         </div>
       ) : (
         <div className="panel mt-6 overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-[0.8125rem]">
             <thead>
               <tr className="border-b border-basalt-700 text-left">
                 {[
@@ -90,7 +90,7 @@ export default async function DmStatsPage() {
                   <th
                     key={label}
                     className={
-                      "whitespace-nowrap px-3 py-2 font-display text-[0.625rem] uppercase tracking-widest text-steel-500" +
+                      "whitespace-nowrap px-3 py-2 font-display text-[0.6875rem] uppercase tracking-widest text-steel-400" +
                       (i > 0 ? " text-right" : "")
                     }
                   >

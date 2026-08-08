@@ -36,9 +36,9 @@ export function MapStatsTable({ maps }: { maps: MapSummary[] }) {
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[46rem] border-collapse text-xs">
+        <table className="w-full min-w-[46rem] border-collapse text-[0.8125rem]">
           <thead>
-            <tr className="border-b border-basalt-700 text-left font-display text-[0.625rem] uppercase tracking-widest text-steel-500">
+            <tr className="border-b border-basalt-700 text-left font-display text-[0.6875rem] uppercase tracking-widest text-steel-400">
               <th scope="col" className="py-1.5 pr-3 font-bold">
                 Map
               </th>

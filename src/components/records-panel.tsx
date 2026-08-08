@@ -25,10 +25,10 @@ export function RecordsPanel({ items }: { items: TickerItem[] }) {
             href={item.href}
             className="plate group flex h-full flex-col gap-1 p-2.5 transition-colors hover:border-t-rust-500"
           >
-            <span className="font-display text-[0.625rem] uppercase tracking-widest text-rust-500">
+            <span className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-500">
               {item.label}
             </span>
-            <span className="text-xs leading-snug text-steel-300 group-hover:text-steel-100">
+            <span className="text-sm leading-snug text-steel-200 group-hover:text-steel-100">
               {item.text}
             </span>
           </Link>

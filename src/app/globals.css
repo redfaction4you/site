@@ -239,6 +239,37 @@
     color: var(--color-rust-500);
   }
 
+  /*
+   * A section title a reader can actually find.
+   *
+   * The stats page used `.rule-heading` for its four top-level sections, which
+   * is a 10px caption style built for labelling a group of figures — as a page
+   * landmark it disappeared, and the owner said so. This is the same shape at
+   * heading size: the rule still runs to the end of the row, so a section
+   * reads as owning everything under it.
+   */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-display, inherit);
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-steel-100);
+  }
+  .section-heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--color-basalt-600),
+      transparent
+    );
+  }
+
   /* The standard bordered slab most content sits in. */
   .panel {
     background-color: var(--color-basalt-850);

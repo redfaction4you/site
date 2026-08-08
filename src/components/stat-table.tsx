@@ -126,14 +126,14 @@ export function StatTable({
               <th
                 key={group}
                 colSpan={BOARDS.filter((board) => board.group === group).length}
-                className="border-b border-basalt-800 px-2 pb-1 pt-1.5 text-center font-display text-[0.5625rem] uppercase tracking-widest text-steel-600"
+                className="border-b border-basalt-800 px-2 pb-1 pt-1.5 text-center font-display text-[0.6875rem] uppercase tracking-widest text-steel-500"
               >
                 {BOARD_GROUP_LABEL[group]}
               </th>
             ))}
           </tr>
           <tr>
-            <th className="whitespace-nowrap border-b border-basalt-700 px-2 py-1 text-left font-display text-[0.5625rem] uppercase tracking-wider text-steel-500">
+            <th className="whitespace-nowrap border-b border-basalt-700 px-2 py-1.5 text-left font-display text-[0.6875rem] uppercase tracking-wider text-steel-400">
               Player
             </th>
             {columns.map((board) => {
@@ -157,7 +157,7 @@ export function StatTable({
                       : "none"
                   }
                   className={
-                    "whitespace-nowrap border-b border-basalt-700 px-2 py-1 text-right font-display text-[0.5625rem] uppercase tracking-wider " +
+                    "whitespace-nowrap border-b border-basalt-700 px-2 py-1.5 text-right font-display text-[0.6875rem] uppercase tracking-wider " +
                     // The band starts at the heading, so the sorted column is
                     // one shape from top to bottom.
                     (current ? "bg-rust-500/[0.07]" : "")
@@ -197,10 +197,10 @@ export function StatTable({
                 */
                 className="border-b border-basalt-800 odd:bg-steel-500/[0.04] hover:bg-rust-500/[0.07]"
               >
-                <td className="whitespace-nowrap px-2 py-1">
+                <td className="whitespace-nowrap px-2 py-1.5">
                   <Link
                     href={`/players/${encodeURIComponent(player.name)}`}
-                    className="text-xs text-steel-200 hover:text-rust-300"
+                    className="text-sm text-steel-200 hover:text-rust-300"
                   >
                     {player.name}
                   </Link>
@@ -220,7 +220,7 @@ export function StatTable({
                     <td
                       key={board.key}
                       className={
-                        "px-2 py-1 text-right font-mono text-[0.6875rem] tabular-nums " +
+                        "px-2 py-1.5 text-right font-mono text-[0.8125rem] tabular-nums " +
                         (sorted ? "bg-rust-500/[0.07] " : "") +
                         (value === null
                           ? "text-steel-700"
