@@ -2064,6 +2064,183 @@ export const serverRecords = cache(async function serverRecords() {
   return { biggestWin: biggestWin ?? null, mostCaps: mostCaps ?? null, bestStreak: bestStreak ?? null };
 });
 
+/** A record that fell on a given night. See `recordsBrokenOnNight`. */
+export type BrokenRecord = {
+  kind: "fastest-run" | "best-streak" | "most-caps" | "biggest-win";
+  /** Resolved through identity, so it is the name the site calls them. */
+  playerName: string | null;
+  mapName: string;
+  sourceMatchId: number;
+  /** The new record, and what stood before it. Milliseconds for runs. */
+  value: number;
+  previous: number;
+};
+
+/**
+ * Which records fell on one night, for the note at the end of its article.
+ *
+ * Asked for by the owner, 7 August 2026: a capture faster than any before it
+ * should be said out loud with the player's name on it. Computed here rather
+ * than by the model, the same rule as the superlatives the column is handed —
+ * reading down a table for the best number is exactly what models get wrong.
+ *
+ * "Broken" means beaten, strictly: something had to stand before. The first
+ * run recorded on a new map is the start of a record, not the breaking of one,
+ * and listing it would put a note under every night that tried a new map.
+ *
+ * Four records, matching what the archive already treats as record-shaped:
+ * the per-map fastest run (a run belongs to its map), and the three archive
+ * singles the stats page keeps — best streak, most captures and biggest win in
+ * one match.
+ */
+export const recordsBrokenOnNight = cache(async function recordsBrokenOnNight(
+  archiveDay: string,
+): Promise<BrokenRecord[]> {
+  const nightRows = await db
+    .select({
+      identityKey: IDENTITY_KEY,
+      mapName: matches.mapName,
+      sourceMatchId: matches.sourceMatchId,
+      runMs: matchPlayers.fastestSoloCaptureMs,
+      caps: matchPlayers.caps,
+      streak: matchPlayers.maxStreak,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(TOOK_PART, MATCH_COMPLETED, eq(matches.archiveDay, archiveDay)));
+
+  const nightMatches = await db
+    .select({
+      sourceMatchId: matches.sourceMatchId,
+      mapName: matches.mapName,
+      margin: sql<number>`abs(${matches.redScore} - ${matches.blueScore})::int`,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, "final"),
+        MATCH_COMPLETED,
+        eq(matches.archiveDay, archiveDay),
+      ),
+    );
+
+  // What stood before that night, from the archive proper. A record set in a
+  // match that did not count is not a record, the same rule `serverRecords`
+  // applies.
+  const [prior] = await db
+    .select({
+      streak: sql<number | null>`max(${matchPlayers.maxStreak})::int`,
+      caps: sql<number | null>`max(${matchPlayers.caps})::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(TOOK_PART, MATCH_COMPLETED, sql`${matches.archiveDay} < ${archiveDay}`));
+
+  const priorRuns = await db
+    .select({
+      mapName: matches.mapName,
+      ms: sql<number>`min(${matchPlayers.fastestSoloCaptureMs})::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(
+      and(
+        TOOK_PART,
+        MATCH_COMPLETED,
+        sql`${matches.archiveDay} < ${archiveDay}`,
+        sql`${matchPlayers.fastestSoloCaptureMs} is not null`,
+      ),
+    )
+    .groupBy(matches.mapName);
+
+  const [priorMargin] = await db
+    .select({
+      margin: sql<number | null>`max(abs(${matches.redScore} - ${matches.blueScore}))::int`,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, "final"),
+        MATCH_COMPLETED,
+        sql`${matches.archiveDay} < ${archiveDay}`,
+      ),
+    );
+
+  const canonical = await canonicalNames();
+  const nameOf = (key: string) => canonical.get(key) ?? null;
+  const records: BrokenRecord[] = [];
+
+  // The per-map fastest run. Beaten per map, held by whoever ran it.
+  const priorByMap = new Map(priorRuns.map((row) => [row.mapName, row.ms]));
+  const nightBestRun = new Map<string, (typeof nightRows)[number]>();
+  for (const row of nightRows) {
+    if (row.runMs == null) continue;
+    const best = nightBestRun.get(row.mapName);
+    if (!best || row.runMs < best.runMs!) nightBestRun.set(row.mapName, row);
+  }
+  for (const [mapName, row] of nightBestRun) {
+    const previous = priorByMap.get(mapName);
+    if (previous != null && row.runMs! < previous) {
+      records.push({
+        kind: "fastest-run",
+        playerName: nameOf(row.identityKey),
+        mapName,
+        sourceMatchId: row.sourceMatchId,
+        value: row.runMs!,
+        previous,
+      });
+    }
+  }
+
+  // The archive singles. One entry each at most, held by the night's best.
+  const bestBy = (pick: (row: (typeof nightRows)[number]) => number) =>
+    nightRows.reduce<(typeof nightRows)[number] | null>(
+      (best, row) => (!best || pick(row) > pick(best) ? row : best),
+      null,
+    );
+
+  const bestStreak = bestBy((row) => row.streak);
+  if (bestStreak && prior?.streak != null && bestStreak.streak > prior.streak) {
+    records.push({
+      kind: "best-streak",
+      playerName: nameOf(bestStreak.identityKey),
+      mapName: bestStreak.mapName,
+      sourceMatchId: bestStreak.sourceMatchId,
+      value: bestStreak.streak,
+      previous: prior.streak,
+    });
+  }
+
+  const mostCaps = bestBy((row) => row.caps);
+  if (mostCaps && prior?.caps != null && mostCaps.caps > prior.caps) {
+    records.push({
+      kind: "most-caps",
+      playerName: nameOf(mostCaps.identityKey),
+      mapName: mostCaps.mapName,
+      sourceMatchId: mostCaps.sourceMatchId,
+      value: mostCaps.caps,
+      previous: prior.caps,
+    });
+  }
+
+  const biggestWin = nightMatches.reduce<(typeof nightMatches)[number] | null>(
+    (best, row) => (!best || row.margin > best.margin ? row : best),
+    null,
+  );
+  if (biggestWin && priorMargin?.margin != null && biggestWin.margin > priorMargin.margin) {
+    records.push({
+      kind: "biggest-win",
+      playerName: null,
+      mapName: biggestWin.mapName,
+      sourceMatchId: biggestWin.sourceMatchId,
+      value: biggestWin.margin,
+      previous: priorMargin.margin,
+    });
+  }
+
+  return records;
+});
+
 /**
  * Totals for the front page and the archive header.
  *

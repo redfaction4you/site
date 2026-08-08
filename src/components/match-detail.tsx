@@ -12,6 +12,7 @@ import {
   accuracyOf,
   shootingIsSound,
 } from "@/lib/matches/accuracy";
+import { mapSlug } from "@/lib/matches/maps";
 import { tookPart } from "@/lib/matches/participation";
 import {
   CANCELLED_NOTE,
@@ -414,7 +415,15 @@ export async function MatchDetailView({
           */}
           <p className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-steel-500">
             {position ? `Match ${position} · ` : ""}
-            {match.mapName}
+            {/* The name doubles as the route to the map's record — asked for by
+                the owner, and the same text that was already here rather than a
+                new control. */}
+            <Link
+              href={`/matches/map/${mapSlug(match.mapName)}`}
+              className="hover:text-steel-300"
+            >
+              {match.mapName}
+            </Link>
           </p>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">

@@ -8,6 +8,7 @@ import { OpinionColumn } from "@/components/opinion-column";
 import { footageForNight } from "@/lib/match-footage";
 import { dayLabel } from "@/components/match-archive";
 import { NightMatches } from "@/components/night-matches";
+import { NightRecords } from "@/components/night-records";
 import {
   adjacentColumns,
   getColumn,
@@ -15,6 +16,7 @@ import {
   listMatchesForDay,
   nightScoreboard,
   otherColumns,
+  recordsBrokenOnNight,
 } from "@/lib/matches/queries";
 import { isValidDay } from "@/lib/matches/sanitize";
 
@@ -37,14 +39,16 @@ export default async function ColumnPage({ params }: Props) {
   const { day } = await params;
   if (!isValidDay(day)) notFound();
 
-  const [column, matches, scoreboard, adjacent, others, opinion] = await Promise.all([
-    getColumn(day),
-    listMatchesForDay(day),
-    nightScoreboard(day),
-    adjacentColumns(day),
-    otherColumns(day),
-    getOpinion(day),
-  ]);
+  const [column, matches, scoreboard, adjacent, others, opinion, records] =
+    await Promise.all([
+      getColumn(day),
+      listMatchesForDay(day),
+      nightScoreboard(day),
+      adjacentColumns(day),
+      otherColumns(day),
+      getOpinion(day),
+      recordsBrokenOnNight(day),
+    ]);
   if (!column) notFound();
 
   return (
@@ -89,6 +93,10 @@ export default async function ColumnPage({ params }: Props) {
             <p key={i}>{paragraph}</p>
           ))}
       </div>
+
+      {/* Records that fell tonight, computed rather than written. Above the
+          model attribution because it is data, not generated prose. */}
+      <NightRecords records={records} archiveDay={day} />
 
       <p className="mt-6 text-[0.6875rem] text-steel-600">
         Written automatically from the match data
