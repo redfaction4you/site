@@ -79,9 +79,9 @@ export function MatchTimes({ startedAt }: { startedAt: string[] }) {
 
   return (
     <div className="panel p-5">
-      <h2 className="font-display text-sm font-bold text-steel-100">
+      <h3 className="font-display text-sm font-bold text-steel-100">
         When games usually happen
-      </h2>
+      </h3>
       <p className="mt-1.5 text-sm leading-relaxed text-steel-400">
         Matches most often start around{" "}
         <span className="text-steel-100">{hourLabel(peakHour)}</span>

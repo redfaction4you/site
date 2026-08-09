@@ -380,9 +380,9 @@ export default async function ServerPage() {
           {online?.game?.players.length ? (
             <section>
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-basalt-800 pb-1.5">
-                <h2 className="font-display text-sm font-bold text-steel-100">
+                <h3 className="font-display text-sm font-bold text-steel-100">
                   Live scoreboard
-                </h2>
+                </h3>
                 <LiveRefresh />
               </div>
 
@@ -427,8 +427,158 @@ export default async function ServerPage() {
               ) : null}
             </section>
           ) : (
-            <MatchTimes startedAt={startTimes} />
+            <>
+              <MatchTimes startedAt={startTimes} />
+              {/*
+                The records sit here rather than at the foot of the page.
+                Between games the right-hand column was one short chart against
+                a much taller card, which is most of what made this page look
+                unfinished. They are the match server's own superlatives, so
+                they belong beside its status.
+              */}
+              <div className="mt-6">
+        {records.mostCaps || records.bestStreak || records.biggestWin ? (
+          <section>
+            <h3 className="rule-heading">Records</h3>
+            {/*
+              Single match superlatives only. The most captures anybody managed
+              in one match is a fact about one match however few there are;
+              anything averaged over this many would not be.
+            */}
+            <dl className="mt-2 space-y-1.5 text-xs">
+              {records.mostCaps && records.mostCaps.caps > 0 ? (
+                <Record
+                  label="Most caps, one match"
+                  value={records.mostCaps.caps}
+                  name={records.mostCaps.name}
+                  mapName={records.mostCaps.mapName}
+                  href={`/matches/${records.mostCaps.archiveDay}/${records.mostCaps.sourceMatchId}`}
+                />
+              ) : null}
+              {records.bestStreak && records.bestStreak.streak > 0 ? (
+                <Record
+                  label="Longest streak"
+                  value={records.bestStreak.streak}
+                  name={records.bestStreak.name}
+                  mapName={records.bestStreak.mapName}
+                  href={`/matches/${records.bestStreak.archiveDay}/${records.bestStreak.sourceMatchId}`}
+                />
+              ) : null}
+              {records.biggestWin ? (
+                <Record
+                  label="Widest margin"
+                  /* Winner first. Printed as stored it reads as a defeat under
+                     a label that has already said whose score comes first. */
+                  value={`${Math.max(records.biggestWin.redScore, records.biggestWin.blueScore)}–${Math.min(records.biggestWin.redScore, records.biggestWin.blueScore)}`}
+                  mapName={records.biggestWin.mapName}
+                  href={`/matches/${records.biggestWin.archiveDay}/${records.biggestWin.sourceMatchId}`}
+                />
+              ) : null}
+            </dl>
+          </section>
+        ) : null}
+              </div>
+            </>
           )}
+        </div>
+      </div>
+
+      {/*
+        What actually happens on the match server.
+
+        This sat at the very bottom of the page, under BOTH servers, which read
+        as though the rotation, the usual night and the records described the
+        pair of them. Every figure in it is CTF: it is the match server's, so
+        it belongs under the match server's heading and above the deathmatch
+        one. The owner said the page was strange; this was most of why.
+      */}
+      <div className="mt-8 grid gap-x-8 gap-y-8 lg:grid-cols-[1fr_19rem]">
+        <div className="min-w-0 space-y-8">
+          {rotation.length > 0 ? (
+            <section>
+              <h3 className="rule-heading">What gets played</h3>
+              <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-steel-500">
+                Every map in the archive, most played first. Deliberately no win
+                rate per map: across {totals.matchCount} matches that would be
+                noise dressed up as a spawn advantage.
+              </p>
+
+              {/* Capped, for the reason the match rows are: a bar stretched
+                  across a full width page is a long way for the eye to travel to
+                  reach a number it could have read in a third of it. */}
+              <ul className="mt-3 max-w-[34rem] space-y-1.5">
+                {rotation.map((row) => (
+                  <li key={row.mapName} className="flex items-center gap-3">
+                    <Link
+                      href={`/matches/map/${mapSlug(row.mapName)}`}
+                      className="w-36 shrink-0 truncate text-sm text-steel-200 hover:text-rust-300 sm:w-44"
+                    >
+                      {row.mapName}
+                    </Link>
+                    {/* A bar, because seven counts in a column is a table nobody
+                        reads and a shape anybody takes in at a glance. */}
+                    <span className="h-2 min-w-0 flex-1 rounded-sm bg-basalt-800">
+                      <span
+                        className="block h-full rounded-sm bg-rust-500/70"
+                        style={{
+                          width: `${mostPlayed > 0 ? (row.played / mostPlayed) * 100 : 0}%`,
+                        }}
+                      />
+                    </span>
+                    <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
+                      {row.played}
+                    </span>
+                    <span className="hidden w-10 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600 sm:block">
+                      {row.overtimes > 0 ? `${row.overtimes} OT` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* With a game on, the times chart lost its slot above, so it lands
+              here rather than not appearing at all. */}
+          {online?.game?.players.length ? (
+            <MatchTimes startedAt={startTimes} />
+          ) : null}
+        </div>
+
+        <div className="min-w-0 space-y-6">
+          {shape.nights > 0 ? (
+            <section>
+              <h3 className="rule-heading">A normal night</h3>
+              {/*
+                A range rather than an average. Three nights is not enough for a
+                mean to mean anything, and 4.7 matches would imply a precision
+                that is not there.
+              */}
+              <dl className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="figure-label">Matches</dt>
+                  <dd className="figure-value mt-0.5 font-mono text-xl">
+                    {shape.minMatches === shape.maxMatches
+                      ? shape.minMatches
+                      : `${shape.minMatches}–${shape.maxMatches}`}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="figure-label">Players</dt>
+                  <dd className="figure-value mt-0.5 font-mono text-xl">
+                    {shape.minPlayers === shape.maxPlayers
+                      ? shape.minPlayers
+                      : `${shape.minPlayers}–${shape.maxPlayers}`}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-2 text-xs leading-relaxed text-steel-500">
+                Across {shape.nights} {shape.nights === 1 ? "night" : "nights"} on
+                record. A range rather than an average, because that is what this
+                much data supports.
+              </p>
+            </section>
+          ) : null}
+
         </div>
       </div>
 
@@ -545,25 +695,39 @@ export default async function ServerPage() {
               </div>
             ) : null}
 
-            {/* Whatever themed rotation is on, named and linked. Renders
-                nothing on the standing rotation, which is most of the time. */}
+            {/*
+              What gets played here, which is the deathmatch answer to the
+              match server's section of that name. A pack nobody can see the
+              contents of is just a different server name, so the maps are
+              listed. Renders nothing on the standing rotation.
+            */}
             {activePack ? (
-              <p className="mt-4 border-t border-basalt-800 pt-3 text-sm leading-relaxed text-steel-300">
-                <span className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-400">
-                  Map pack
-                </span>{" "}
-                <Link
-                  href="/server/map-packs"
-                  className="font-semibold text-steel-100 hover:text-rust-300"
-                >
-                  {activePack.name}
-                </Link>
-                <span className="text-steel-500">
-                  {" "}
-                  · {activePack.maps.length}{" "}
-                  {activePack.maps.length === 1 ? "map" : "maps"}
-                </span>
-              </p>
+              <div className="mt-4 border-t border-basalt-800 pt-3">
+                <h3 className="rule-heading">What gets played</h3>
+                <p className="mt-2 text-sm text-steel-300">
+                  <Link
+                    href="/server/map-packs"
+                    className="font-semibold text-steel-100 hover:text-rust-300"
+                  >
+                    {activePack.name}
+                  </Link>
+                  <span className="text-steel-500">
+                    {" "}
+                    · {activePack.maps.length}{" "}
+                    {activePack.maps.length === 1 ? "map" : "maps"} on rotation
+                  </span>
+                </p>
+                <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                  {activePack.maps.map((entry) => (
+                    <li key={entry.filename} className="text-xs text-steel-400">
+                      {entry.title?.trim() || entry.filename}
+                      {entry.author ? (
+                        <span className="text-steel-600"> · {entry.author}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
 
             <p
@@ -586,142 +750,6 @@ export default async function ServerPage() {
         </div>
       </section>
 
-      {/*
-        What actually happens here, which the page never said.
-
-        It described the server as a machine: an address, a slot count and a
-        client version. Whether it is worth turning up to went unanswered, and
-        the archive already knows. Everything below counts something recorded.
-      */}
-      <div className="mt-10 grid gap-x-8 gap-y-8 lg:grid-cols-[1fr_19rem]">
-        <div className="min-w-0 space-y-8">
-          {rotation.length > 0 ? (
-            <section>
-              <h2 className="rule-heading">What gets played</h2>
-              <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-steel-500">
-                Every map in the archive, most played first. Deliberately no win
-                rate per map: across {totals.matchCount} matches that would be
-                noise dressed up as a spawn advantage.
-              </p>
-
-              {/* Capped, for the reason the match rows are: a bar stretched
-                  across a full width page is a long way for the eye to travel to
-                  reach a number it could have read in a third of it. */}
-              <ul className="mt-3 max-w-[34rem] space-y-1.5">
-                {rotation.map((row) => (
-                  <li key={row.mapName} className="flex items-center gap-3">
-                    <Link
-                      href={`/matches/map/${mapSlug(row.mapName)}`}
-                      className="w-36 shrink-0 truncate text-sm text-steel-200 hover:text-rust-300 sm:w-44"
-                    >
-                      {row.mapName}
-                    </Link>
-                    {/* A bar, because seven counts in a column is a table nobody
-                        reads and a shape anybody takes in at a glance. */}
-                    <span className="h-2 min-w-0 flex-1 rounded-sm bg-basalt-800">
-                      <span
-                        className="block h-full rounded-sm bg-rust-500/70"
-                        style={{
-                          width: `${mostPlayed > 0 ? (row.played / mostPlayed) * 100 : 0}%`,
-                        }}
-                      />
-                    </span>
-                    <span className="w-6 shrink-0 text-right font-mono text-xs tabular-nums text-steel-400">
-                      {row.played}
-                    </span>
-                    <span className="hidden w-10 shrink-0 text-right font-mono text-[0.625rem] tabular-nums text-steel-600 sm:block">
-                      {row.overtimes > 0 ? `${row.overtimes} OT` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {/* With a game on, the times chart lost its slot above, so it lands
-              here rather than not appearing at all. */}
-          {online?.game?.players.length ? (
-            <MatchTimes startedAt={startTimes} />
-          ) : null}
-        </div>
-
-        <div className="min-w-0 space-y-6">
-          {shape.nights > 0 ? (
-            <section>
-              <h2 className="rule-heading">A normal night</h2>
-              {/*
-                A range rather than an average. Three nights is not enough for a
-                mean to mean anything, and 4.7 matches would imply a precision
-                that is not there.
-              */}
-              <dl className="mt-2 grid grid-cols-2 gap-4">
-                <div>
-                  <dt className="figure-label">Matches</dt>
-                  <dd className="figure-value mt-0.5 font-mono text-xl">
-                    {shape.minMatches === shape.maxMatches
-                      ? shape.minMatches
-                      : `${shape.minMatches}–${shape.maxMatches}`}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="figure-label">Players</dt>
-                  <dd className="figure-value mt-0.5 font-mono text-xl">
-                    {shape.minPlayers === shape.maxPlayers
-                      ? shape.minPlayers
-                      : `${shape.minPlayers}–${shape.maxPlayers}`}
-                  </dd>
-                </div>
-              </dl>
-              <p className="mt-2 text-xs leading-relaxed text-steel-500">
-                Across {shape.nights} {shape.nights === 1 ? "night" : "nights"} on
-                record. A range rather than an average, because that is what this
-                much data supports.
-              </p>
-            </section>
-          ) : null}
-
-          {records.mostCaps || records.bestStreak || records.biggestWin ? (
-            <section>
-              <h2 className="rule-heading">Records</h2>
-              {/*
-                Single match superlatives only. The most captures anybody managed
-                in one match is a fact about one match however few there are;
-                anything averaged over this many would not be.
-              */}
-              <dl className="mt-2 space-y-1.5 text-xs">
-                {records.mostCaps && records.mostCaps.caps > 0 ? (
-                  <Record
-                    label="Most caps, one match"
-                    value={records.mostCaps.caps}
-                    name={records.mostCaps.name}
-                    mapName={records.mostCaps.mapName}
-                    href={`/matches/${records.mostCaps.archiveDay}/${records.mostCaps.sourceMatchId}`}
-                  />
-                ) : null}
-                {records.bestStreak && records.bestStreak.streak > 0 ? (
-                  <Record
-                    label="Longest streak"
-                    value={records.bestStreak.streak}
-                    name={records.bestStreak.name}
-                    mapName={records.bestStreak.mapName}
-                    href={`/matches/${records.bestStreak.archiveDay}/${records.bestStreak.sourceMatchId}`}
-                  />
-                ) : null}
-                {records.biggestWin ? (
-                  <Record
-                    label="Widest margin"
-                    /* Winner first. Printed as stored it reads as a defeat under
-                       a label that has already said whose score comes first. */
-                    value={`${Math.max(records.biggestWin.redScore, records.biggestWin.blueScore)}–${Math.min(records.biggestWin.redScore, records.biggestWin.blueScore)}`}
-                    mapName={records.biggestWin.mapName}
-                    href={`/matches/${records.biggestWin.archiveDay}/${records.biggestWin.sourceMatchId}`}
-                  />
-                ) : null}
-              </dl>
-            </section>
-          ) : null}
-        </div>
-      </div>
 
       {/*
         Says when results last arrived, and says so loudly once they stop. A
