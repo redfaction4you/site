@@ -423,11 +423,62 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
    * record the moment nothing tells him what he said last week.
    */
   const previous = await db
-    .select({ archiveDay: opinionPieces.archiveDay, headline: opinionPieces.headline })
+    .select({
+      archiveDay: opinionPieces.archiveDay,
+      headline: opinionPieces.headline,
+      /*
+       * The piece itself, not just its headline.
+       *
+       * Headlines alone told him what he had called a column, which is enough
+       * to stop him repeating a title and nothing like enough to know what he
+       * argued. On 4 August he ran "Time to let ED ASSMASTER and Medeo run
+       * together"; on 7 August they finally shared a side, twice, after
+       * twenty-four matches opposite each other — and the piece that night
+       * said nothing about it, because he had no idea he had asked.
+       *
+       * Trimmed rather than whole: the argument is always in the opening, and
+       * four pieces at full length crowd out the fact sheet underneath.
+       */
+      body: sql<string>`left(${opinionPieces.body}, 700)`,
+    })
     .from(opinionPieces)
     .where(lte(opinionPieces.archiveDay, archiveDay))
     .orderBy(desc(opinionPieces.archiveDay))
     .limit(4);
+
+  /*
+   * Pairings that shared a side tonight for the very first time.
+   *
+   * Derived from the partnerships already built rather than a query of its
+   * own: `firstNight` is counted over exactly the matches the record beside it
+   * was counted over, and through identity, so somebody who has played under
+   * four names is one partner. A separate self-join here is the mistake this
+   * file has already made once.
+   *
+   * The rivalry count comes along because it is what makes the fact worth a
+   * sentence: two players meeting for the twenty-fifth time and finally being
+   * on the same side is a story; two strangers is not.
+   */
+  const firstTimeTogether = pairings.partnerships
+    .filter((pair) => pair.firstNight === archiveDay)
+    .map((pair) => {
+      const rivalry = pairings.rivalries.find(
+        (other) =>
+          (other.a === pair.a && other.b === pair.b) ||
+          (other.a === pair.b && other.b === pair.a),
+      );
+      return {
+        a: pair.a,
+        b: pair.b,
+        matches: pair.matches,
+        wins: pair.wins,
+        losses: pair.losses,
+        faced: rivalry?.matches ?? 0,
+      };
+    })
+    // Longest-standing opponents first: the pairing worth the follow-up is the
+    // one people had most reason to want tried.
+    .sort((left, right) => right.faced - left.faced);
 
   const lines: string[] = [];
   lines.push(
@@ -591,6 +642,7 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
     lines.push("WHAT YOU HAVE ALREADY ARGUED, newest first:");
     for (const piece of previous) {
       lines.push(`  ${piece.archiveDay}: "${piece.headline}"`);
+      lines.push(`    ${piece.body.replace(/\s+/g, " ").trim()}`);
     }
     lines.push(
       "Do not make the same argument again. If a running theme above is still " +
@@ -598,6 +650,38 @@ export async function buildOpinionFacts(archiveDay: string): Promise<OpinionFact
         "about something else tonight: a match, a performance, a flag run, a map, " +
         "somebody's night, a pairing you have not written about yet.",
     );
+    /*
+     * The other half of having a memory: noticing when you got what you asked
+     * for.
+     *
+     * He would call for a pairing week after week, it would finally happen, and
+     * the piece that night would be about something else entirely — because
+     * nothing connected the two. The pairings below are computed here, so he is
+     * never guessing whether tonight was the first time; if one of them is
+     * something he pushed for above, that is the piece.
+     */
+    if (firstTimeTogether.length > 0) {
+      lines.push("");
+      lines.push(
+        "PAIRINGS THAT SHARED A SIDE FOR THE FIRST TIME TONIGHT, after never " +
+          "having done so before:",
+      );
+      for (const pair of firstTimeTogether) {
+        lines.push(
+          `  ${pair.a} and ${pair.b}: ${pair.matches} together tonight, ` +
+            `${pair.wins} won, ${pair.losses} lost.` +
+            (pair.faced > 0
+              ? ` Before tonight they had only ever been opposite each other, ${pair.faced} times.`
+              : ""),
+        );
+      }
+      lines.push(
+        "If you called for one of these in a piece above, say so and judge how " +
+          "it went — that follow-up is the column. Quote nothing; just note you " +
+          "asked and what happened. If you never asked for any of them, ignore " +
+          "this section rather than pretending you did.",
+      );
+    }
   }
 
   lines.push("");
