@@ -389,6 +389,13 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
   aggregates total only sound matches via `SOUND_SHOOTING` in `queries.ts`. The
   rows are left exactly as sent, the same trade `fastest_capture_ms` makes for
   relays. Do not clamp to 100%: that puts a broken counter top of the board.
+  - **`accuracyOf` returns a fraction and `accuracyPercent` is how it is
+    written out.** 0.185, not 18.5. Three pages multiplied by a hundred
+    themselves and two places forgot to: `/stats/dm` published a column of
+    "0.2%", and the feature fact sheet gave the same numbers to the writer and
+    then to the fact checker, which would have confirmed them. `vet:pages`
+    cannot see this — it reads a page against its own totals, and both pages
+    were internally consistent while disagreeing with each other by 100×.
 - **`spectator = false` does not mean somebody played.** The server sends a row
   for everyone it had on a team when it snapshotted, and five rows on record
   carry a real team, the flag unset, and every counter zero: no score, frags,
