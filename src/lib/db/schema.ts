@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -1106,6 +1106,88 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
     relationName: "author",
   }),
 }));
+
+/**
+ * One map inside a pack.
+ *
+ * `filename` is the only field the server needs — everything else exists so
+ * the public page can credit the mapper and link somewhere to download it.
+ */
+export type MapPackEntry = {
+  /** As the server loads it, e.g. "dm04.rfl". The one required field. */
+  filename: string;
+  /** What to call it on the page. Falls back to the filename. */
+  title?: string;
+  /** Who made it, for the mapper-highlight packs this exists for. */
+  author?: string;
+  /** Where to get it: a FactionFiles page, usually. */
+  url?: string;
+  /** A line about this map, shown under it. */
+  note?: string;
+};
+
+/**
+ * A themed set of maps for the deathmatch server.
+ *
+ * Mapper highlights, a Halloween pack, a Christmas pack — defined here,
+ * switched on from /admin, and applied by the VPS, which polls for the active
+ * one. The site is the source of truth because it is the thing with a UI and
+ * a database; the VPS pulls because Vercel cannot reach it.
+ *
+ * Activating a pack rewrites three fields of `rf4u-dm.toml` and nothing else:
+ * the level list, the server name, and the welcome message. Every other
+ * setting on that server — rules, votes, and the rcon password, which must
+ * never reach this database — is left exactly as it was.
+ */
+export const mapPacks = pgTable(
+  "map_packs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    /** The URL, and the stable name the VPS logs against. */
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    /** A paragraph for the public page: what this pack is and why. */
+    blurb: text("blurb"),
+
+    /**
+     * What the server calls itself while this pack is on.
+     *
+     * Null leaves the name alone. Set, it replaces `server_name`, which is
+     * what a player sees in the browser — the point of a themed pack.
+     */
+    serverName: text("server_name"),
+
+    /**
+     * The in-game welcome message. Null builds one from the pack's name and
+     * maps, which is the usual case and saves writing it twice.
+     */
+    welcomeMessage: text("welcome_message"),
+
+    maps: jsonb("maps").$type<MapPackEntry[]>().default([]).notNull(),
+
+    /**
+     * Exactly one pack is active. Enforced by a partial unique index rather
+     * than by remembering to clear the others: a second active pack would
+     * have the VPS flip-flopping between them every poll.
+     */
+    active: boolean("active").default(false).notNull(),
+
+    /** When it was last switched on, for the public page's "since". */
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (row) => [
+    uniqueIndex("map_packs_slug_idx").on(row.slug),
+    uniqueIndex("map_packs_one_active_idx")
+      .on(row.active)
+      .where(sql`${row.active}`),
+  ],
+);
 
 export const filesRelations = relations(files, ({ one }) => ({
   item: one(items, { fields: [files.itemId], references: [items.id] }),

@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 
 import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
 import { db } from "@/lib/db";
-import { matchPlayers, playerIdentities } from "@/lib/db/schema";
+import { mapPacks, matchPlayers, playerIdentities, type MapPackEntry } from "@/lib/db/schema";
+import { isLevelFilename } from "@/lib/map-packs";
 
 /**
  * Everything on the admin page goes through here, and every action re-checks
@@ -206,6 +207,133 @@ export async function unmergeIdentity(formData: FormData): Promise<void> {
     .set({ mergedInto: null, updatedAt: new Date() })
     .where(eq(playerIdentities.identityKey, identityKey));
 
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/*
+ * Map packs: define a themed set of maps, switch one on, and the deathmatch
+ * server follows within a few minutes.
+ *
+ * Nothing here talks to the VPS. The site records what should be true and the
+ * applier on that machine polls for it, which is the only direction that works
+ * — Vercel cannot open a connection to a home server. The consequence worth
+ * knowing is that switching a pack on is not instant and is not meant to look
+ * instant: the admin page says "the server picks this up within five minutes".
+ */
+
+/** A URL-safe slug from a pack's name, since nobody wants to type one. */
+function packSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+/**
+ * The maps textarea, one map per line.
+ *
+ * A form rather than a repeating widget: a pack is twenty filenames and the
+ * fastest way to enter twenty filenames is to paste twenty lines. Each is
+ * `filename | title | author | url`, and everything after the filename is
+ * optional, so a bare list of filenames is a valid pack.
+ */
+function parseMaps(raw: string): MapPackEntry[] {
+  const entries: MapPackEntry[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const [filename, title, author, url] = trimmed.split("|").map((part) => part.trim());
+    if (!filename) continue;
+    entries.push({
+      filename,
+      ...(title ? { title } : {}),
+      ...(author ? { author } : {}),
+      ...(url ? { url } : {}),
+    });
+  }
+  return entries;
+}
+
+export async function saveMapPack(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const name = String(formData.get("name") ?? "").trim().slice(0, 80);
+  const slug = String(formData.get("slug") ?? "").trim() || packSlug(name);
+  const maps = parseMaps(String(formData.get("maps") ?? ""));
+
+  if (!name || !slug) redirect("/admin?problem=1");
+
+  // Every filename is checked before it is stored. A typo here becomes a map
+  // the server cannot load, and the server's answer to that is worse than a
+  // rejected form: it drops the entry and the rotation quietly shortens.
+  const bad = maps.filter((entry) => !isLevelFilename(entry.filename));
+  if (maps.length === 0 || bad.length > 0) redirect("/admin?problem=1");
+
+  const values = {
+    slug,
+    name,
+    blurb: String(formData.get("blurb") ?? "").trim().slice(0, 600) || null,
+    serverName: String(formData.get("serverName") ?? "").trim().slice(0, 80) || null,
+    welcomeMessage:
+      String(formData.get("welcomeMessage") ?? "").trim().slice(0, 300) || null,
+    maps,
+    updatedAt: new Date(),
+  };
+
+  await db
+    .insert(mapPacks)
+    .values(values)
+    .onConflictDoUpdate({ target: mapPacks.slug, set: values });
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Switches a pack on, and every other one off.
+ *
+ * Both in one batch, because the partial unique index means the database will
+ * refuse a second active pack outright — clearing first is not tidiness, it is
+ * the only order that works.
+ */
+export async function activateMapPack(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (!slug) redirect("/admin?problem=1");
+
+  await db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true));
+  await db
+    .update(mapPacks)
+    .set({ active: true, activatedAt: new Date(), updatedAt: new Date() })
+    .where(eq(mapPacks.slug, slug));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Switches the active pack off, leaving the server exactly as it is.
+ *
+ * Deliberately not "restore the default rotation": this system knows what it
+ * set and not what was there before it, and inventing a default would be the
+ * one action here capable of wiping a rotation somebody curated by hand. To go
+ * back to a stock list, make it a pack and switch that on.
+ */
+export async function deactivateMapPacks(): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+  await db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true));
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+export async function deleteMapPack(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (!slug) redirect("/admin?problem=1");
+  await db.delete(mapPacks).where(eq(mapPacks.slug, slug));
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }

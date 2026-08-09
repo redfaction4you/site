@@ -12,6 +12,8 @@ import {
   nightForVetting,
 } from "@/lib/matches/queries";
 import { vetNight } from "@/lib/matches/vet";
+import { listMapPacks } from "@/lib/map-packs";
+import { MapPackAdmin } from "@/components/map-pack-admin";
 import {
   lock,
   mergeIdentities,
@@ -93,12 +95,13 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [identities, merges, days, totals, lastSync] = await Promise.all([
+  const [identities, merges, days, totals, lastSync, packs] = await Promise.all([
     listIdentities(),
     listMerges(),
     listDays(),
     archiveTotals(),
     lastSyncAt(),
+    listMapPacks(),
   ]);
   const merged = identities.filter((entry) => entry.names.length > 1);
 
@@ -275,7 +278,9 @@ export default async function AdminPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      <h2 className="mt-6 font-display text-lg font-bold text-steel-100">
+      <MapPackAdmin packs={packs} />
+
+      <h2 className="mt-10 font-display text-lg font-bold text-steel-100">
         Who is who
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-steel-400">

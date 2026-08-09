@@ -1,0 +1,270 @@
+import Link from "next/link";
+
+import {
+  activateMapPack,
+  deactivateMapPacks,
+  deleteMapPack,
+  saveMapPack,
+} from "@/app/admin/actions";
+import type { MapPack } from "@/lib/map-packs";
+import { welcomeFor } from "@/lib/map-packs";
+
+/**
+ * Map packs, managed.
+ *
+ * A pack is a themed rotation for the deathmatch server: one mapper's work, a
+ * Halloween set, whatever is wanted next. Switching one on rewrites three
+ * fields of that server's config and restarts it, and nothing else about the
+ * server changes.
+ *
+ * The maps go in as text, one per line, because a pack is twenty filenames and
+ * the fastest way to enter twenty filenames is to paste twenty lines. The
+ * optional columns after the filename exist for the public page, not the
+ * server: it credits the mapper and links somewhere to download.
+ */
+
+const FIELD =
+  "w-full rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1.5 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none";
+const LABEL = "figure-label mb-1 block";
+
+function mapsToText(pack: MapPack | null): string {
+  if (!pack) return "";
+  return pack.maps
+    .map((entry) =>
+      [entry.filename, entry.title, entry.author, entry.url]
+        .map((part) => part ?? "")
+        .join(" | ")
+        .replace(/(\s*\|\s*)+$/, ""),
+    )
+    .join("\n");
+}
+
+export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
+  const active = packs.find((pack) => pack.active) ?? null;
+
+  return (
+    <div className="mt-10 border-t border-basalt-800 pt-6">
+      <h3 className="rule-heading">Deathmatch map packs</h3>
+      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-steel-500">
+        A themed rotation for the DM server. Switching one on changes the level
+        list, what the server calls itself and the message players see when they
+        join &mdash; nothing else about the server moves.{" "}
+        <strong className="text-steel-400">
+          The server picks it up within five minutes
+        </strong>
+        , and only while nobody is playing, so a change made mid-session waits
+        rather than kicking everybody.{" "}
+        <Link href="/server/map-packs" className="text-steel-400 hover:text-rust-300">
+          The public page
+        </Link>{" "}
+        shows whichever is on.
+      </p>
+
+      {active ? (
+        <div className="plate mt-4 border-l-2 border-l-rust-500 p-3">
+          <p className="text-sm text-steel-200">
+            <span className="font-semibold">{active.name}</span> is on
+            {active.activatedAt ? (
+              <span className="text-steel-500">
+                {" "}
+                since {active.activatedAt.slice(0, 10)}
+              </span>
+            ) : null}
+          </p>
+          <p className="mt-1 font-mono text-[0.6875rem] text-steel-500">
+            {active.maps.length} maps · server name:{" "}
+            {active.serverName ?? <span className="text-steel-600">unchanged</span>}
+          </p>
+          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+            Welcome message: &ldquo;{welcomeFor(active)}&rdquo;
+          </p>
+          <form action={deactivateMapPacks} className="mt-2">
+            <button
+              type="submit"
+              className="rounded-sm border border-basalt-600 px-3 py-1 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+            >
+              Switch off
+            </button>
+          </form>
+          <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
+            Switching off leaves the server exactly as it is. It does not put a
+            previous rotation back, because this only knows what it set.
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-steel-500">
+          No pack is on. The DM server is running whatever rotation it was last
+          given.
+        </p>
+      )}
+
+      {packs.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {packs.map((pack) => (
+            <li
+              key={pack.slug}
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-basalt-800 pb-2"
+            >
+              <span className="text-sm text-steel-200">{pack.name}</span>
+              <span className="font-mono text-[0.6875rem] text-steel-600">
+                {pack.maps.length} maps · /{pack.slug}
+              </span>
+              {pack.active ? (
+                <span className="font-display text-[0.625rem] uppercase tracking-wider text-rust-400">
+                  on
+                </span>
+              ) : (
+                <form action={activateMapPack}>
+                  <input type="hidden" name="slug" value={pack.slug} />
+                  <button
+                    type="submit"
+                    className="rounded-sm border border-basalt-600 px-2.5 py-0.5 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+                  >
+                    Switch on
+                  </button>
+                </form>
+              )}
+              <form action={deleteMapPack} className="ml-auto">
+                <input type="hidden" name="slug" value={pack.slug} />
+                <button
+                  type="submit"
+                  className="font-display text-[0.625rem] uppercase tracking-wider text-steel-600 hover:text-rust-400"
+                >
+                  Delete
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/*
+        One form for both new and existing packs: the slug is the key, so
+        saving under a name that already exists edits it. Fewer controls than a
+        separate edit mode, and re-pasting a corrected map list is the common
+        case anyway.
+      */}
+      <form action={saveMapPack} className="mt-6 grid max-w-3xl gap-3">
+        <p className="figure-label">Add or edit a pack</p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className={LABEL} htmlFor="pack-name">
+              Name
+            </label>
+            <input
+              id="pack-name"
+              name="name"
+              required
+              maxLength={80}
+              placeholder="Halloween 2026"
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label className={LABEL} htmlFor="pack-slug">
+              Slug — blank to derive from the name
+            </label>
+            <input
+              id="pack-slug"
+              name="slug"
+              maxLength={60}
+              placeholder="halloween-2026"
+              className={FIELD}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={LABEL} htmlFor="pack-server-name">
+            Server name while it is on — blank leaves it alone
+          </label>
+          <input
+            id="pack-server-name"
+            name="serverName"
+            maxLength={80}
+            placeholder="RedFaction4You.com [DM] — Halloween"
+            className={FIELD}
+          />
+        </div>
+
+        <div>
+          <label className={LABEL} htmlFor="pack-blurb">
+            Blurb for the public page
+          </label>
+          <textarea
+            id="pack-blurb"
+            name="blurb"
+            rows={2}
+            maxLength={600}
+            placeholder="Ten maps with a haunted streak, on the server until November."
+            className={FIELD}
+          />
+        </div>
+
+        <div>
+          <label className={LABEL} htmlFor="pack-welcome">
+            Welcome message — blank writes one from the pack
+          </label>
+          <input
+            id="pack-welcome"
+            name="welcomeMessage"
+            maxLength={300}
+            placeholder="Now playing: Halloween 2026 — 10 maps."
+            className={FIELD}
+          />
+        </div>
+
+        <div>
+          <label className={LABEL} htmlFor="pack-maps">
+            Maps, one per line: filename | title | author | link
+          </label>
+          <textarea
+            id="pack-maps"
+            name="maps"
+            rows={8}
+            required
+            placeholder={
+              "dm04.rfl | The Pit | SomeMapper | https://factionfiles.com/...\ndm07.rfl\nglass_house.rfl | Glass House"
+            }
+            className={`${FIELD} font-mono text-xs`}
+          />
+          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+            Only the filename is required and it must end in{" "}
+            <code className="text-steel-500">.rfl</code>. A bad filename is
+            refused here, because the server&rsquo;s own answer to one is to drop
+            it and quietly run a shorter rotation. Lines starting with{" "}
+            <code className="text-steel-500">#</code> are ignored.
+          </p>
+        </div>
+
+        <div>
+          <button
+            type="submit"
+            className="rounded-sm bg-rust-500 px-4 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
+          >
+            Save pack
+          </button>
+        </div>
+      </form>
+
+      {packs.length > 0 ? (
+        <details className="mt-4">
+          <summary className="cursor-pointer font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 hover:text-steel-300">
+            Copy an existing pack&rsquo;s map list
+          </summary>
+          <div className="mt-2 space-y-3">
+            {packs.map((pack) => (
+              <div key={pack.slug}>
+                <p className="figure-label">{pack.name}</p>
+                <pre className="mt-1 overflow-x-auto rounded-sm border border-basalt-700 bg-basalt-900 p-2 font-mono text-[0.6875rem] text-steel-400">
+                  {mapsToText(pack)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}

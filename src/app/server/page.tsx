@@ -22,6 +22,7 @@ import { mapSlug } from "@/lib/matches/maps";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { ARCHIVE_TIME_ZONE } from "@/lib/matches/sanitize";
 import { dmTotals, listDmPlayers } from "@/lib/dm/queries";
+import { activeMapPack } from "@/lib/map-packs";
 import {
   getDmServerStatus,
   getServerStatus,
@@ -216,7 +217,11 @@ export default async function ServerPage() {
 
   // The DM record for the panel: top three by time, plus the totals line.
   // Cached queries shared with /stats/dm, so this costs the page nothing new.
-  const [dmPlayers, dm] = await Promise.all([listDmPlayers(), dmTotals()]);
+  const [dmPlayers, dm, activePack] = await Promise.all([
+    listDmPlayers(),
+    dmTotals(),
+    activeMapPack(),
+  ]);
   const dmLeaders = dmPlayers.slice(0, 3);
 
   const mostPlayed = rotation[0]?.played ?? 0;
@@ -540,10 +545,31 @@ export default async function ServerPage() {
               </div>
             ) : null}
 
+            {/* Whatever themed rotation is on, named and linked. Renders
+                nothing on the standing rotation, which is most of the time. */}
+            {activePack ? (
+              <p className="mt-4 border-t border-basalt-800 pt-3 text-sm leading-relaxed text-steel-300">
+                <span className="font-display text-[0.6875rem] uppercase tracking-widest text-rust-400">
+                  Map pack
+                </span>{" "}
+                <Link
+                  href="/server/map-packs"
+                  className="font-semibold text-steel-100 hover:text-rust-300"
+                >
+                  {activePack.name}
+                </Link>
+                <span className="text-steel-500">
+                  {" "}
+                  · {activePack.maps.length}{" "}
+                  {activePack.maps.length === 1 ? "map" : "maps"}
+                </span>
+              </p>
+            ) : null}
+
             <p
               className={
                 "max-w-[36rem] text-sm leading-relaxed text-steel-400 " +
-                (dmLeaders.length > 0 ? "mt-4 border-t border-basalt-800 pt-3" : "")
+                (dmLeaders.length > 0 || activePack ? "mt-4 border-t border-basalt-800 pt-3" : "")
               }
             >
               No matches here and no waiting for one: join and play. Frags,
