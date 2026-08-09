@@ -14,7 +14,9 @@ import {
 } from "@/lib/matches/queries";
 import { NightFootageCard } from "@/components/match-footage";
 import { footageForNight } from "@/lib/match-footage";
+import { RecordsBanner } from "@/components/records-banner";
 import { ResultsStrip } from "@/components/results-strip";
+import { getTicker } from "@/lib/matches/ticker";
 import { DISCORD_INVITE } from "@/lib/nav";
 import { getServerStatus } from "@/lib/server-status";
 
@@ -30,7 +32,7 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent, opinions] =
+  const [status, totals, latest, players, columns, recent, opinions, records] =
     await Promise.all([
       getServerStatus(),
       archiveTotals(),
@@ -39,6 +41,7 @@ export default async function HomePage() {
       listColumns(),
       recentMatches(10),
       listOpinions(3),
+      getTicker(),
     ]);
 
 
@@ -80,14 +83,18 @@ export default async function HomePage() {
       <h1 className="sr-only">RedFaction4You</h1>
 
       {/*
-        The records ticker used to run across the top here, above everything.
+        The records, back across the top — asked for on 8 August, as a banner
+        that scrolls slowly rather than the block that used to be here.
 
-        It is gone from this page rather than deleted: every fact in it is a
-        record, /stats is the page about records, and having the two meant the
-        front page opened with a strip of superlatives above the results they
-        came out of. They are the first section of the stats page now, where
-        there is room to say which match each one was set in.
+        The old one was removed for a good reason and it still holds: a static
+        wall of superlatives above the results those records came out of put
+        the conclusion before the evidence. A slow marquee is a different
+        thing. It is one line rather than a grid, it is ambient rather than
+        the first thing to read, and /stats remains the page where each record
+        gets its match and its context. Every item still links to the match it
+        was set in.
       */}
+      <RecordsBanner items={records} />
 
       <div className="mx-auto max-w-6xl px-4 pb-10">
       {/* Status readout. One line, with the map the server is on. */}

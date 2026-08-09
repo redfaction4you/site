@@ -433,6 +433,73 @@
 }
 
 /*
+ * The records marquee across the top of the front page.
+ *
+ * Two identical runs inside one track, and the track travels exactly half its
+ * own width. At the instant the first run has fully left, the second sits
+ * precisely where the first began, so resetting to zero is invisible and the
+ * loop needs no measuring, no timer and no JavaScript.
+ *
+ * Slow on purpose. This is something to catch out of the corner of the eye
+ * while reading the page under it, not something to watch.
+ */
+.marquee {
+  overflow: hidden;
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-slide 90s linear infinite;
+}
+
+.marquee-run {
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* Stops so a record can be read and clicked, which is the whole reason each
+   one is a link. */
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * Reduced motion gets a strip it can scroll itself.
+ *
+ * The blanket rule further down collapses every animation to 0.001ms, which
+ * for a marquee means jumping instantly to the halfway point and sitting
+ * there — the first half of the records unreachable. Turning the animation off
+ * and handing back a normal horizontal scroll is the honest version of "do not
+ * move things at me".
+ */
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    overflow-x: auto;
+  }
+
+  .marquee-track {
+    animation: none;
+    transform: none;
+  }
+
+  /* The duplicate run is decoration; without motion it is repetition. */
+  .marquee-run + .marquee-run {
+    display: none;
+  }
+}
+
+/*
  * The smallest type on the site has a floor on phones.
  *
  * `.eyebrow`, `.figure-label` and `.rule-heading` are handled in @layer
