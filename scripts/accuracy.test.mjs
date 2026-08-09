@@ -18,8 +18,31 @@ import assert from "node:assert/strict";
 import {
   UNSOUND_SHOOTING_NOTE,
   accuracyOf,
+  accuracyPercent,
   shootingIsSound,
 } from "../src/lib/matches/accuracy.ts";
+
+/* --- the fraction, written out -------------------------------------------- */
+
+/*
+ * The other way this module gets a figure wrong, and it had happened twice.
+ * `accuracyOf` returns a fraction, and a caller that prints it without the
+ * hundred publishes "0.2%" for somebody shooting a fifth of their shots. That
+ * was live on /stats/dm and in the fact sheet the feature writer and the fact
+ * checker both read.
+ */
+test("an accuracy is written as a percentage, not as its fraction", () => {
+  assert.equal(accuracyPercent(accuracyOf(37, 200)), "18.5%");
+  assert.equal(accuracyPercent(0.185), "18.5%");
+  assert.equal(accuracyPercent(1), "100.0%");
+  assert.equal(accuracyPercent(0), "0.0%");
+});
+
+test("a fraction under a hundredth still reads as a small percentage", () => {
+  // The shape of the bug: a real accuracy must never come out looking like the
+  // fraction it was computed from.
+  assert.notEqual(accuracyPercent(0.185), "0.2%");
+});
 
 /* --- the ordinary case ---------------------------------------------------- */
 

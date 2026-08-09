@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { StatsTabs } from "@/components/stats-tabs";
-import { accuracyOf } from "@/lib/matches/accuracy";
+import { accuracyOf, accuracyPercent } from "@/lib/matches/accuracy";
 import { perMinute, timePlayed } from "@/lib/dm/format";
 import { dmTotals, listDmPlayers } from "@/lib/dm/queries";
 import { dayLabel } from "@/components/match-archive";
@@ -108,7 +108,7 @@ export default async function DmStatsPage() {
                       {player.deaths}
                     </td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">
-                      {accuracy === null ? "—" : `${accuracy.toFixed(1)}%`}
+                      {accuracy === null ? "—" : accuracyPercent(accuracy)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">
                       {player.bestStreak}

@@ -66,6 +66,25 @@ export function accuracyOf(shotsHit: number, shotsFired: number): number | null 
 }
 
 /**
+ * An accuracy as a percentage, written out.
+ *
+ * `accuracyOf` returns a fraction between 0 and 1, and the hundred lives here
+ * rather than at each call site because three call sites wrote it out
+ * identically and two forgot it altogether: `/stats/dm` published a column of
+ * "0.2%" for players shooting around twenty percent, and the feature fact sheet
+ * handed the same figures to the writer and then to the fact checker, which
+ * would have verified a piece against them. Both are the shape this module
+ * exists to prevent — a number that is confidently wrong rather than absent.
+ *
+ * Takes the fraction, never the pair, so it cannot be mistaken for the rule
+ * itself: `accuracyOf` decides whether there is a figure, this decides how it
+ * is written.
+ */
+export function accuracyPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+/**
  * The sentence shown wherever an accuracy is missing for this reason.
  *
  * One wording, in one place, so the scoreboard and the player page cannot come

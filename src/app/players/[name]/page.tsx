@@ -7,7 +7,11 @@ import { FormRun } from "@/components/form-run";
 import { PlayerRecord } from "@/components/player-record";
 import { MIN_MATCHES_FOR_PROFILE } from "@/lib/ai/player-profile";
 import { getDmPlayer } from "@/lib/dm/queries";
-import { UNSOUND_SHOOTING_NOTE, accuracyOf } from "@/lib/matches/accuracy";
+import {
+  UNSOUND_SHOOTING_NOTE,
+  accuracyOf,
+  accuracyPercent,
+} from "@/lib/matches/accuracy";
 import { BOARDS, rank } from "@/lib/matches/leaderboards";
 import { PAIR_RATE_REQUIREMENT } from "@/lib/matches/pairings";
 import {
@@ -20,9 +24,9 @@ import {
 
 type Props = { params: Promise<{ name: string }> };
 
-function percent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
+// `percent` is `accuracyPercent` from the accuracy module, which is where the
+// hundred lives now: two pages had lost it and published a tenth of a percent.
+const percent = accuracyPercent;
 
 function seconds(ms: number): string {
   if (!ms) return "-";

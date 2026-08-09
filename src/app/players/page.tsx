@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { UNSOUND_SHOOTING_NOTE } from "@/lib/matches/accuracy";
+import { UNSOUND_SHOOTING_NOTE, accuracyPercent } from "@/lib/matches/accuracy";
 import { listPlayers, recentForm } from "@/lib/matches/queries";
 import { FormRun } from "@/components/form-run";
 
@@ -28,9 +28,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-function percent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
+const percent = accuracyPercent;
 
 /**
  * How many recent nights count as still playing.

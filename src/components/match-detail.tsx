@@ -11,6 +11,7 @@ import { MapShot } from "@/components/map-shot";
 import {
   UNSOUND_SHOOTING_NOTE,
   accuracyOf,
+  accuracyPercent,
   shootingIsSound,
 } from "@/lib/matches/accuracy";
 import { mapSlug } from "@/lib/matches/maps";
@@ -27,9 +28,7 @@ import { MatchTimeline } from "@/components/match-timeline";
 import { PlayerLink } from "@/components/player-link";
 import { buildTimeline } from "@/lib/matches/timeline";
 
-function percent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
+const percent = accuracyPercent;
 
 function seconds(ms: number): string {
   if (!ms) return "-";
