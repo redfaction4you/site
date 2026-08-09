@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { featurePieces, matchPlayers, matches } from "@/lib/db/schema";
 import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import { MATCH_COMPLETED, TOOK_PART, getMatch } from "@/lib/matches/queries";
-import { accuracyOf } from "@/lib/matches/accuracy";
+import { accuracyOf, accuracyPercent } from "@/lib/matches/accuracy";
 import { checkClaims } from "./fact-check";
 import { generate } from "./generate";
 import { COLUMNIST_NAME } from "./opinion";
@@ -68,6 +68,7 @@ Then a blank line, then the piece.`;
  */
 export type FeatureSubject =
   | { kind: "pairing"; a: string; b: string }
+  | { kind: "rivalry"; a: string; b: string }
   | { kind: "match"; archiveDay: string; sourceMatchId: number }
   | { kind: "player"; name: string };
 
@@ -84,42 +85,124 @@ function clock(seconds: number | null | undefined): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
+/** Which side each of two people was on, per match they were both in. */
+type Sides = Map<string, { winner: string | null; teams: Map<string, string> }>;
+
 /**
- * Every match two people played on the same side, newest last.
+ * Where two people stood in every match they were both in.
+ *
+ * One query answering both questions a pair of players raises — when were they
+ * together, when were they against each other — because they are the same
+ * question read two ways. It was written out twice, once in `matchesTogether`
+ * and once inside the pairing fact sheet to count how often they had been
+ * opponents, and the rivalry piece would have made three.
  *
  * Through identity, so somebody who has played under four names is one person,
  * and only matches that counted: a feature built partly on an abandoned start
  * would be describing a game the rest of the site says did not happen.
  */
-async function matchesTogether(a: string, b: string): Promise<string[]> {
+async function sidesByMatch(a: string, b: string): Promise<Sides> {
   const rows = await db
     .select({
-      id: matches.id,
       archiveDay: matches.archiveDay,
       sourceMatchId: matches.sourceMatchId,
+      winner: matches.winner,
       team: matchPlayers.team,
       person: DISPLAY_NAME,
     })
     .from(matchPlayers)
     .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
     .where(and(TOOK_PART, MATCH_COMPLETED, eq(matches.status, "final")))
-    .groupBy(matches.id, matches.archiveDay, matches.sourceMatchId, matchPlayers.team, IDENTITY_KEY);
+    .groupBy(
+      matches.archiveDay,
+      matches.sourceMatchId,
+      matches.winner,
+      matchPlayers.team,
+      IDENTITY_KEY,
+    );
 
   const wanted = new Set([a.toLowerCase(), b.toLowerCase()]);
-  const sides = new Map<string, Map<string, Set<string>>>();
+  const sides: Sides = new Map();
   for (const row of rows) {
     if (!wanted.has(row.person.toLowerCase())) continue;
     const key = `${row.archiveDay}/${row.sourceMatchId}`;
-    if (!sides.has(key)) sides.set(key, new Map());
-    const byTeam = sides.get(key)!;
-    if (!byTeam.has(row.team)) byTeam.set(row.team, new Set());
-    byTeam.get(row.team)!.add(row.person.toLowerCase());
+    if (!sides.has(key)) sides.set(key, { winner: row.winner, teams: new Map() });
+    sides.get(key)!.teams.set(row.person.toLowerCase(), row.team);
   }
 
+  // Both of them, or it answers neither question.
+  for (const [key, entry] of sides) {
+    if (entry.teams.size !== 2) sides.delete(key);
+  }
+  return sides;
+}
+
+/** The matches where they shared a side, oldest first. */
+function together(sides: Sides): string[] {
   return [...sides.entries()]
-    .filter(([, byTeam]) => [...byTeam.values()].some((people) => people.size === 2))
+    .filter(([, entry]) => new Set(entry.teams.values()).size === 1)
     .map(([key]) => key)
     .sort();
+}
+
+/** The matches where they were on opposite sides, oldest first. */
+function opposed(sides: Sides): string[] {
+  return [...sides.entries()]
+    .filter(([, entry]) => new Set(entry.teams.values()).size === 2)
+    .map(([key]) => key)
+    .sort();
+}
+
+/**
+ * One match written out in full, appended to a fact sheet.
+ *
+ * The scoreboard and every capture with the clock on it. Shared by the kinds
+ * that walk through several matches, so a piece about a partnership and a piece
+ * about a rivalry are handed the same depth of record and cannot come to
+ * describe the same match differently.
+ */
+async function appendMatch(lines: string[], ref: string): Promise<void> {
+  const [archiveDay, sourceMatchId] = ref.split("/");
+  const match = await getMatch(archiveDay, Number(sourceMatchId));
+  if (!match) return;
+
+  lines.push("");
+  lines.push(
+    `MATCH ${sourceMatchId} on ${archiveDay}, ${match.mapName}, ` +
+      `${match.mode}. Final score red ${match.redScore}, blue ${match.blueScore}` +
+      `${match.winner ? `, ${match.winner} won` : ", no recorded winner"}` +
+      `${match.overtime ? ", went to overtime" : ""}.`,
+  );
+
+  lines.push("  Scoreboard:");
+  for (const player of match.players) {
+    if (player.team === "spectator") continue;
+    const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
+    lines.push(
+      `    ${player.name} (${player.team}): ${player.kills} frags, ` +
+        `${player.deaths} deaths, ${player.caps} captures, ` +
+        `best streak ${player.maxStreak}, ` +
+        `${accuracy === null ? "accuracy not sound" : `${accuracyPercent(accuracy)} accuracy`}, ` +
+        `${Math.round(player.flagHoldMs / 1000)}s holding the flag, ` +
+        `${player.flagPickups} flag pickups, ${player.flagReturns} returns.`,
+    );
+  }
+
+  if (match.captures.length) {
+    lines.push("  Captures, in order:");
+    for (const capture of match.captures) {
+      const assists =
+        Array.isArray(capture.assists) && capture.assists.length
+          ? ` Carried on the way by ${capture.assists.join(", ")}.`
+          : "";
+      lines.push(
+        `    ${clock(capture.elapsedSeconds)} ${capture.playerName ?? "unknown"} ` +
+          `capped for ${capture.team}, making it ${capture.redScore}-${capture.blueScore}.${assists}`,
+      );
+    }
+  } else {
+    lines.push("  No captures recorded in this match.");
+  }
 }
 
 /**
@@ -131,7 +214,8 @@ async function matchesTogether(a: string, b: string): Promise<string[]> {
  * rates at all.
  */
 async function buildPairingFacts(a: string, b: string): Promise<FeatureFacts | null> {
-  const refs = await matchesTogether(a, b);
+  const sides = await sidesByMatch(a, b);
+  const refs = together(sides);
   if (refs.length === 0) return null;
 
   const lines: string[] = [];
@@ -141,32 +225,8 @@ async function buildPairingFacts(a: string, b: string): Promise<FeatureFacts | n
   );
 
   // What they had been before this: opponents, and how many times.
-  const opposed = await db
-    .select({
-      matchId: matches.id,
-      archiveDay: matches.archiveDay,
-      sourceMatchId: matches.sourceMatchId,
-      team: matchPlayers.team,
-      person: DISPLAY_NAME,
-    })
-    .from(matchPlayers)
-    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
-    .where(and(TOOK_PART, MATCH_COMPLETED, eq(matches.status, "final")))
-    .groupBy(matches.id, matches.archiveDay, matches.sourceMatchId, matchPlayers.team, IDENTITY_KEY);
-
-  const wanted = new Set([a.toLowerCase(), b.toLowerCase()]);
-  const perMatch = new Map<string, Map<string, string>>();
-  for (const row of opposed) {
-    if (!wanted.has(row.person.toLowerCase())) continue;
-    const key = `${row.archiveDay}/${row.sourceMatchId}`;
-    if (!perMatch.has(key)) perMatch.set(key, new Map());
-    perMatch.get(key)!.set(row.person.toLowerCase(), row.team);
-  }
-  const facedCount = [...perMatch.values()].filter(
-    (teams) => teams.size === 2 && new Set(teams.values()).size === 2,
-  ).length;
   lines.push(
-    `Before any of this they had been opponents ${facedCount} times.`,
+    `Before any of this they had been opponents ${opposed(sides).length} times.`,
   );
 
   const lore = loreFor([a, b]);
@@ -176,49 +236,7 @@ async function buildPairingFacts(a: string, b: string): Promise<FeatureFacts | n
     lines.push(lore);
   }
 
-  for (const ref of refs) {
-    const [archiveDay, sourceMatchId] = ref.split("/");
-    const match = await getMatch(archiveDay, Number(sourceMatchId));
-    if (!match) continue;
-
-    lines.push("");
-    lines.push(
-      `MATCH ${sourceMatchId} on ${archiveDay}, ${match.mapName}, ` +
-        `${match.mode}. Final score red ${match.redScore}, blue ${match.blueScore}` +
-        `${match.winner ? `, ${match.winner} won` : ", no recorded winner"}` +
-        `${match.overtime ? ", went to overtime" : ""}.`,
-    );
-
-    lines.push("  Scoreboard:");
-    for (const player of match.players) {
-      if (player.team === "spectator") continue;
-      const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
-      lines.push(
-        `    ${player.name} (${player.team}): ${player.kills} frags, ` +
-          `${player.deaths} deaths, ${player.caps} captures, ` +
-          `best streak ${player.maxStreak}, ` +
-          `${accuracy === null ? "accuracy not sound" : `${accuracy.toFixed(1)}% accuracy`}, ` +
-          `${Math.round(player.flagHoldMs / 1000)}s holding the flag, ` +
-          `${player.flagPickups} flag pickups, ${player.flagReturns} returns.`,
-      );
-    }
-
-    if (match.captures.length) {
-      lines.push("  Captures, in order:");
-      for (const capture of match.captures) {
-        const assists =
-          Array.isArray(capture.assists) && capture.assists.length
-            ? ` Carried on the way by ${capture.assists.join(", ")}.`
-            : "";
-        lines.push(
-          `    ${clock(capture.elapsedSeconds)} ${capture.playerName ?? "unknown"} ` +
-            `capped for ${capture.team}, making it ${capture.redScore}-${capture.blueScore}.${assists}`,
-        );
-      }
-    } else {
-      lines.push("  No captures recorded in this match.");
-    }
-  }
+  for (const ref of refs) await appendMatch(lines, ref);
 
   lines.push("");
   lines.push(
@@ -229,6 +247,88 @@ async function buildPairingFacts(a: string, b: string): Promise<FeatureFacts | n
 
   return {
     kind: "pairing",
+    subjects: [a, b],
+    matchRefs: refs,
+    prompt: lines.join("\n"),
+  };
+}
+
+/**
+ * Two players across every match they have played against each other.
+ *
+ * The mirror of the pairing piece, and the one the archive has far more of:
+ * people share a side because a shuffle put them there, and spend most of their
+ * evenings opposite each other. The record it is built on is the head to head —
+ * who won when they were on opposite sides — which is a real fact about two
+ * people in a way that a pairing win rate from three matches is not.
+ *
+ * **It is a record, not a rating.** Nothing here claims either of them is
+ * better; a CTF match is won by a side of several people and the scoreline
+ * belongs to the team. The instruction at the bottom says so, because the
+ * temptation to read "5-2 up" as "the stronger player" is exactly what a model
+ * will do unprompted.
+ */
+async function buildRivalryFacts(a: string, b: string): Promise<FeatureFacts | null> {
+  const sides = await sidesByMatch(a, b);
+  const refs = opposed(sides);
+  if (refs.length === 0) return null;
+
+  /*
+   * Counted from the side each was on and the match's own winner, so a match
+   * with no recorded winner is a third outcome rather than silently a loss.
+   */
+  let aWins = 0;
+  let bWins = 0;
+  let undecided = 0;
+  for (const ref of refs) {
+    const entry = sides.get(ref)!;
+    const aTeam = entry.teams.get(a.toLowerCase());
+    const bTeam = entry.teams.get(b.toLowerCase());
+    if (!entry.winner) undecided++;
+    else if (entry.winner === aTeam) aWins++;
+    else if (entry.winner === bTeam) bWins++;
+    else undecided++;
+  }
+
+  const lines: string[] = [];
+  lines.push(
+    `SUBJECT: every match ${a} and ${b} have played against each other. ` +
+      `There are ${refs.length}.`,
+  );
+  lines.push(
+    `Head to head across those matches: ${a}'s side won ${aWins}, ` +
+      `${b}'s side won ${bWins}` +
+      `${undecided ? `, and ${undecided} had no recorded winner` : ""}.`,
+  );
+
+  const shared = together(sides).length;
+  lines.push(
+    shared === 0
+      ? `They have never played on the same side.`
+      : `They have also shared a side ${shared} ${shared === 1 ? "time" : "times"}.`,
+  );
+
+  const lore = loreFor([a, b]);
+  if (lore) {
+    lines.push("");
+    lines.push("WHO THEY ARE:");
+    lines.push(lore);
+  }
+
+  for (const ref of refs) await appendMatch(lines, ref);
+
+  lines.push("");
+  lines.push(
+    "Write the feature about the two of them as opponents: how the matches " +
+      "have gone, what each does to the other, and whether the head to head " +
+      "reflects the games. Every number must come from what is above. A CTF " +
+      "match is won by a side rather than by a player, so do not present the " +
+      "head to head as proof that either is the better player; it is the " +
+      "record of which side came out ahead.",
+  );
+
+  return {
+    kind: "rivalry",
     subjects: [a, b],
     matchRefs: refs,
     prompt: lines.join("\n"),
@@ -272,7 +372,7 @@ async function buildMatchFacts(
     lines.push(
       `  ${player.name} (${player.team}): ${player.kills} frags, ${player.deaths} deaths, ` +
         `${player.caps} captures, best streak ${player.maxStreak}, ` +
-        `${accuracy === null ? "accuracy not sound" : `${accuracy.toFixed(1)}% accuracy`}, ` +
+        `${accuracy === null ? "accuracy not sound" : `${accuracyPercent(accuracy)} accuracy`}, ` +
         `${Math.round(player.flagHoldMs / 1000)}s holding the flag, ` +
         `${player.flagPickups} pickups, ${player.flagReturns} returns.`,
     );
@@ -372,7 +472,7 @@ async function buildPlayerFacts(name: string): Promise<FeatureFacts | null> {
         `${row.team}, ${result} ${row.redScore}-${row.blueScore}: ` +
         `${row.kills} frags, ${row.deaths} deaths, ${row.caps} captures, ` +
         `best streak ${row.streak}, ` +
-        `${accuracy === null ? "accuracy not sound" : `${accuracy.toFixed(1)}% accuracy`}, ` +
+        `${accuracy === null ? "accuracy not sound" : `${accuracyPercent(accuracy)} accuracy`}, ` +
         `${Math.round(row.hold / 1000)}s on the flag.`,
     );
   }
@@ -398,6 +498,8 @@ export async function buildFeatureFacts(
   switch (subject.kind) {
     case "pairing":
       return buildPairingFacts(subject.a, subject.b);
+    case "rivalry":
+      return buildRivalryFacts(subject.a, subject.b);
     case "match":
       return buildMatchFacts(subject.archiveDay, subject.sourceMatchId);
     case "player":

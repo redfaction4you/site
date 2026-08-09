@@ -3,11 +3,11 @@ import { commissionFeature } from "@/app/admin/actions";
 /**
  * Commission a feature.
  *
- * Three kinds because three questions keep coming up: what happened when
- * those two finally played together, what actually went on in that match,
- * and what is somebody's story so far. Each builds its own fact sheet from
- * the real scoreboards; the piece is written, fact checked and only kept if
- * it passes.
+ * Four kinds because four questions keep coming up: what happened when those
+ * two finally played together, how it goes when they are against each other,
+ * what actually went on in that match, and what is somebody's story so far.
+ * Each builds its own fact sheet from the real scoreboards; the piece is
+ * written, fact checked and only kept if it passes.
  *
  * Names are typed rather than picked from a list on purpose: the list would
  * be every player who has ever appeared, and the person commissioning a
@@ -33,7 +33,7 @@ export function FeatureAdmin() {
         , by anything, ever: that stays a separate decision.
       </p>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <form action={commissionFeature} className="plate grid gap-2 p-3">
           <input type="hidden" name="kind" value="pairing" />
           <p className="figure-label">Two players, side by side</p>
@@ -41,6 +41,24 @@ export function FeatureAdmin() {
           <input name="b" required placeholder="Medeo" className={FIELD} />
           <p className="text-[0.6875rem] leading-snug text-steel-600">
             Every match they have played on the same side, in detail.
+          </p>
+          <button
+            type="submit"
+            className="mt-1 rounded-sm bg-rust-500 px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
+          >
+            Write it
+          </button>
+        </form>
+
+        <form action={commissionFeature} className="plate grid gap-2 p-3">
+          <input type="hidden" name="kind" value="rivalry" />
+          <p className="figure-label">Two players, against each other</p>
+          <input name="a" required placeholder="J!nX" className={FIELD} />
+          <input name="b" required placeholder="$t!nX" className={FIELD} />
+          <p className="text-[0.6875rem] leading-snug text-steel-600">
+            Every match they have played on opposite sides, with the head to
+            head. The record of which side came out ahead, not a claim about
+            who is better.
           </p>
           <button
             type="submit"

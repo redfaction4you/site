@@ -366,10 +366,10 @@ export async function commissionFeature(formData: FormData): Promise<void> {
   const kind = String(formData.get("kind") ?? "").trim();
   let subject: FeatureSubject | null = null;
 
-  if (kind === "pairing") {
+  if (kind === "pairing" || kind === "rivalry") {
     const a = String(formData.get("a") ?? "").trim();
     const b = String(formData.get("b") ?? "").trim();
-    if (a && b && a !== b) subject = { kind: "pairing", a, b };
+    if (a && b && a !== b) subject = { kind, a, b };
   } else if (kind === "player") {
     const name = String(formData.get("name") ?? "").trim();
     if (name) subject = { kind: "player", name };
