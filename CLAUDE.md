@@ -323,6 +323,15 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     match reports draw on, change an article somebody has already read, and
     re-run the fact checker over a piece that passed it. Replacing one of a
     person's names with another of their names asserts nothing new.
+  - **A name is not a key, and `cowboy dan` is why.** Two different people have
+    played under it. So `canonicalNames()`, which takes an identity, is the
+    lookup wherever the row has one, and `aliasNames()` is only for text that
+    carries no key at all. Three queries selected `match_players.name` and
+    rendered it as a person — the night list's best player, the records ticker
+    and `serverRecords` — and were invisible until `$t!nX` was pinned on 9
+    August, because until then the raw name and the display name agreed.
+    **A name that happens to match hides a query that never resolved it**, so
+    `vet:names` is only as sharp as the pins on `/admin`.
   - **`!`, `$` and `}` are name characters here.** `$t!nX`, `J!nX` and
     `T1k}super` are real, so a naive word boundary turns `s9!nX` into
     `Skuldug!nX`. `names.ts` treats `!` as part of a name only when something
