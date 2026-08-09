@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { GameTabs } from "@/components/game-tabs";
 import { MapShot } from "@/components/map-shot";
 import { dayLabel } from "@/components/match-archive";
+import { timePlayed } from "@/lib/dm/format";
 import { listDmMaps } from "@/lib/dm/queries";
 
 export const metadata: Metadata = {
@@ -12,13 +13,6 @@ export const metadata: Metadata = {
 };
 
 export const revalidate = 300;
-
-function timePlayed(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
 
 /**
  * The deathmatch maps, as a rotation record rather than a gallery of contests.

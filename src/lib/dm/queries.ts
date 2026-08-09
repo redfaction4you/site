@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { dmPlayers, dmRounds, playerIdentities } from "@/lib/db/schema";
+import { playKey, type PackPlay } from "@/lib/dm/pack-play";
 
 /**
  * The deathmatch record, read the way the archive means it.
@@ -161,6 +162,52 @@ export const listDmMaps = cache(async function listDmMaps(): Promise<
     .orderBy(sql`sum(${dmPlayers.secondsPlayed}) desc nulls last`);
 
   return rows;
+});
+
+/**
+ * The same per-map figures, keyed for looking one map up rather than listing
+ * them all, and optionally only since a moment.
+ *
+ * `since` is what makes this different from `listDmMaps`: a map pack's question
+ * is not "has this map ever been played here" but "has it been played since
+ * this pack went on", which is the only reading that says anything about
+ * whether the map is in the rotation now. Null asks the all-time question.
+ *
+ * counts-everything (dm): no completion rule exists on this side; a rotation
+ * cut short by a vote was still play on that map.
+ */
+export const dmPlayByMap = cache(async function dmPlayByMap(
+  since: string | null,
+): Promise<Map<string, PackPlay>> {
+  const rows = await db
+    .select({
+      mapName: dmRounds.mapName,
+      rounds: sql<number>`count(distinct ${dmRounds.id})::int`,
+      secondsPlayed: sql<number>`coalesce(sum(${dmPlayers.secondsPlayed}), 0)::int`,
+      kills: sql<number>`coalesce(sum(${dmPlayers.kills}), 0)::int`,
+      players: sql<number>`count(distinct ${DM_IDENTITY_KEY})::int`,
+      lastPlayed: sql<string | null>`(max(${dmRounds.startedAt}) at time zone 'America/Los_Angeles')::date::text`,
+    })
+    .from(dmRounds)
+    .leftJoin(dmPlayers, sql`${dmPlayers.roundId} = ${dmRounds.id}`)
+    // Compared against the round's own start rather than the day it was filed
+    // under, because a pack switched on at nine in the evening must not collect
+    // the afternoon's rounds.
+    .where(since ? sql`${dmRounds.startedAt} >= ${since}::timestamptz` : undefined)
+    .groupBy(dmRounds.mapName);
+
+  return new Map(
+    rows.map((row) => [
+      playKey(row.mapName),
+      {
+        rounds: row.rounds,
+        secondsPlayed: row.secondsPlayed,
+        kills: row.kills,
+        players: row.players,
+        lastPlayed: row.lastPlayed,
+      },
+    ]),
+  );
 });
 
 /** Headline figures for the DM tab: how much play the archive holds. */

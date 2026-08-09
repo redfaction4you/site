@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { StatsTabs } from "@/components/stats-tabs";
 import { accuracyOf } from "@/lib/matches/accuracy";
+import { perMinute, timePlayed } from "@/lib/dm/format";
 import { dmTotals, listDmPlayers } from "@/lib/dm/queries";
 import { dayLabel } from "@/components/match-archive";
 
@@ -13,26 +14,6 @@ export const metadata: Metadata = {
 };
 
 export const revalidate = 300;
-
-/**
- * Time on the server, written the way somebody says it.
- *
- * The headline number of this whole page, so it reads as "1h 24m" rather than
- * a count of seconds nobody converts in their head. Below a minute it stays
- * seconds, because "0m" for somebody who just appeared reads as an error.
- */
-function timePlayed(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
-
-/** Frags per minute, the honest figure where a total only measures attendance. */
-function perMinute(count: number, seconds: number): string {
-  if (seconds < 60) return "—";
-  return (count / (seconds / 60)).toFixed(1);
-}
 
 export default async function DmStatsPage() {
   const [players, totals] = await Promise.all([listDmPlayers(), dmTotals()]);
