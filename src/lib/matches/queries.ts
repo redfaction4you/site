@@ -230,6 +230,7 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
   const played = await db
     .select({
       matchId: matchPlayers.matchId,
+      identityKey: IDENTITY_KEY,
       name: matchPlayers.name,
       score: matchPlayers.score,
       caps: matchPlayers.caps,
@@ -245,6 +246,20 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
       ),
     );
 
+  /*
+   * The name on the row is what the scoreboard said that evening, and this list
+   * is read as a statement about a person: the label links to their page. So it
+   * is resolved the same way `getMatch` resolves its scoreboard, through the
+   * identity rather than through the name.
+   *
+   * Missed when the identity work went in, and found on 9 August by `vet:names`
+   * the moment `$t!nX` was pinned: match 4 on 6 August was topped by them under
+   * `cowboy dan`, and this column was the last place on the site still saying
+   * so. Resolving by name could not fix it — `cowboy dan` has been used by two
+   * different people — which is the whole reason `canonicalNames` takes a key.
+   */
+  const named = await canonicalNames();
+
   const counts = new Map<string, number>();
   const best = new Map<string, { name: string; score: number; caps: number }>();
   for (const entry of played) {
@@ -255,7 +270,7 @@ export const listMatchesForDay = cache(async function listMatchesForDay(
     // inventing an order the record does not have.
     if (!standing || entry.score > standing.score) {
       best.set(entry.matchId, {
-        name: entry.name,
+        name: named.get(entry.identityKey) ?? entry.name,
         score: entry.score,
         caps: entry.caps,
       });
@@ -2029,8 +2044,9 @@ export const serverRecords = cache(async function serverRecords() {
     .orderBy(sql`abs(${matches.redScore} - ${matches.blueScore}) desc`)
     .limit(1);
 
-  const [mostCaps] = await db
+  const [mostCapsRow] = await db
     .select({
+      identityKey: IDENTITY_KEY,
       name: matchPlayers.name,
       caps: matchPlayers.caps,
       archiveDay: matches.archiveDay,
@@ -2043,8 +2059,9 @@ export const serverRecords = cache(async function serverRecords() {
     .orderBy(desc(matchPlayers.caps))
     .limit(1);
 
-  const [bestStreak] = await db
+  const [bestStreakRow] = await db
     .select({
+      identityKey: IDENTITY_KEY,
       name: matchPlayers.name,
       streak: matchPlayers.maxStreak,
       archiveDay: matches.archiveDay,
@@ -2061,7 +2078,24 @@ export const serverRecords = cache(async function serverRecords() {
     .orderBy(desc(matchPlayers.maxStreak))
     .limit(1);
 
-  return { biggestWin: biggestWin ?? null, mostCaps: mostCaps ?? null, bestStreak: bestStreak ?? null };
+  /*
+   * Both records name somebody, so both are resolved through the identity and
+   * the key is dropped rather than served. `recordsBrokenOnNight` below already
+   * did this and these two did not, which is the usual shape: the rule is
+   * remembered where it was written and missed one function away.
+   */
+  const named = await canonicalNames();
+  const person = <T extends { identityKey: string; name: string }>(row: T | undefined) => {
+    if (!row) return null;
+    const { identityKey, ...rest } = row;
+    return { ...rest, name: named.get(identityKey) ?? row.name };
+  };
+
+  return {
+    biggestWin: biggestWin ?? null,
+    mostCaps: person(mostCapsRow),
+    bestStreak: person(bestStreakRow),
+  };
 });
 
 /** A record that fell on a given night. See `recordsBrokenOnNight`. */

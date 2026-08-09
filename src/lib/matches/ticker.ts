@@ -11,7 +11,8 @@ import { cache } from "react";
 
 import { db } from "@/lib/db";
 import { matchPlayers, matches } from "@/lib/db/schema";
-import { MATCH_COMPLETED, TOOK_PART } from "@/lib/matches/queries";
+import { IDENTITY_KEY } from "@/lib/matches/identities";
+import { MATCH_COMPLETED, TOOK_PART, canonicalNames } from "@/lib/matches/queries";
 
 export type TickerItem = {
   /** Short label, shown in the accent colour. */
@@ -34,8 +35,16 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
   const items: TickerItem[] = [];
 
   // Best single-match performances. One query, several records out of it.
-  const best = await db
+  const bestRows = await db
     .select({
+      /*
+       * Selected so the name can be resolved, and dropped again below.
+       *
+       * `match_players.identity_key` is stored and never served; the mapping
+       * happens here rather than in a component, the same arrangement as the
+       * scoreboard in `getMatch`.
+       */
+      identityKey: IDENTITY_KEY,
       name: matchPlayers.name,
       kills: matchPlayers.kills,
       caps: matchPlayers.caps,
@@ -57,7 +66,22 @@ export const getTicker = cache(async function getTicker(): Promise<TickerItem[]>
     // wrong number a ticker states with total confidence.
     .where(and(TOOK_PART, eq(matches.status, "final"), MATCH_COMPLETED));
 
-  if (best.length === 0) return items;
+  if (bestRows.length === 0) return items;
+
+  /*
+   * Resolved once, here, so every record below is about a person rather than
+   * about whatever the scoreboard said that evening — and so does anything
+   * added to this function later.
+   *
+   * Six facts in this ticker name somebody, and each one linked to a player
+   * page that could be headed with a different name. Resolving by name could
+   * not do it: `cowboy dan` has been used by two different people.
+   */
+  const named = await canonicalNames();
+  const best = bestRows.map(({ identityKey, ...row }) => ({
+    ...row,
+    name: named.get(identityKey) ?? row.name,
+  }));
 
   const link = (row: (typeof best)[number]) =>
     `/matches/${row.archiveDay}/${row.sourceMatchId}`;
