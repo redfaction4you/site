@@ -1189,6 +1189,64 @@ export const mapPacks = pgTable(
   ],
 );
 
+/**
+ * A longer piece about one subject, rather than one night.
+ *
+ * The nightly opinion answers "what happened this evening"; when a pairing
+ * people had been asking about finally happened, that answer gave it a
+ * paragraph and moved on. Some subjects want a whole article: every match two
+ * players shared a side, what each did in them, how the flags actually moved.
+ * That is a different shape from a column tied to a date, so it is a different
+ * table rather than a `kind` column on `opinion_pieces` — a nightly piece has
+ * exactly one per day and these have none, or several, about anything.
+ *
+ * Written on request rather than on a schedule. Nothing generates these
+ * automatically, because "which subject deserves a feature" is a judgement and
+ * the model is not the one making it.
+ */
+export const featurePieces = pgTable(
+  "feature_pieces",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    /** The URL. Derived from the headline when it is written. */
+    slug: text("slug").notNull(),
+    headline: text("headline").notNull(),
+    body: text("body").notNull(),
+
+    /** One line under the headline saying what this is about. */
+    standfirst: text("standfirst"),
+
+    /**
+     * Who or what it is about, as display names. Used to link the piece from
+     * the player pages it concerns and to say what it covers.
+     */
+    subjects: jsonb("subjects").$type<string[]>().default([]).notNull(),
+
+    /**
+     * The matches it was written from, as `archiveDay/sourceMatchId`, so a
+     * reader can go and check every claim against the scoreboards.
+     */
+    matchRefs: jsonb("match_refs").$type<string[]>().default([]).notNull(),
+
+    model: text("model"),
+
+    /**
+     * When it was announced, or null.
+     *
+     * Null does NOT queue it for announcement the way `opinion_pieces` does:
+     * nothing sweeps this table. Publishing a feature to Discord is a decision
+     * somebody makes, which is the whole reason these are written on request.
+     */
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (row) => [uniqueIndex("feature_pieces_slug_idx").on(row.slug)],
+);
+
 export const filesRelations = relations(files, ({ one }) => ({
   item: one(items, { fields: [files.itemId], references: [items.id] }),
 }));

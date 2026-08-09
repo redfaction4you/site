@@ -10,6 +10,7 @@ import {
   COLUMNIST_ROLE,
 } from "@/lib/ai/opinion";
 import { listOpinions } from "@/lib/matches/queries";
+import { listFeatures } from "@/lib/ai/feature";
 
 export const metadata: Metadata = {
   title: COLUMNIST_NAME,
@@ -31,7 +32,7 @@ export const dynamic = "force-dynamic";
  * the plain statement travels with it rather than sitting at the bottom.
  */
 export default async function AnalystPage() {
-  const pieces = await listOpinions();
+  const [pieces, features] = await Promise.all([listOpinions(), listFeatures()]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
@@ -69,6 +70,45 @@ export default async function AnalystPage() {
           </p>
         </div>
       </div>
+
+      {/*
+        The features, above the nightly columns.
+        Two kinds of writing on one page: the column that follows a night, and
+        the longer pieces about one subject. Features lead because there are
+        few of them and each was commissioned deliberately, where a column
+        arrives every time anybody plays.
+      */}
+      {features.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="section-heading">Features</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-steel-400">
+            Longer pieces about one thing: a pairing, a match, somebody&rsquo;s
+            run of form. Written on request rather than on a schedule, and
+            built from the scoreboards they link to.
+          </p>
+          <ul className="mt-4 space-y-4">
+            {features.map((feature) => (
+              <li key={feature.slug} className="border-b border-basalt-800 pb-4">
+                <Link href={`/analyst/features/${feature.slug}`} className="group">
+                  <h3 className="font-display text-xl font-bold leading-snug text-steel-100 group-hover:text-rust-300">
+                    {feature.headline}
+                  </h3>
+                  {feature.standfirst ? (
+                    <p className="mt-1 text-sm leading-relaxed text-steel-400">
+                      {feature.standfirst}
+                    </p>
+                  ) : null}
+                </Link>
+                <p className="mt-1 font-mono text-[0.6875rem] text-steel-600">
+                  {feature.subjects.join(", ")} ·{" "}
+                  {feature.matchRefs.length}{" "}
+                  {feature.matchRefs.length === 1 ? "match" : "matches"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {pieces.length === 0 ? (
         <p className="mt-8 text-sm text-steel-500">

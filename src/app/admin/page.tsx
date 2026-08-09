@@ -14,6 +14,7 @@ import {
 import { vetNight } from "@/lib/matches/vet";
 import { listMapPacks } from "@/lib/map-packs";
 import { MapPackAdmin } from "@/components/map-pack-admin";
+import { FeatureAdmin } from "@/components/feature-admin";
 import {
   lock,
   mergeIdentities,
@@ -279,6 +280,8 @@ export default async function AdminPage({ searchParams }: Props) {
       ) : null}
 
       <MapPackAdmin packs={packs} />
+
+      <FeatureAdmin />
 
       <h2 className="mt-10 font-display text-lg font-bold text-steel-100">
         Who is who

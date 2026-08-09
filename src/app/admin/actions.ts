@@ -8,6 +8,13 @@ import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
 import { db } from "@/lib/db";
 import { mapPacks, matchPlayers, playerIdentities, type MapPackEntry } from "@/lib/db/schema";
 import { isLevelFilename } from "@/lib/map-packs";
+import {
+  buildFeatureFacts,
+  saveFeature,
+  writeFeature,
+  type FeatureSubject,
+} from "@/lib/ai/feature";
+import { activeModel } from "@/lib/ai/generate";
 
 /**
  * Everything on the admin page goes through here, and every action re-checks
@@ -336,4 +343,54 @@ export async function deleteMapPack(formData: FormData): Promise<void> {
   await db.delete(mapPacks).where(eq(mapPacks.slug, slug));
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
+}
+
+/**
+ * Commissions a feature: a longer piece about one subject.
+ *
+ * Deliberately a person's decision rather than a scheduled job. "Which of
+ * tonight's things deserves a whole article" is a judgement, and handing it to
+ * the model would produce a feature every night about whatever was largest,
+ * which is what the nightly column already does.
+ *
+ * Generation takes a while and costs model quota, so this writes the piece
+ * before redirecting rather than queueing it: the page comes back when the
+ * piece exists, or with a problem if it did not verify.
+ *
+ * It is never announced. `feature_pieces.posted_at` is swept by nothing —
+ * publishing one to Discord is its own decision, not a side effect of writing.
+ */
+export async function commissionFeature(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const kind = String(formData.get("kind") ?? "").trim();
+  let subject: FeatureSubject | null = null;
+
+  if (kind === "pairing") {
+    const a = String(formData.get("a") ?? "").trim();
+    const b = String(formData.get("b") ?? "").trim();
+    if (a && b && a !== b) subject = { kind: "pairing", a, b };
+  } else if (kind === "player") {
+    const name = String(formData.get("name") ?? "").trim();
+    if (name) subject = { kind: "player", name };
+  } else if (kind === "match") {
+    const ref = String(formData.get("matchRef") ?? "").trim();
+    const [archiveDay, sourceMatchId] = ref.split("/");
+    if (archiveDay && sourceMatchId && Number.isFinite(Number(sourceMatchId))) {
+      subject = { kind: "match", archiveDay, sourceMatchId: Number(sourceMatchId) };
+    }
+  }
+
+  if (!subject) redirect("/admin?problem=1");
+
+  const facts = await buildFeatureFacts(subject);
+  if (!facts) redirect("/admin?problem=1");
+
+  const piece = await writeFeature(facts);
+  if (!piece) redirect("/admin?problem=1");
+
+  await saveFeature(piece, facts, activeModel());
+
+  revalidatePath("/", "layout");
+  redirect(`/analyst/features/${piece.slug}`);
 }
