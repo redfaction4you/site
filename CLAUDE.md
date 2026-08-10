@@ -529,6 +529,18 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     says it is not a photograph of the match. Both are attached inside the
     component so the picture cannot be rendered without them. Do not reinstate the
     caption without being asked. There is deliberately no OpenGraph image.
+- **A feature argues; a scoreboard is not an argument, and the fact checker
+  cannot tell the difference.** Asked for a piece about two players finally
+  sharing a side, the first one spent two paragraphs reading out both
+  scoreboards and a reader said it lost its plot. Every figure in it was true,
+  so `checkClaims` passed it. Three things changed and the middle one is the
+  load-bearing one: the prompt stopped asking for a walk through the matches,
+  **the fact sheet stopped containing one** — a pairing or rivalry sheet carries
+  only its subjects' lines, everyone else in a sentence, and captures as counts
+  rather than clock times — and `prose-density.ts` now rejects a draft on
+  figures per paragraph *before* the fact check. `baselinesFor` is the other
+  half: a figure means nothing without the player's usual beside it, and with it
+  the same figure becomes an observation.
 - **Generated writing is fact checked before it is stored.** `fact-check.ts` sends
   every draft column and match report back with the facts and asks what the data
   does not support; a failure is rewritten once, then discarded. It exists because a
