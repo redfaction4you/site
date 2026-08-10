@@ -168,12 +168,24 @@ export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
                 key={piece.slug}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-basalt-800 py-2"
               >
-                <Link
-                  href={`/analyst/features/${piece.slug}`}
-                  className="min-w-0 flex-1 text-sm text-steel-200 hover:text-rust-300"
-                >
-                  {piece.headline}
-                </Link>
+                <span className="min-w-0 flex-1">
+                  <Link
+                    href={`/analyst/features/${piece.slug}`}
+                    className="block text-sm text-steel-200 hover:text-rust-300"
+                  >
+                    {piece.headline}
+                  </Link>
+                  {/*
+                    Who it is about, because the subject is what you check
+                    before commissioning another one — and a repeat headline
+                    replaces the piece rather than adding to it.
+                  */}
+                  {Array.isArray(piece.subjects) && piece.subjects.length > 0 ? (
+                    <span className="mt-0.5 block text-xs text-steel-400">
+                      {(piece.subjects as string[]).join(", ")}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="shrink-0 font-mono text-xs text-steel-500">
                   {piece.createdAt.slice(0, 10)}
                 </span>

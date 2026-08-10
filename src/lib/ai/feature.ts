@@ -566,7 +566,26 @@ export async function writeFeature(facts: FeatureFacts): Promise<FeaturePiece | 
   return null;
 }
 
-/** Stores a written feature. Never announced by anything; see the schema note. */
+/**
+ * Stores a written feature. Nothing sweeps this table; see the schema note.
+ *
+ * **The slug comes from the headline, so re-commissioning a subject usually
+ * lands on the same row.** A model asked twice about the same two players
+ * tends to reach for the same headline, that headline makes the same slug, and
+ * the upsert replaces the piece in place rather than adding a second one. That
+ * is the right behaviour — two near-identical articles about one pairing help
+ * nobody — and until 10 August it was silent in two ways that mattered.
+ *
+ * `created_at` was left alone, so a piece rewritten today carried the date of
+ * the one it replaced. It was reported exactly that way: a new feature that
+ * read as five days old on `/admin`. The row now holds text written now, so it
+ * takes today's date and sorts to the top of the list where it belongs.
+ *
+ * `posted_at` was left alone too, which was worse. A piece that had been sent
+ * to Discord and was then rewritten went on showing as posted, when what had
+ * been posted was different text that no longer existed anywhere. Clearing it
+ * makes the button come back: this text has not been sent, because it has not.
+ */
 export async function saveFeature(
   piece: FeaturePiece,
   facts: FeatureFacts,
@@ -592,6 +611,8 @@ export async function saveFeature(
         subjects: facts.subjects,
         matchRefs: facts.matchRefs,
         model,
+        createdAt: new Date(),
+        postedAt: null,
       },
     });
 }
