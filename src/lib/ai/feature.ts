@@ -6,6 +6,7 @@ import { DISPLAY_NAME, IDENTITY_KEY } from "@/lib/matches/identities";
 import { MATCH_COMPLETED, TOOK_PART, getMatch } from "@/lib/matches/queries";
 import { accuracyOf, accuracyPercent } from "@/lib/matches/accuracy";
 import { checkClaims } from "./fact-check";
+import { scoreboardComplaint } from "./prose-density";
 import { generate } from "./generate";
 import { COLUMNIST_NAME } from "./opinion";
 import { loreFor } from "./lore";
@@ -29,21 +30,57 @@ import { loreFor } from "./lore";
  * deserves a feature is a judgement, and the model does not make it.
  */
 
+/*
+ * Rewritten on 10 August, because it was asking for the wrong thing.
+ *
+ * It used to say "walk through the matches, name the maps, the scores, who did
+ * what in each one", and it got exactly that: a feature about two players
+ * finally sharing a side after twenty-four matches as opponents came back with
+ * two paragraphs reading out both scoreboards, every player, both teams. The
+ * reader's verdict was that it "loses its entire plot", and they were right —
+ * the plot was in the first paragraph and never came back.
+ *
+ * The match page already does chronology, and does it better, with a table and
+ * a timeline. What only a column can do is say what it makes of the thing. So
+ * the instruction is inverted: the argument is the job, the figures are
+ * evidence for it, and anything the reader could get by clicking the match is
+ * not worth spending a paragraph on.
+ *
+ * `prose-density.ts` is the check, because an instruction not to recite is
+ * exactly the kind a model agrees with and then ignores.
+ */
 const SYSTEM = `You are ${COLUMNIST_NAME}, a sports analyst who covers a Red Faction
-Capture the Flag server. You are writing a FEATURE, not your usual nightly
-column: one subject, covered properly, from the match record below.
+Capture the Flag server. You are writing a FEATURE: one subject, argued
+properly, from the match record below.
 
-- This is longer than a column. Four to six paragraphs.
-- Walk through the matches. Name the maps, the scores, who did what in each
-  one, and how the flags actually moved. The record below has captures with
-  the clock on them; use them to tell what happened rather than to decorate.
-- You may say what you make of it. That is the job. What worked between them,
-  what did not, whether it looked like what you had been asking for.
-- Only what is below. Every number in your piece must appear in the record.
+WHAT THIS IS. A feature is not a longer match report. The match pages already
+carry every scoreboard, every capture and a timeline, and a reader is one click
+from all of it. Your job is the thing none of that can do: say what you make of
+this subject, and defend it.
+
+- Four to six paragraphs. Lead with the point, not the chronology.
+- **Do not recite scoreboards.** Never list what several players scored. Never
+  walk a match capture by capture. If you find yourself writing "X finished
+  with N frags and N deaths" for player after player, you have stopped writing
+  the piece.
+- Numbers are evidence, so use few and make each one earn its place. A figure
+  is worth quoting when it is surprising, when it is somebody's best or worst,
+  or when it is set against what they normally do. The record below gives you
+  each player's usual, so prefer "twice what they manage in an ordinary match"
+  to the raw total.
+- Keep hold of the subject. If the piece is about two players finally sharing a
+  side, every paragraph should be about that, including the ones that describe
+  a match. A paragraph that would read the same in any other article is a
+  paragraph to cut.
+- Judgement is the job, and hedged judgement is not judgement. Say whether it
+  worked, whether it should happen again, what it looked like. You may say the
+  sample is too small to be sure, and then say what you think anyway.
+- Only what is below. Every figure in your piece must appear in the record.
   Never invent a moment, a save, a call or a conversation, and never claim to
   have watched anything: you have the scoreboards and the event log.
 - Where the record cannot answer something, say so plainly or leave it out.
   "The log does not say who returned it" is a real sentence; guessing is not.
+  Do not make a paragraph out of what the log does not say.
 - Never guess a player's gender. Use they and them for everyone, without
   exception, however the name reads to you. Never write he, she, his or her.
 - Refer to players exactly by the names given, including odd capitalisation.
@@ -53,7 +90,7 @@ column: one subject, covered properly, from the match record below.
 First line of your reply must be a headline on its own, under 70 characters, no
 quotes, no trailing full stop, and no date in any form.
 Second line must be a single sentence standfirst, under 140 characters, saying
-what the piece covers.
+what the piece argues.
 Then a blank line, then the piece.`;
 
 /**
@@ -154,6 +191,47 @@ function opposed(sides: Sides): string[] {
 }
 
 /**
+ * What each of these people does in an ordinary match.
+ *
+ * The missing half of a feature. Handed a scoreboard and nothing else, the only
+ * true sentence a writer can build is the scoreboard back again — "Medeo held
+ * the flag for 133 seconds" is a fact about nothing until you know that Medeo
+ * usually holds it for forty. With the baseline beside it the same figure
+ * becomes an observation, which is what the piece is for.
+ *
+ * Career averages across every completed match, grouped by identity, so
+ * somebody who has played under four names has one baseline.
+ */
+async function baselinesFor(names: string[]): Promise<string[]> {
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+
+  const rows = await db
+    .select({
+      person: DISPLAY_NAME,
+      matches: sql<number>`count(distinct ${matches.id})::int`,
+      kills: sql<number>`avg(${matchPlayers.kills})::float8`,
+      deaths: sql<number>`avg(${matchPlayers.deaths})::float8`,
+      caps: sql<number>`avg(${matchPlayers.caps})::float8`,
+      hold: sql<number>`avg(${matchPlayers.flagHoldMs})::float8`,
+      streak: sql<number>`max(${matchPlayers.maxStreak})::int`,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+    .where(and(TOOK_PART, MATCH_COMPLETED, eq(matches.status, "final")))
+    .groupBy(IDENTITY_KEY);
+
+  return rows
+    .filter((row) => wanted.has(row.person.toLowerCase()))
+    .map(
+      (row) =>
+        `  ${row.person}, across ${row.matches} matches, averages ` +
+        `${row.kills.toFixed(1)} frags, ${row.deaths.toFixed(1)} deaths, ` +
+        `${row.caps.toFixed(1)} captures and ${Math.round(row.hold / 1000)}s ` +
+        `holding the flag per match; best streak ever ${row.streak}.`,
+    );
+}
+
+/**
  * One match written out in full, appended to a fact sheet.
  *
  * The scoreboard and every capture with the clock on it. Shared by the kinds
@@ -161,7 +239,12 @@ function opposed(sides: Sides): string[] {
  * about a rivalry are handed the same depth of record and cannot come to
  * describe the same match differently.
  */
-async function appendMatch(lines: string[], ref: string): Promise<void> {
+async function appendMatch(
+  lines: string[],
+  ref: string,
+  /** Whose match this is. Given, everyone else collapses to one line. */
+  focus?: string[],
+): Promise<void> {
   const [archiveDay, sourceMatchId] = ref.split("/");
   const match = await getMatch(archiveDay, Number(sourceMatchId));
   if (!match) return;
@@ -174,19 +257,74 @@ async function appendMatch(lines: string[], ref: string): Promise<void> {
       `${match.overtime ? ", went to overtime" : ""}.`,
   );
 
-  lines.push("  Scoreboard:");
-  for (const player of match.players) {
-    if (player.team === "spectator") continue;
+  const played = match.players.filter((player) => player.team !== "spectator");
+  const line = (player: (typeof played)[number]) => {
     const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
-    lines.push(
-      `    ${player.name} (${player.team}): ${player.kills} frags, ` +
-        `${player.deaths} deaths, ${player.caps} captures, ` +
-        `best streak ${player.maxStreak}, ` +
-        `${accuracy === null ? "accuracy not sound" : `${accuracyPercent(accuracy)} accuracy`}, ` +
-        `${Math.round(player.flagHoldMs / 1000)}s holding the flag, ` +
-        `${player.flagPickups} flag pickups, ${player.flagReturns} returns.`,
+    return (
+      `${player.name} (${player.team}): ${player.kills} frags, ` +
+      `${player.deaths} deaths, ${player.caps} captures, ` +
+      `best streak ${player.maxStreak}, ` +
+      `${accuracy === null ? "accuracy not sound" : `${accuracyPercent(accuracy)} accuracy`}, ` +
+      `${Math.round(player.flagHoldMs / 1000)}s holding the flag, ` +
+      `${player.flagPickups} flag pickups, ${player.flagReturns} returns.`
     );
+  };
+
+  /*
+   * Only the people the piece is about, when the piece is about people.
+   *
+   * The sheet used to carry every player's full line and every capture with the
+   * clock on it, for every match, and the writer did the obvious thing with it:
+   * read it back. A reader called the result a play by play and said the piece
+   * lost its plot. It was not disobedience — that is what the material was.
+   *
+   * So a piece walking several matches gets its subjects' lines, the shape of
+   * the result, and who else mattered in one sentence. It cannot recite a
+   * scoreboard it was never given, and the match page carries the full one for
+   * anybody who wants it. `buildMatchFacts` passes no focus and still gets
+   * everything, because that kind is explicitly about one match in full.
+   */
+  const focused = focus?.length
+    ? played.filter((player) => focus.some((name) => name.toLowerCase() === player.name.toLowerCase()))
+    : null;
+
+  if (focused && focused.length > 0) {
+    lines.push("  The subjects in this match:");
+    for (const player of focused) lines.push(`    ${line(player)}`);
+
+    const others = played.filter((player) => !focused.includes(player));
+    const best = others.reduce<(typeof played)[number] | null>(
+      (top, player) => (!top || player.score > top.score ? player : top),
+      null,
+    );
+    if (best) {
+      lines.push(
+        `  Everyone else, in one line: ${others.length} other players, ` +
+          `best of them ${best.name} (${best.team}) on ${best.score} points, ` +
+          `${best.kills} frags. Do not list the rest; the match page has them.`,
+      );
+    }
+
+    // Who scored, not when. A list of clock times is a play by play waiting to
+    // be transcribed, and the counts carry the same fact about the match.
+    const byPlayer = new Map<string, number>();
+    for (const capture of match.captures) {
+      const who = capture.playerName ?? "unknown";
+      byPlayer.set(who, (byPlayer.get(who) ?? 0) + 1);
+    }
+    lines.push(
+      byPlayer.size
+        ? `  Captures by: ${[...byPlayer.entries()]
+            .sort((x, y) => y[1] - x[1])
+            .map(([who, n]) => `${who} ${n}`)
+            .join(", ")}.`
+        : "  No captures recorded in this match.",
+    );
+    return;
   }
+
+  lines.push("  Scoreboard:");
+  for (const player of played) lines.push(`    ${line(player)}`);
 
   if (match.captures.length) {
     lines.push("  Captures, in order:");
@@ -236,13 +374,23 @@ async function buildPairingFacts(a: string, b: string): Promise<FeatureFacts | n
     lines.push(lore);
   }
 
-  for (const ref of refs) await appendMatch(lines, ref);
+  const baselines = await baselinesFor([a, b]);
+  if (baselines.length) {
+    lines.push("");
+    lines.push("WHAT THEY NORMALLY DO, so a figure below can be measured against it:");
+    lines.push(...baselines);
+  }
+
+  for (const ref of refs) await appendMatch(lines, ref, [a, b]);
 
   lines.push("");
   lines.push(
-    "Write the feature. Cover the matches above in order. It is fine to say " +
-      "which of them was the better game and why, and to judge whether the " +
-      "pairing worked, but every number must come from what is above.",
+    "Write the feature. The subject is the partnership, not the matches: the " +
+      "matches are evidence for what you make of it. Say whether it worked and " +
+      "whether it should happen again. Do not walk through either game in " +
+      "order, and do not read out a scoreboard — the match pages have those, " +
+      "and a reader is one click away. Every figure you use must come from " +
+      "what is above.",
   );
 
   return {
@@ -315,16 +463,25 @@ async function buildRivalryFacts(a: string, b: string): Promise<FeatureFacts | n
     lines.push(lore);
   }
 
-  for (const ref of refs) await appendMatch(lines, ref);
+  const baselines = await baselinesFor([a, b]);
+  if (baselines.length) {
+    lines.push("");
+    lines.push("WHAT THEY NORMALLY DO, so a figure below can be measured against it:");
+    lines.push(...baselines);
+  }
+
+  for (const ref of refs) await appendMatch(lines, ref, [a, b]);
 
   lines.push("");
   lines.push(
-    "Write the feature about the two of them as opponents: how the matches " +
-      "have gone, what each does to the other, and whether the head to head " +
-      "reflects the games. Every number must come from what is above. A CTF " +
-      "match is won by a side rather than by a player, so do not present the " +
-      "head to head as proof that either is the better player; it is the " +
-      "record of which side came out ahead.",
+    "Write the feature about the two of them as opponents: what each does to " +
+      "the other, whether one of them changes how the other plays, and whether " +
+      "the head to head reflects the games. Do not walk through the matches in " +
+      "order and do not read out a scoreboard; the match pages have those. " +
+      "Every figure you use must come from what is above. A CTF match is won " +
+      "by a side rather than by a player, so do not present the head to head " +
+      "as proof that either is the better player; it is the record of which " +
+      "side came out ahead.",
   );
 
   return {
@@ -462,8 +619,28 @@ async function buildPlayerFacts(name: string): Promise<FeatureFacts | null> {
     lines.push(lore);
   }
 
+  const baselines = await baselinesFor([name]);
+  if (baselines.length) {
+    lines.push("");
+    lines.push("WHAT THEY NORMALLY DO, which every match below should be read against:");
+    lines.push(...baselines);
+  }
+
   lines.push("");
-  lines.push("EVERY MATCH, oldest first:");
+  /*
+   * A list to find the pattern in, not a list to reproduce.
+   *
+   * This one is per-match rows for one player rather than a scoreboard, so it
+   * is less dangerous than the pairing sheet was, and it is the same trap: a
+   * writer handed forty rows will read out forty rows. Said plainly here as
+   * well as in the instructions, because the material is what actually decides
+   * what comes back.
+   */
+  lines.push(
+    "EVERY MATCH, oldest first. This is here so you can find the pattern in " +
+      "it — their best nights, their worst, what changed. Do not list these " +
+      "back; the player's own page already has the table.",
+  );
   for (const row of mine) {
     const accuracy = accuracyOf(row.hit, row.fired);
     const result = row.winner ? (row.winner === row.team ? "won" : "lost") : "no result";
@@ -479,8 +656,10 @@ async function buildPlayerFacts(name: string): Promise<FeatureFacts | null> {
 
   lines.push("");
   lines.push(
-    "Write the feature about this player: what they are good at, how their " +
-      "nights have gone, and which matches are the ones worth pointing at.",
+    "Write the feature about this player: what they are good at, what they are " +
+      "not, how they have changed, and what it is like to play with or against " +
+      "them. Point at two or three matches that show it rather than working " +
+      "through the list, and set a figure against their usual when you use one.",
   );
 
   return {
@@ -548,6 +727,21 @@ export async function writeFeature(facts: FeatureFacts): Promise<FeaturePiece | 
 
     const piece = parse(reply);
     if (!piece) continue;
+
+    /*
+     * Refused before the fact check, because it would pass one.
+     *
+     * A paragraph reading out a scoreboard is accurate in every particular —
+     * that is why it survived to a reader, who called it a play by play and
+     * said the piece lost its plot. `checkClaims` asks whether the figures are
+     * true; this asks whether the piece is an article. Cheap, and it costs an
+     * attempt rather than a publication.
+     */
+    const scoreboard = scoreboardComplaint(piece.body);
+    if (scoreboard) {
+      console.log(`[ai] feature attempt ${attempt} rejected: ${scoreboard}`);
+      continue;
+    }
 
     const check = await checkClaims(
       facts.prompt,
