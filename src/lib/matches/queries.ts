@@ -2671,23 +2671,72 @@ export type IdentityMerge = {
  * counts-everything: a decision about who somebody is, not a total.
  */
 export const listMerges = cache(async function listMerges(): Promise<IdentityMerge[]> {
-  const rows = await db
-    .select({
-      identityKey: playerIdentities.identityKey,
-      mergedInto: playerIdentities.mergedInto,
-      note: playerIdentities.note,
-      sourceName: sql<string | null>`(
-        select mode() within group (order by mp.name)
-        from match_players mp
-        where coalesce(mp.identity_key, lower(mp.name)) = ${playerIdentities.identityKey}
-      )`,
-    })
-    .from(playerIdentities)
-    .where(isNotNull(playerIdentities.mergedInto));
+  /*
+   * Two queries, and the one query version was wrong on production for two days.
+   *
+   * `sourceName` was a correlated subquery taking `mode()` over the names under
+   * the merged-away key. It did not correlate, so `mode()` ran over the whole of
+   * `match_players` and every row in the undo list was labelled with the most
+   * used name in the archive. On 9 August that read **"ED ASSMASTER is J!nX"**
+   * and **"ED ASSMASTER is EasyOnMe"** for two merges that are nothing to do
+   * with them — one is J!nX's second connection, the other is EasyOnMe's — and
+   * it read as the admin page confessing that three people had been welded into
+   * one. Nothing was wrong with the data; the label was.
+   *
+   * This is the second correlated subquery in this file to render to something
+   * that quietly returned a wrong answer for every row rather than failing —
+   * see `listMatchesForDay` above, where one returned zero for every match. **A
+   * subquery here that gives the same answer for every row is not a coincidence;
+   * it is this bug.** Both are written as a second query and joined up in
+   * JavaScript now, which is also what `listIdentities` below already does.
+   */
+  const [rows, named] = await Promise.all([
+    db
+      .select({
+        identityKey: playerIdentities.identityKey,
+        mergedInto: playerIdentities.mergedInto,
+        note: playerIdentities.note,
+      })
+      .from(playerIdentities)
+      .where(isNotNull(playerIdentities.mergedInto)),
 
-  return rows.filter(
-    (row): row is IdentityMerge => typeof row.mergedInto === "string",
-  );
+    // counts-everything: naming somebody is not a total, the same reason
+    // `canonicalNames` reads every row. A merged-away identity whose only
+    // appearance was in a match that did not count still needs a label on the
+    // row offering to undo it.
+    //
+    // `SERVER_KEY`, not `IDENTITY_KEY`: the whole point is what the merged-away
+    // identity was called before the merge, and the resolved key would answer
+    // with the name of whoever it was merged into.
+    db
+      .select({
+        key: SERVER_KEY,
+        name: matchPlayers.name,
+        used: sql<number>`count(*)::int`,
+      })
+      .from(matchPlayers)
+      .groupBy(SERVER_KEY, matchPlayers.name),
+  ]);
+
+  const best = new Map<string, { name: string; used: number }>();
+  for (const row of named) {
+    const standing = best.get(row.key);
+    // Ties break on the name so the label is stable between requests rather
+    // than whichever row the planner reached first.
+    if (
+      !standing ||
+      row.used > standing.used ||
+      (row.used === standing.used && row.name < standing.name)
+    ) {
+      best.set(row.key, { name: row.name, used: row.used });
+    }
+  }
+
+  return rows
+    .filter((row): row is IdentityMerge & { sourceName: null } =>
+      typeof row.mergedInto === "string",
+    )
+    .map((row) => ({ ...row, sourceName: best.get(row.identityKey)?.name ?? null }));
 });
 
 /**

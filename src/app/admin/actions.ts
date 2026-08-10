@@ -381,13 +381,22 @@ export async function commissionFeature(formData: FormData): Promise<void> {
     }
   }
 
-  if (!subject) redirect("/admin?problem=1");
+  /*
+   * Three different failures, said apart.
+   *
+   * All three used to redirect to `?problem=1`, which nothing on the page
+   * rendered, so a commission that failed was indistinguishable from a button
+   * that did nothing — and that is exactly how it was reported on 9 August.
+   * They need different answers from whoever pressed it: fix the names, pick a
+   * different subject, or try again.
+   */
+  if (!subject) redirect("/admin?problem=feature-input");
 
   const facts = await buildFeatureFacts(subject);
-  if (!facts) redirect("/admin?problem=1");
+  if (!facts) redirect("/admin?problem=feature-no-record");
 
   const piece = await writeFeature(facts);
-  if (!piece) redirect("/admin?problem=1");
+  if (!piece) redirect("/admin?problem=feature-unwritten");
 
   await saveFeature(piece, facts, activeModel());
 

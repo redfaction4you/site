@@ -30,6 +30,17 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/** What each refusal means, in the words of somebody who has to act on it. */
+const PROBLEMS: Record<string, string> = {
+  "feature-input":
+    "Nothing was written: the form needs two different names, or a match reference like 2026-08-07/46.",
+  "feature-no-record":
+    "Nothing was written: the archive has no completed matches for that subject. For a pairing they must have shared a side, for a rivalry they must have been on opposite sides, and a name has to be the one the site shows rather than one of their older ones.",
+  "feature-unwritten":
+    "Nothing was written: three attempts were made and each was refused by the fact check, or the model could not be reached. Model quota is the usual cause — npm run ai:quota says. Trying again later is reasonable.",
+  default: "That was refused, and nothing was changed.",
+};
+
 type Props = {
   searchParams: Promise<{ key?: string; wrong?: string; saved?: string; problem?: string }>;
 };
@@ -155,6 +166,18 @@ export default async function AdminPage({ searchParams }: Props) {
       {params.saved ? (
         <p className="mt-4 border-l-2 border-signal-green px-3 py-1 text-sm text-steel-200">
           Saved. It applies everywhere immediately.
+        </p>
+      ) : null}
+
+      {/*
+        Every action here redirects with `?problem=` when it refuses, and until
+        9 August nothing rendered it: a commission that failed looked exactly
+        like a button that did nothing, and was reported as one. The three
+        feature failures are said apart because they need different answers.
+      */}
+      {params.problem ? (
+        <p className="mt-4 border-l-2 border-rust-500 px-3 py-1 text-sm text-steel-200">
+          {PROBLEMS[params.problem] ?? PROBLEMS.default}
         </p>
       ) : null}
 
@@ -385,10 +408,35 @@ export default async function AdminPage({ searchParams }: Props) {
                 key={merge.identityKey}
                 className="flex flex-wrap items-baseline gap-x-3 border-b border-basalt-800 py-1.5 text-xs"
               >
+                {/*
+                  Two shapes, because a merge is about connections and only
+                  sometimes about names. Joining somebody's second address when
+                  they played under the same name both times rendered as "J!nX
+                  is J!nX", which reads as a mistake rather than as the ordinary
+                  case it is.
+                */}
                 <span className="text-steel-300">
-                  {merge.sourceName ?? "an identity with no matches"}
-                  <span className="text-steel-600"> is </span>
-                  {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
+                  {merge.sourceName === null ? (
+                    <>
+                      An identity with no matches
+                      <span className="text-steel-600"> is </span>
+                      {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
+                    </>
+                  ) : merge.sourceName === nameOf.get(merge.mergedInto) ? (
+                    <>
+                      {merge.sourceName}
+                      <span className="text-steel-600">
+                        {" "}
+                        &mdash; a second connection of theirs
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {merge.sourceName}
+                      <span className="text-steel-600"> is </span>
+                      {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
+                    </>
+                  )}
                 </span>
                 {merge.note ? (
                   <span className="text-steel-600">{merge.note}</span>

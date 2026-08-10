@@ -1,4 +1,5 @@
 import { commissionFeature } from "@/app/admin/actions";
+import { SubmitButton } from "@/components/submit-button";
 
 /**
  * Commission a feature.
@@ -25,7 +26,8 @@ export function FeatureAdmin() {
         A longer piece about one subject, written from the match record and
         checked against it. Nothing writes these on a schedule &mdash; deciding
         something deserves an article is a judgement, and the model does not
-        make it. Takes up to a minute and spends model quota, and the page
+        make it. <strong className="text-steel-400">Takes up to a minute</strong>{" "}
+        and spends model quota; the button says so while it works, and the page
         lands on the finished piece.{" "}
         <strong className="text-steel-400">
           It is not posted to Discord
@@ -42,12 +44,12 @@ export function FeatureAdmin() {
           <p className="text-[0.6875rem] leading-snug text-steel-600">
             Every match they have played on the same side, in detail.
           </p>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Writing…"
             className="mt-1 rounded-sm bg-rust-500 px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
           >
             Write it
-          </button>
+          </SubmitButton>
         </form>
 
         <form action={commissionFeature} className="plate grid gap-2 p-3">
@@ -60,12 +62,12 @@ export function FeatureAdmin() {
             head. The record of which side came out ahead, not a claim about
             who is better.
           </p>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Writing…"
             className="mt-1 rounded-sm bg-rust-500 px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
           >
             Write it
-          </button>
+          </SubmitButton>
         </form>
 
         <form action={commissionFeature} className="plate grid gap-2 p-3">
@@ -85,12 +87,12 @@ export function FeatureAdmin() {
             The scoreboard, every capture with the clock on it, and what the
             scoreline does not tell you.
           </p>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Writing…"
             className="mt-1 rounded-sm bg-rust-500 px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
           >
             Write it
-          </button>
+          </SubmitButton>
         </form>
 
         <form action={commissionFeature} className="plate grid gap-2 p-3">
@@ -101,12 +103,12 @@ export function FeatureAdmin() {
             Every match they have played, what they are good at, and the nights
             worth pointing at.
           </p>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Writing…"
             className="mt-1 rounded-sm bg-rust-500 px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
           >
             Write it
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>
