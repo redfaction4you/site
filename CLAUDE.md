@@ -145,23 +145,27 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   `.next` underneath the dev server and it starts answering 500 with
   `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or
   delete `.next` afterwards and restart it.
-- **`DISCORD_NEWS_WEBHOOK` is set in `.env.local` and unset in production.** This
-  entry used to say it was unset in both, and it is the wrong way round: `vercel
-  env ls production` has no such variable, and the local `.env.local` has a live
-  one. **This is a live fault, not a preference**: six columns and opinion pieces
-  are queued behind it. `/api/health` now reports `announce.stale` and answers
-  503 for it, and `vet-live` fails on that, so it cannot happen quietly twice.
-  Adding the variable needs a fresh build, not a redeploy — see the Vercel entry
-  below. Two consequences, and the first is the dangerous one.
+- **`DISCORD_NEWS_WEBHOOK` is set in both `.env.local` and production, and both
+  ends post for real.** This entry has now been wrong twice in opposite
+  directions — first "unset in both", then "unset in production" — so check it
+  rather than trusting it: `vercel env ls production` lists it, and
+  `/api/health` reports `announce.configured: true`. It was added to production
+  on 9 August, which cleared the queue of columns and opinion pieces that had
+  been stuck behind its absence. Adding or changing it needs a fresh build, not
+  a redeploy — see the Vercel entry below. Two consequences now, and they are
+  both the dangerous one.
   - **A local run posts to the real channel.** There is one webhook and it is the
     community's. Anything that reaches `announcePendingColumns` or
     `announcePendingOpinions` from a local server announces for real, including
     `/api/rf4u/archive/rebuild`, and including a column being *re*generated after
     somebody deleted a row to force a rewrite. Blank the variable for that run.
-  - **Production announces nothing**, so a column or an opinion piece written on
-    the VPS sync is published on the site and posted nowhere, and `posted_at`
-    stays null on it forever. A null there means "production has no webhook", not
-    "Discord failed".
+  - **So does production, on every sync.** An `opinion_pieces` row written with
+    `posted_at` null is swept up and posted by the next sync from either end, so
+    **regenerating a piece somebody has already read republishes it**. Generate
+    drafts through something that does not write, decide, then store. A null
+    `posted_at` now means "not yet swept", not "production has no webhook".
+    `feature_pieces` are deliberately exempt: nothing sweeps that table, and
+    publishing a feature to Discord stays a separate decision.
 
 ## Compatibility detection (`src/lib/rfl/`)
 
