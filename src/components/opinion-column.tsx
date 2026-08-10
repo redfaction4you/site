@@ -37,7 +37,11 @@ export function OpinionColumn({
 
   return (
     <section
-      className={`plate border-l-2 border-l-oxide-500 p-5 ${className}`}
+      // The reading list links straight here, because the report and the
+      // opinion share one address and landing on the report to read the opinion
+      // is the sort of thing a reader blames on themselves.
+      id="opinion"
+      className={`plate scroll-mt-4 border-l-2 border-l-oxide-500 p-5 ${className}`}
       aria-labelledby="orion-headline"
     >
       {/*

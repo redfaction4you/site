@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
+import { ReadingList } from "@/components/reading-list";
+import { READING_KINDS, listReading, type ReadingKind } from "@/lib/reading";
 import { dayLabel } from "@/components/match-archive";
 import { NightMatches } from "@/components/night-matches";
 import {
@@ -32,10 +34,11 @@ export const dynamic = "force-dynamic";
  * single entry.
  */
 export default async function NewsPage() {
-  const [columns, totals, opinions] = await Promise.all([
+  const [columns, totals, opinions, reading] = await Promise.all([
     listColumns(),
     archiveTotals(),
     listOpinions(3),
+    listReading(),
   ]);
 
   const [lead, ...earlier] = columns;
@@ -221,8 +224,44 @@ export default async function NewsPage() {
         </aside>
       </div>
 
-      {earlier.length ? (
+      {/*
+        Everything written, not only the reports.
+
+        This page is where somebody comes to read, and it listed one of the
+        three kinds: reports. Opinion pieces were a rail beside the lead, by
+        headline alone, and features appeared nowhere on it at all — the longest
+        writing on the site, reachable only from the analyst's own page. The
+        list says which kind each entry is, because a reader picking what to
+        read next needs to know whether it reports, argues or covers a subject.
+      */}
+      {reading.length ? (
         <section className="border-t border-basalt-800 pt-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
+              Everything to read
+            </h2>
+            {/* Counted in a fixed order, so the line does not reshuffle itself
+                every time a different kind happens to be the newest. */}
+            <p className="font-mono text-xs text-steel-500">
+              {(["report", "opinion", "feature"] as ReadingKind[])
+                .map((kind) => ({
+                  kind,
+                  n: reading.filter((entry) => entry.kind === kind).length,
+                }))
+                .filter(({ n }) => n > 0)
+                .map(
+                  ({ kind, n }) =>
+                    `${n} ${READING_KINDS[kind].label.toLowerCase()}${n === 1 ? "" : "s"}`,
+                )
+                .join(" · ")}
+            </p>
+          </div>
+          <ReadingList entries={reading} initial={6} className="mt-2" />
+        </section>
+      ) : null}
+
+      {earlier.length ? (
+        <section className="mt-8 border-t border-basalt-800 pt-5">
           <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
             Earlier reports
           </h2>

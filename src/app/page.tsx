@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
+import { ReadingList } from "@/components/reading-list";
+import { listReading } from "@/lib/reading";
 import { MatchOfTheNight } from "@/components/match-of-the-night";
 import { dayLabel } from "@/components/match-archive";
 import {
@@ -32,7 +34,7 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent, opinions, records] =
+  const [status, totals, latest, players, columns, recent, opinions, records, reading] =
     await Promise.all([
       getServerStatus(),
       archiveTotals(),
@@ -42,6 +44,7 @@ export default async function HomePage() {
       recentMatches(10),
       listOpinions(3),
       getTicker(),
+      listReading(),
     ]);
 
 
@@ -74,9 +77,19 @@ export default async function HomePage() {
 
   const leaders = [...players].sort((a, b) => b.kills - a.kills).slice(0, 6);
 
-  // Everything except the lead, which is already the top of the page. No extra
-  // query: listColumns has fetched the lot.
-  const earlier = columns.slice(1, 6);
+  /*
+   * Everything to read except the one already open at the top of the page.
+   *
+   * Removed by key, not by dropping the first entry. The lead here is the newest
+   * *column*, and the reading list is sorted across all three kinds — so a
+   * feature written more recently sits at index 0, and slicing it off hid the
+   * feature while listing the lead article a second time directly beside itself.
+   */
+  const lead = columns[0];
+  const more = reading.filter(
+    (entry) => !(lead && entry.kind === "report" && entry.day === lead.archiveDay),
+  );
+
 
   return (
     <>
@@ -286,11 +299,21 @@ export default async function HomePage() {
             and so does the lead directly above, which makes this the one place
             on the site using a different word for the same thing.
           */}
-          {earlier.length ? (
+          {/*
+            Everything there is to read, not only the reports.
+
+            This listed night columns and nothing else, while opinion pieces sat
+            in their own box below and features — the longest writing on the
+            site — appeared on neither this page nor `/news`. Somebody who had
+            read the lead had one more thing offered to them and no idea the
+            other two kinds existed. Three at a time, with the rest a click
+            away, so the rail stays a rail.
+          */}
+          {more.length > 0 ? (
             <section>
               <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">
                 <h2 className="font-display text-[0.6875rem] font-bold uppercase tracking-widest text-steel-400">
-                  Earlier reports
+                  More to read
                 </h2>
                 <Link
                   href="/news"
@@ -299,24 +322,7 @@ export default async function HomePage() {
                   All
                 </Link>
               </div>
-              <ul>
-                {earlier.map((entry) => (
-                  <li key={entry.archiveDay} className="border-b border-basalt-800">
-                    <Link
-                      href={`/news/${entry.archiveDay}`}
-                      className="group block py-1.5"
-                    >
-                      <span className="font-mono text-[0.625rem] text-steel-600">
-                        {dayLabel(entry.archiveDay)} · {entry.matchCount}{" "}
-                        {entry.matchCount === 1 ? "match" : "matches"}
-                      </span>
-                      <span className="mt-0.5 block text-xs leading-snug text-steel-300 group-hover:text-rust-300">
-                        {entry.headline}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <ReadingList entries={more} initial={3} />
             </section>
           ) : null}
 
