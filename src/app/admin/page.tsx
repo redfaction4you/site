@@ -6,6 +6,8 @@ import { adminState } from "@/lib/admin-key";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
 import { listSyncPings } from "@/lib/sync-ping";
 import { dmTotals } from "@/lib/dm/queries";
+import { dmIntegrity } from "@/lib/dm/integrity";
+import { listFeatures } from "@/lib/ai/feature";
 import { timePlayed } from "@/lib/dm/format";
 import { collidingNames } from "@/lib/matches/display-name";
 import {
@@ -13,6 +15,7 @@ import {
   listDays,
   listIdentities,
   listMerges,
+  listPlayers,
   nightForVetting,
 } from "@/lib/matches/queries";
 import { vetNight } from "@/lib/matches/vet";
@@ -56,7 +59,13 @@ const PROBLEMS: Record<string, string> = {
 };
 
 type Props = {
-  searchParams: Promise<{ wrong?: string; saved?: string; problem?: string }>;
+  searchParams: Promise<{
+    wrong?: string;
+    saved?: string;
+    problem?: string;
+    /** A pack slug to load into the map pack form. */
+    pack?: string;
+  }>;
 };
 
 /**
@@ -126,7 +135,7 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [identities, merges, days, totals, lastSync, packs, pings, dm] =
+  const [identities, merges, days, totals, lastSync, packs, pings, dm, dmChecks, features, players] =
     await Promise.all([
       listIdentities(),
       listMerges(),
@@ -136,7 +145,28 @@ export default async function AdminPage({ searchParams }: Props) {
       listMapPacks(),
       listSyncPings(),
       dmTotals(),
+      dmIntegrity(),
+      listFeatures(),
+      listPlayers(),
     ]);
+
+  /*
+   * Who actually has a page, so a name here only links where a page exists.
+   *
+   * This list is everyone who took part in anything; `/players/[name]` is built
+   * from completed matches and calls `notFound()` otherwise. Somebody whose
+   * only appearance was in a cancelled start therefore belongs on this page,
+   * because they still need naming, and has nowhere to link to.
+   */
+  const hasPage = new Set(
+    players.map((player) => player.name.toLocaleLowerCase("en-US")),
+  );
+
+  // The pack `?pack=` asked to edit. Unknown slugs fall back to a blank form
+  // rather than an error: the only way to get one is a stale link.
+  const editingPack = params.pack
+    ? (packs.find((pack) => pack.slug === params.pack) ?? null)
+    : null;
 
   // People who have played under more than one name. Not "renamed": most of
   // them were never touched on this page, and calling them renamed is how the
@@ -152,6 +182,8 @@ export default async function AdminPage({ searchParams }: Props) {
    * having typed anything. It matters because a player page is found by name.
    */
   const colliding = collidingNames(identities);
+
+  const dmBroken = dmChecks.untimed > 0 || dmChecks.phantoms > 0;
 
   // What a merged-away identity now answers to, for the undo list.
   const nameOf = new Map(identities.map((e) => [e.identityKey, e.displayName]));
@@ -327,11 +359,29 @@ export default async function AdminPage({ searchParams }: Props) {
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-steel-500">Vetting</dt>
+              <dt className="text-steel-500">Vetting, capture the flag</dt>
               <dd className={errors.length > 0 ? "text-rust-400" : "text-steel-200"}>
                 {errors.length > 0
                   ? `${errors.length} to look at`
                   : "nothing wrong in the last five nights"}
+              </dd>
+            </div>
+            {/*
+              The two deathmatch alarms `vet-live` watches, which lived only in
+              the health answer. The person who would fix them was looking at a
+              page that knew about capture the flag and nothing else.
+            */}
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-steel-500">Vetting, deathmatch</dt>
+              <dd className={dmBroken ? "text-rust-400" : "text-steel-200"}>
+                {dmBroken
+                  ? [
+                      dmChecks.untimed > 0 ? `${dmChecks.untimed} untimed` : null,
+                      dmChecks.phantoms > 0 ? `${dmChecks.phantoms} phantom` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "nothing contradicting itself"}
               </dd>
             </div>
           </dl>
@@ -359,6 +409,27 @@ export default async function AdminPage({ searchParams }: Props) {
               <span className="text-steel-400"> — who is playing right now</span>
             </li>
             <li>
+              <Link href="/server/map-packs" className="text-steel-300 hover:text-rust-300">
+                Map packs
+              </Link>
+              <span className="text-steel-400">
+                {" "}
+                — the rotation as a reader sees it
+              </span>
+            </li>
+            <li>
+              <Link href="/stats/dm" className="text-steel-300 hover:text-rust-300">
+                Deathmatch record
+              </Link>
+              <span className="text-steel-400"> — time on the server, ranked</span>
+            </li>
+            <li>
+              <Link href="/analyst" className="text-steel-300 hover:text-rust-300">
+                The analyst
+              </Link>
+              <span className="text-steel-400"> — columns and features</span>
+            </li>
+            <li>
               <a
                 href="/api/health"
                 target="_blank"
@@ -367,7 +438,12 @@ export default async function AdminPage({ searchParams }: Props) {
               >
                 Health
               </a>
-              <span className="text-steel-400"> — what UptimeRobot polls</span>
+              {/* Named for what actually polls it. `vet-live` is in the repo;
+                  whether a monitor also watches it is not knowable from here. */}
+              <span className="text-steel-400">
+                {" "}
+                — what vet-live polls after every deploy
+              </span>
             </li>
           </ul>
         </section>
@@ -428,9 +504,9 @@ export default async function AdminPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      <MapPackAdmin packs={packs} />
+      <MapPackAdmin packs={packs} editing={editingPack} />
 
-      <FeatureAdmin />
+      <FeatureAdmin written={features} />
 
       <h2 className="mt-10 font-display text-lg font-bold text-steel-100">
         Who is who
@@ -639,7 +715,22 @@ export default async function AdminPage({ searchParams }: Props) {
 
               <span className="min-w-0 flex-1">
                 <span className="block text-base text-steel-100">
-                  {entry.displayName}
+                  {/*
+                    Straight to the page this name decides. Renaming somebody
+                    without being able to look at them was the gap: the name is
+                    a judgement about a person, and their record is the thing
+                    that says who they are.
+                  */}
+                  {hasPage.has(entry.displayName.toLocaleLowerCase("en-US")) ? (
+                    <Link
+                      href={`/players/${encodeURIComponent(entry.displayName)}`}
+                      className="hover:text-rust-300"
+                    >
+                      {entry.displayName}
+                    </Link>
+                  ) : (
+                    entry.displayName
+                  )}
                   {entry.chosen ? (
                     <span className="ml-2 font-mono text-xs uppercase tracking-wider text-rust-400">
                       set
@@ -681,6 +772,27 @@ export default async function AdminPage({ searchParams }: Props) {
                 Save
               </button>
             </form>
+
+            {/*
+              Unpinning, as a button rather than a piece of folklore.
+              Going back to the most used name meant clearing the box and
+              saving, which is written in a paragraph at the top of the section
+              and nowhere near the row it applies to. A separate form because a
+              form cannot be nested inside another one.
+            */}
+            {entry.chosen ? (
+              <form action={setDisplayName} className="mt-1">
+                <input type="hidden" name="identityKey" value={entry.identityKey} />
+                <input type="hidden" name="displayName" value="" />
+                <button
+                  type="submit"
+                  className="font-mono text-xs text-steel-500 hover:text-rust-300"
+                  title="Go back to the name they have used most"
+                >
+                  unset
+                </button>
+              </form>
+            ) : null}
           </li>
         ))}
       </ul>

@@ -1,4 +1,6 @@
-import { commissionFeature } from "@/app/admin/actions";
+import Link from "next/link";
+
+import { commissionFeature, deleteFeature } from "@/app/admin/actions";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
@@ -18,7 +20,15 @@ const FIELD =
   "w-full rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1.5 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none";
 const LABEL = "figure-label mb-1 block";
 
-export function FeatureAdmin() {
+/** What the list needs. A subset of a `feature_pieces` row. */
+export type WrittenFeature = {
+  slug: string;
+  headline: string;
+  subjects: unknown;
+  createdAt: string;
+};
+
+export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
   return (
     <div className="mt-10 border-t border-basalt-800 pt-6">
       <h3 className="rule-heading">Commission a feature</h3>
@@ -110,6 +120,61 @@ export function FeatureAdmin() {
             Write it
           </SubmitButton>
         </form>
+      </div>
+
+      {/*
+        What has already been written, which this page could not say.
+        You could commission a piece and the only way to see it was to
+        remember the URL you were redirected to, and the only way to remove a
+        thin one was by hand in the database.
+      */}
+      <div className="mt-6">
+        <p className="figure-label">
+          Written so far
+          {written.length > 0 ? (
+            <span className="ml-2 font-mono normal-case tracking-normal text-steel-400">
+              {written.length}
+            </span>
+          ) : null}
+        </p>
+
+        {written.length === 0 ? (
+          <p className="mt-2 text-sm text-steel-400">
+            Nothing yet. A commissioned piece appears here and at{" "}
+            <Link href="/analyst" className="text-steel-300 hover:text-rust-300">
+              the analyst&rsquo;s page
+            </Link>
+            .
+          </p>
+        ) : (
+          <ul className="mt-2 grid gap-x-8 lg:grid-cols-2">
+            {written.map((piece) => (
+              <li
+                key={piece.slug}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-basalt-800 py-2"
+              >
+                <Link
+                  href={`/analyst/features/${piece.slug}`}
+                  className="min-w-0 flex-1 text-sm text-steel-200 hover:text-rust-300"
+                >
+                  {piece.headline}
+                </Link>
+                <span className="shrink-0 font-mono text-xs text-steel-500">
+                  {piece.createdAt.slice(0, 10)}
+                </span>
+                <form action={deleteFeature} className="shrink-0">
+                  <input type="hidden" name="slug" value={piece.slug} />
+                  <button
+                    type="submit"
+                    className="font-display text-xs uppercase tracking-wider text-steel-400 hover:text-rust-400"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

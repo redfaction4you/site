@@ -6,7 +6,13 @@ import { redirect } from "next/navigation";
 
 import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
 import { db } from "@/lib/db";
-import { mapPacks, matchPlayers, playerIdentities, type MapPackEntry } from "@/lib/db/schema";
+import {
+  featurePieces,
+  mapPacks,
+  matchPlayers,
+  playerIdentities,
+  type MapPackEntry,
+} from "@/lib/db/schema";
 import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { checkDisplayName } from "@/lib/matches/display-name";
 import { isLevelFilename } from "@/lib/map-packs";
@@ -491,4 +497,29 @@ export async function commissionFeature(formData: FormData): Promise<void> {
 
   revalidatePath("/", "layout");
   redirect(`/analyst/features/${piece.slug}`);
+}
+
+/**
+ * Deletes a feature.
+ *
+ * The missing half of commissioning one. A piece that came back thin, or about
+ * the wrong pair, could be written and published and then only unpicked by
+ * hand in the database — and the page that wrote it did not even list what it
+ * had written.
+ *
+ * Safe in a way deleting an opinion piece is not: `feature_pieces` is swept by
+ * nothing, so removing a row cannot cause anything to be re-posted to Discord.
+ * The same deletion on `opinion_pieces` would have the next sync write a
+ * replacement and announce it.
+ */
+export async function deleteFeature(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (!slug) redirect("/admin?problem=1");
+
+  await db.delete(featurePieces).where(eq(featurePieces.slug, slug));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
 }

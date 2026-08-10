@@ -12,8 +12,9 @@
 import { desc, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { dmPlayers, dmRounds, matches, nightColumns, opinionPieces } from "@/lib/db/schema";
+import { matches, nightColumns, opinionPieces } from "@/lib/db/schema";
 import { listBackups } from "@/lib/backup";
+import { dmIntegrity } from "@/lib/dm/integrity";
 import { listSyncPings } from "@/lib/sync-ping";
 import { quietSince } from "@/lib/sync-freshness";
 import { discordConfigured } from "@/lib/ai/discord";
@@ -205,30 +206,15 @@ export async function getHealth(): Promise<Health> {
     oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS;
 
   /*
-   * The deathmatch archive contradicting itself. Both shapes have existed:
-   * the ranking column arriving empty was designed out before launch, and a
-   * phantom boundary round reached production on 7 August 2026 and was swept
-   * by hand. `vet-live` polls this endpoint, so either recurring turns the
-   * check red within six hours with nobody watching.
+   * The deathmatch archive contradicting itself. `vet-live` polls this
+   * endpoint, so either shape recurring turns the check red within six hours
+   * with nobody watching.
+   *
+   * The query moved to `dm/integrity.ts` so the admin page can ask it too:
+   * these were the two alarms the person who would fix them could not see.
    */
-  // counts-everything (dm): integrity questions read every row on purpose.
-  const [dmIntegrity] = await db
-    .select({
-      untimed: sql<number>`count(*) filter (
-        where (${dmPlayers.kills} > 0 or ${dmPlayers.deaths} > 0)
-          and ${dmPlayers.secondsPlayed} = 0
-      )::int`,
-      phantoms: sql<number>`count(distinct ${dmRounds.id}) filter (
-        where ${dmRounds.endedAt} is not null
-          and ${dmRounds.endedAt} - ${dmRounds.startedAt} < interval '30 seconds'
-          and (${dmPlayers.kills} > 0 or ${dmPlayers.deaths} > 0)
-      )::int`,
-    })
-    .from(dmRounds)
-    .leftJoin(dmPlayers, sql`${dmPlayers.roundId} = ${dmRounds.id}`);
-
-  const dmBroken =
-    (dmIntegrity?.untimed ?? 0) > 0 || (dmIntegrity?.phantoms ?? 0) > 0;
+  const dm = await dmIntegrity();
+  const dmBroken = dm.untimed > 0 || dm.phantoms > 0;
 
   return {
     ok: !syncStale && !backupStale && !announceStale && !dmBroken,
@@ -250,8 +236,8 @@ export async function getHealth(): Promise<Health> {
     },
     archive: { matches: row?.matchCount ?? 0, nights: row?.nightCount ?? 0 },
     dm: {
-      untimedPlayers: dmIntegrity?.untimed ?? 0,
-      phantomRounds: dmIntegrity?.phantoms ?? 0,
+      untimedPlayers: dm.untimed,
+      phantomRounds: dm.phantoms,
       broken: dmBroken,
     },
   };

@@ -39,7 +39,14 @@ function mapsToText(pack: MapPack | null): string {
     .join("\n");
 }
 
-export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
+export function MapPackAdmin({
+  packs,
+  editing,
+}: {
+  packs: MapPack[];
+  /** The pack `?pack=<slug>` asked to edit, loaded into the form below. */
+  editing: MapPack | null;
+}) {
   const active = packs.find((pack) => pack.active) ?? null;
 
   return (
@@ -131,11 +138,28 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
                   </button>
                 </form>
               )}
-              <form action={deleteMapPack} className="ml-auto">
+
+              {/* Loads it into the form below rather than making somebody
+                  retype twenty filenames to correct one of them. */}
+              <Link
+                href={`/admin?pack=${encodeURIComponent(pack.slug)}#pack-form`}
+                className="ml-auto font-display text-xs uppercase tracking-wider text-steel-300 hover:text-rust-300"
+              >
+                Edit
+              </Link>
+
+              <form action={deleteMapPack}>
                 <input type="hidden" name="slug" value={pack.slug} />
                 <button
                   type="submit"
                   className="font-display text-xs uppercase tracking-wider text-steel-400 hover:text-rust-400"
+                  // The action refuses the active one; saying so first saves a
+                  // round trip and reads as a rule rather than a rejection.
+                  title={
+                    pack.active
+                      ? "Switch it off first — this is the rotation the server is running"
+                      : "Delete this pack"
+                  }
                 >
                   Delete
                 </button>
@@ -153,8 +177,30 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
       */}
       {/* Two columns from `lg`: the settings are eight short fields and a
           textarea, and stacking them ran this form down a whole screen. */}
-      <form action={saveMapPack} className="mt-6 grid gap-x-8 gap-y-3 lg:grid-cols-2">
-        <p className="figure-label lg:col-span-2">Add or edit a pack</p>
+      <form
+        id="pack-form"
+        action={saveMapPack}
+        // Keyed on the slug so React rebuilds the fields when a different pack
+        // is chosen. Without it the defaultValues are ignored on the second
+        // Edit click, because the inputs are the same elements.
+        key={editing?.slug ?? "new"}
+        className="mt-6 grid scroll-mt-6 gap-x-8 gap-y-3 lg:grid-cols-2"
+      >
+        <p className="figure-label lg:col-span-2">
+          {editing ? (
+            <>
+              Editing {editing.name}
+              <Link
+                href="/admin#pack-form"
+                className="ml-3 normal-case tracking-normal text-steel-400 hover:text-rust-300"
+              >
+                start a new one instead
+              </Link>
+            </>
+          ) : (
+            "Add a pack"
+          )}
+        </p>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2">
           <div>
@@ -166,6 +212,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
               name="name"
               required
               maxLength={80}
+              defaultValue={editing?.name ?? ""}
               placeholder="Halloween 2026"
               className={FIELD}
             />
@@ -178,6 +225,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
               id="pack-slug"
               name="slug"
               maxLength={60}
+              defaultValue={editing?.slug ?? ""}
               placeholder="halloween-2026"
               className={FIELD}
             />
@@ -192,6 +240,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             id="pack-server-name"
             name="serverName"
             maxLength={80}
+            defaultValue={editing?.serverName ?? ""}
             placeholder="RedFaction4You.com [DM] — Halloween"
             className={FIELD}
           />
@@ -207,6 +256,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             id="pack-welcome"
             name="welcomeMessage"
             maxLength={300}
+            defaultValue={editing?.welcomeMessage ?? ""}
             placeholder="Now playing: Halloween 2026 — 10 maps."
             className={FIELD}
           />
@@ -221,6 +271,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             name="blurb"
             rows={2}
             maxLength={600}
+            defaultValue={editing?.blurb ?? ""}
             placeholder="Ten maps with a haunted streak, on the server until November."
             className={FIELD}
           />
@@ -235,6 +286,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             name="maps"
             rows={8}
             required
+            defaultValue={editing ? mapsToText(editing) : ""}
             placeholder={
               "dm04.rfl | The Pit | SomeMapper | https://factionfiles.com/...\ndm07.rfl\nglass_house.rfl | Glass House"
             }
