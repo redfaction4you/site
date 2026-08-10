@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { cache } from "react";
 import { asc, desc, eq, sql } from "drizzle-orm";
 
@@ -48,85 +47,19 @@ export type ActiveMapPack = {
   activatedAt: string | null;
 };
 
-/** A filename the server could actually load. Anything else is a typo. */
-export function isLevelFilename(value: string): boolean {
-  return /^[A-Za-z0-9 _.\-()[\]]{1,64}\.rfl$/.test(value.trim());
-}
-
-/**
- * Anything bound for the game, folded to plain ASCII.
- *
- * The server name and the welcome message end up in a TOML file read by a
- * 2001 engine and rendered in its own bitmap font. A curly quote or an em
- * dash — exactly what a person gets for free typing into a browser — is at
- * best drawn as rubbish and at worst mangles the line. Caught on the first
- * real pack, whose name arrived carrying an em dash.
- *
- * The substitutions are the punctuation a form actually produces; everything
- * else outside printable ASCII is dropped rather than guessed at. Only the
- * two server-bound fields go through this. The public page keeps whatever was
- * typed, because a browser renders it correctly.
+/*
+ * The rules live in `map-pack-rules.ts`, which imports no database and can
+ * therefore be loaded by `node --test`. Re-exported here so every existing
+ * caller keeps working and there is still one obvious place to import from.
  */
-export function asciiForGame(value: string): string {
-  return value
-    .replace(/[‘’‚′]/g, "'")
-    .replace(/[“”„″]/g, '"')
-    .replace(/[–—−]/g, "-")
-    .replace(/[…]/g, "...")
-    .replace(/[   ]/g, " ")
-    .replace(/[•]/g, "*")
-    .replace(/[^\x20-\x7E]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+import {
+  asciiForGame,
+  fingerprintOf,
+  isLevelFilename,
+  welcomeFor,
+} from "@/lib/map-pack-rules";
 
-/**
- * The in-game welcome message for a pack.
- *
- * Written from the pack when it has no message of its own, because typing the
- * map list twice is how the two come to disagree. Kept to one line: this is
- * printed into a chat area, not a page. ASCII only — see `asciiForGame`.
- */
-export function welcomeFor(pack: {
-  name: string;
-  welcomeMessage?: string | null;
-  maps: MapPackEntry[];
-}): string {
-  if (pack.welcomeMessage?.trim()) return asciiForGame(pack.welcomeMessage);
-  const count = pack.maps.length;
-  return asciiForGame(
-    `Now playing: ${pack.name} - ${count} ${count === 1 ? "map" : "maps"}. ` +
-      `Full list and credits at RedFaction4You.com/server/map-packs`,
-  );
-}
-
-/**
- * Everything the server would notice, hashed.
- *
- * Level order is included: the rotation running in a different order is a
- * different rotation. The blurb, the note under each map and the author
- * credit are all absent on purpose — they are for readers, and a wording fix
- * must never bounce the server.
- */
-export function fingerprintOf(pack: {
-  slug: string;
-  serverName: string | null;
-  welcomeMessage: string;
-  levels: string[];
-}): string {
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        slug: pack.slug,
-        serverName: pack.serverName,
-        welcomeMessage: pack.welcomeMessage,
-        levels: pack.levels,
-      }),
-    )
-    .digest("hex")
-    .slice(0, 16);
-}
-
+export { asciiForGame, fingerprintOf, isLevelFilename, welcomeFor };
 function toActive(row: MapPack): ActiveMapPack {
   const levels = row.maps
     .map((entry) => entry.filename.trim())

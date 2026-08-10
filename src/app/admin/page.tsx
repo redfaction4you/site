@@ -55,6 +55,15 @@ const PROBLEMS: Record<string, string> = {
     "Nothing was switched on: that pack no longer exists. Whatever was on has been left alone.",
   "pack-active":
     "Not deleted: that pack is the one currently on. Switch it off first — deleting it would leave the server running a rotation the site no longer knows about.",
+  "pack-name":
+    "Not saved: a pack needs a name with at least one letter or number in it, because the slug in its URL is made from the name.",
+  "pack-empty":
+    "Not saved: no maps. A pack with an empty level list would leave the server with nothing to load, so it is refused here rather than sent.",
+  "merge-incomplete": "Nothing was joined: pick a person in both boxes.",
+  "merge-same":
+    "Nothing was joined: those are the same person. The two boxes are for two identities the server told apart and you know are one.",
+  "merge-ring":
+    "Nothing was joined: that would make a ring, with each pointing at the other and neither being the answer. Join both into whichever of them is the person you want the site to show.",
   default: "That was refused, and nothing was changed.",
 };
 
@@ -65,6 +74,9 @@ type Props = {
     problem?: string;
     /** A pack slug to load into the map pack form. */
     pack?: string;
+    /** Filenames a refused pack could not use, and how many were not listed. */
+    bad?: string;
+    more?: string;
   }>;
 };
 
@@ -293,8 +305,20 @@ export default async function AdminPage({ searchParams }: Props) {
         feature failures are said apart because they need different answers.
       */}
       {params.problem ? (
-        <p className="mt-4 border-l-2 border-rust-500 px-3 py-1 text-sm text-steel-200">
-          {PROBLEMS[params.problem] ?? PROBLEMS.default}
+        <p className="mt-4 border-l-2 border-rust-500 px-3 py-1 text-sm leading-relaxed text-steel-200">
+          {params.problem === "pack-filenames" ? (
+            <>
+              Not saved, and nothing was changed. Every filename has to end in{" "}
+              <code className="text-steel-100">.rfl</code>, and{" "}
+              {params.more ? "these do not" : "this does not"}:{" "}
+              <span className="font-mono text-rust-300">{params.bad}</span>
+              {params.more ? `, and ${params.more} more` : ""}. The server drops
+              a map it cannot load and runs a shorter rotation without saying
+              so, which is why this is refused here.
+            </>
+          ) : (
+            (PROBLEMS[params.problem] ?? PROBLEMS.default)
+          )}
         </p>
       ) : null}
 

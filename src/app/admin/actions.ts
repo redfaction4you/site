@@ -143,7 +143,8 @@ export async function mergeIdentities(formData: FormData): Promise<void> {
 
   // Merging something into itself would make it its own answer, and the
   // resolution in `identities.ts` would loop a reader rather than the database.
-  if (!source || !target || source === target) redirect("/admin?problem=1");
+  if (!source || !target) redirect("/admin?problem=merge-incomplete");
+  if (source === target) redirect("/admin?problem=merge-same");
 
   const rows = await db
     .select({
@@ -176,7 +177,7 @@ export async function mergeIdentities(formData: FormData): Promise<void> {
 
   // Following the target led back to the source, so this merge would make a
   // ring. Refused rather than half-applied.
-  if (end === source) redirect("/admin?problem=1");
+  if (end === source) redirect("/admin?problem=merge-ring");
 
   const existing = rows.find((row) => row.identityKey === source);
 
@@ -300,13 +301,32 @@ export async function saveMapPack(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "").trim() || packSlug(name);
   const maps = parseMaps(String(formData.get("maps") ?? ""));
 
-  if (!name || !slug) redirect("/admin?problem=1");
+  if (!name || !slug) redirect("/admin?problem=pack-name");
 
-  // Every filename is checked before it is stored. A typo here becomes a map
-  // the server cannot load, and the server's answer to that is worse than a
-  // rejected form: it drops the entry and the rotation quietly shortens.
+  /*
+   * Every filename is checked before it is stored. A typo here becomes a map
+   * the server cannot load, and the server's answer to that is worse than a
+   * rejected form: it drops the entry and the rotation quietly shortens.
+   *
+   * The offending lines are named. Refusing a twenty line paste without saying
+   * which line is wrong leaves somebody comparing two columns of filenames by
+   * eye, which is the same work the check just did.
+   */
+  if (maps.length === 0) redirect("/admin?problem=pack-empty");
+
   const bad = maps.filter((entry) => !isLevelFilename(entry.filename));
-  if (maps.length === 0 || bad.length > 0) redirect("/admin?problem=1");
+  if (bad.length > 0) {
+    // Four is enough to see the pattern — usually a missing `.rfl` on all of
+    // them — without building a URL out of a whole pack.
+    const named = bad
+      .slice(0, 4)
+      .map((entry) => entry.filename)
+      .join(", ");
+    redirect(
+      `/admin?problem=pack-filenames&bad=${encodeURIComponent(named)}` +
+        `${bad.length > 4 ? `&more=${bad.length - 4}` : ""}`,
+    );
+  }
 
   /*
    * A new pack may not land on an existing one.
