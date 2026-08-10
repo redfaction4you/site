@@ -608,6 +608,9 @@ export async function listFeatures() {
       matchRefs: featurePieces.matchRefs,
       model: featurePieces.model,
       createdAt: sql<string>`${featurePieces.createdAt}::text`,
+      // Null for everything until somebody presses the button on /admin.
+      // Nothing sweeps this table, so nothing else will ever set it.
+      postedAt: sql<string | null>`${featurePieces.postedAt}::text`,
     })
     .from(featurePieces)
     .orderBy(sql`${featurePieces.createdAt} desc`);

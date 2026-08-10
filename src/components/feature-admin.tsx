@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { commissionFeature, deleteFeature } from "@/app/admin/actions";
+import {
+  announceFeatureNow,
+  commissionFeature,
+  deleteFeature,
+} from "@/app/admin/actions";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
@@ -26,6 +30,8 @@ export type WrittenFeature = {
   headline: string;
   subjects: unknown;
   createdAt: string;
+  /** When it was posted to Discord by hand, or null. Nothing else sets this. */
+  postedAt?: string | null;
 };
 
 export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
@@ -40,9 +46,11 @@ export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
         and spends model quota; the button says so while it works, and the page
         lands on the finished piece.{" "}
         <strong className="text-steel-400">
-          It is not posted to Discord
-        </strong>
-        , by anything, ever: that stays a separate decision.
+          Nothing posts it to Discord on its own
+        </strong>{" "}
+        &mdash; unlike a column or an opinion piece, which the next sync sweeps
+        up and posts. A feature goes to Discord only when the button below is
+        pressed, and then it is marked as posted so it cannot go twice.
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -138,13 +146,20 @@ export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
           ) : null}
         </p>
 
+        <p className="mt-1 max-w-4xl text-sm leading-relaxed text-steel-400">
+          A feature is <strong className="text-steel-300">public the moment it
+          is written</strong> — it is listed on{" "}
+          <Link href="/analyst" className="text-steel-300 hover:text-rust-300">
+            the analyst&rsquo;s page
+          </Link>{" "}
+          and has its own address. There is no draft state and no publish step.
+          Posting to Discord is the separate decision.
+        </p>
+
         {written.length === 0 ? (
           <p className="mt-2 text-sm text-steel-400">
-            Nothing yet. A commissioned piece appears here and at{" "}
-            <Link href="/analyst" className="text-steel-300 hover:text-rust-300">
-              the analyst&rsquo;s page
-            </Link>
-            .
+            Nothing yet. A commissioned piece appears here as soon as it is
+            written.
           </p>
         ) : (
           <ul className="mt-2 grid gap-x-8 lg:grid-cols-2">
@@ -162,6 +177,32 @@ export function FeatureAdmin({ written }: { written: WrittenFeature[] }) {
                 <span className="shrink-0 font-mono text-xs text-steel-500">
                   {piece.createdAt.slice(0, 10)}
                 </span>
+
+                {/*
+                  The only control on this page that reaches outside the site,
+                  and the only one that cannot be undone. It becomes a date once
+                  it has been pressed, because a Discord message cannot be
+                  unsent and a second copy is nobody's idea of a fix.
+                */}
+                {piece.postedAt ? (
+                  <span
+                    className="shrink-0 font-display text-xs uppercase tracking-wider text-signal-green"
+                    title={`Posted to Discord on ${piece.postedAt.slice(0, 10)}`}
+                  >
+                    Posted
+                  </span>
+                ) : (
+                  <form action={announceFeatureNow} className="shrink-0">
+                    <input type="hidden" name="slug" value={piece.slug} />
+                    <SubmitButton
+                      pendingLabel="Posting…"
+                      className="rounded-sm border border-oxide-400 px-2.5 py-0.5 font-display text-xs uppercase tracking-wider text-oxide-400 hover:bg-oxide-400 hover:text-basalt-900"
+                    >
+                      Post to Discord
+                    </SubmitButton>
+                  </form>
+                )}
+
                 <form action={deleteFeature} className="shrink-0">
                   <input type="hidden" name="slug" value={piece.slug} />
                   <button

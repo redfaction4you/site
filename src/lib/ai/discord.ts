@@ -298,3 +298,90 @@ export async function announceOpinion(piece: OpinionToAnnounce): Promise<Announc
     return "unknown";
   }
 }
+
+export type FeatureToAnnounce = {
+  slug: string;
+  headline: string;
+  standfirst: string;
+  body: string;
+  /** Who or what it is about, for the line under the title. */
+  subjects: string[];
+  /** How many matches the piece was built from. */
+  matchCount: number;
+  columnist: string;
+};
+
+/**
+ * A feature, announced because somebody decided to announce it.
+ *
+ * **Nothing calls this on a schedule and nothing sweeps `feature_pieces`.**
+ * That is the whole difference from a column or an opinion piece, both of which
+ * are swept up and posted by the next sync if their `posted_at` is null — which
+ * is why regenerating one republishes it. A feature is written when somebody
+ * asks, and posted when somebody presses the button, and those are two separate
+ * decisions on purpose.
+ *
+ * `posted_at` is stamped by the caller after this returns `sent`, so the button
+ * becomes a date. A Discord message cannot be unsent, so there is deliberately
+ * no way to post the same piece twice by accident.
+ *
+ * Oxide, like the opinion piece and unlike a match report: somebody scrolling a
+ * channel sorts by colour long before they read a footer, and a feature is not
+ * a result.
+ */
+export async function announceFeature(
+  piece: FeatureToAnnounce,
+): Promise<AnnounceResult> {
+  const url = webhookUrl();
+  if (!url) return "rejected";
+
+  const link = `${SITE_URL}/analyst/features/${piece.slug}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [
+          {
+            author: { name: `${piece.columnist} · feature` },
+            title: piece.headline.slice(0, 250),
+            url: link,
+            // The standfirst first, because it exists to say what the piece
+            // covers, and then as much of the piece as an embed will hold.
+            description: truncate(
+              piece.standfirst.trim()
+                ? `**${piece.standfirst.trim()}**\n\n${piece.body}`
+                : piece.body,
+              EMBED_LIMIT,
+            ),
+            color: 0xe6b64f,
+            fields: piece.subjects.length
+              ? [{ name: "About", value: piece.subjects.join(", ").slice(0, 1000) }]
+              : undefined,
+            footer: {
+              text:
+                `Feature, written automatically by ${piece.columnist} from ` +
+                `${piece.matchCount} ${piece.matchCount === 1 ? "match" : "matches"} ` +
+                `on record and checked against them. Posted by hand.`,
+            },
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(10_000),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.warn(`[discord] feature webhook ${response.status}: ${await response.text()}`);
+      return resultFor(response.status);
+    }
+
+    return "sent";
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`[discord] feature webhook failed, outcome unknown: ${reason}`);
+    return "unknown";
+  }
+}

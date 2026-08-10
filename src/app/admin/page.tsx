@@ -59,6 +59,15 @@ const PROBLEMS: Record<string, string> = {
     "Not saved: a pack needs a name with at least one letter or number in it, because the slug in its URL is made from the name.",
   "pack-empty":
     "Not saved: no maps. A pack with an empty level list would leave the server with nothing to load, so it is refused here rather than sent.",
+  "feature-missing": "Nothing was posted: that piece no longer exists.",
+  "feature-posted":
+    "Nothing was posted: that piece has already gone to Discord, and a message cannot be unsent. Post it again from Discord itself if a second copy is really wanted.",
+  "feature-announce-rejected":
+    "Nothing was posted: no Discord webhook is configured, so there was nowhere to send it. /api/health reports whether announcing can work at all.",
+  "feature-announce-failed":
+    "Nothing was posted: Discord refused the message. The piece is unchanged and the button is still there.",
+  "feature-announce-unknown":
+    "Discord did not answer, so it is not known whether the message arrived. The piece has deliberately NOT been marked as posted — check the channel before pressing again, because pressing it will send a second copy.",
   "merge-incomplete": "Nothing was joined: pick a person in both boxes.",
   "merge-same":
     "Nothing was joined: those are the same person. The two boxes are for two identities the server told apart and you know are one.",
@@ -294,7 +303,9 @@ export default async function AdminPage({ searchParams }: Props) {
 
       {params.saved ? (
         <p className="mt-4 border-l-2 border-signal-green px-3 py-1 text-sm text-steel-200">
-          Saved. It applies everywhere immediately.
+          {params.saved === "posted"
+            ? "Posted to Discord, and marked as posted so it cannot go twice."
+            : "Saved. It applies everywhere immediately."}
         </p>
       ) : null}
 

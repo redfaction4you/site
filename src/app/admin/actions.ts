@@ -23,6 +23,8 @@ import {
   type FeatureSubject,
 } from "@/lib/ai/feature";
 import { activeModel } from "@/lib/ai/generate";
+import { announceFeature } from "@/lib/ai/discord";
+import { COLUMNIST_NAME } from "@/lib/ai/opinion";
 
 /**
  * Everything on the admin page goes through here, and every action re-checks
@@ -532,6 +534,78 @@ export async function commissionFeature(formData: FormData): Promise<void> {
  * The same deletion on `opinion_pieces` would have the next sync write a
  * replacement and announce it.
  */
+/**
+ * Posts a feature to the community Discord, once, because somebody said so.
+ *
+ * The one action on this page that reaches outside the site. Everything else
+ * here changes what a page says and can be undone; **a Discord message cannot
+ * be unsent**, so this refuses a piece that already has a `posted_at` rather
+ * than trusting a double click, and the button becomes a date afterwards.
+ *
+ * Deliberately not a sweep. `night_columns` and `opinion_pieces` are swept up
+ * and posted by the next sync whenever `posted_at` is null, which is why
+ * regenerating one of those republishes it. `feature_pieces` is swept by
+ * nothing, and this is the only thing that will ever post one.
+ *
+ * **A local run posts to the real channel.** There is one webhook and it is the
+ * community's, set in `.env.local` as well as in production. Pressing this on a
+ * dev server is not a rehearsal.
+ */
+export async function announceFeatureNow(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (!slug) redirect("/admin?problem=1");
+
+  const [piece] = await db
+    .select({
+      slug: featurePieces.slug,
+      headline: featurePieces.headline,
+      standfirst: featurePieces.standfirst,
+      body: featurePieces.body,
+      subjects: featurePieces.subjects,
+      matchRefs: featurePieces.matchRefs,
+      postedAt: featurePieces.postedAt,
+    })
+    .from(featurePieces)
+    .where(eq(featurePieces.slug, slug));
+
+  if (!piece) redirect("/admin?problem=feature-missing");
+  if (piece.postedAt) redirect("/admin?problem=feature-posted");
+
+  const result = await announceFeature({
+    slug: piece.slug,
+    headline: piece.headline,
+    // Nullable in the schema, though the writer never stores one without it.
+    standfirst: piece.standfirst ?? "",
+    body: piece.body,
+    subjects: Array.isArray(piece.subjects) ? (piece.subjects as string[]) : [],
+    matchCount: Array.isArray(piece.matchRefs) ? piece.matchRefs.length : 0,
+    columnist: COLUMNIST_NAME,
+  });
+
+  /*
+   * Stamped only when Discord said yes.
+   *
+   * `unknown` means the request failed in a way that leaves no answer — the
+   * message may or may not have arrived. Not stamping is the safer of the two
+   * wrong answers here: it leaves the button pressable, and a second copy in a
+   * channel is a smaller problem than a piece everybody believes was posted and
+   * never was, which is the failure this site spent five days on.
+   */
+  if (result === "sent") {
+    await db
+      .update(featurePieces)
+      .set({ postedAt: new Date() })
+      .where(eq(featurePieces.slug, slug));
+
+    revalidatePath("/", "layout");
+    redirect("/admin?saved=posted");
+  }
+
+  redirect(`/admin?problem=feature-announce-${result}`);
+}
+
 export async function deleteFeature(formData: FormData): Promise<void> {
   if (!(await allowed())) redirect("/admin");
 
