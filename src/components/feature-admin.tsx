@@ -22,7 +22,7 @@ export function FeatureAdmin() {
   return (
     <div className="mt-10 border-t border-basalt-800 pt-6">
       <h3 className="rule-heading">Commission a feature</h3>
-      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-steel-500">
+      <p className="mt-2 max-w-4xl text-sm leading-relaxed text-steel-400">
         A longer piece about one subject, written from the match record and
         checked against it. Nothing writes these on a schedule &mdash; deciding
         something deserves an article is a judgement, and the model does not
@@ -41,7 +41,7 @@ export function FeatureAdmin() {
           <p className="figure-label">Two players, side by side</p>
           <input name="a" required placeholder="ED ASSMASTER" className={FIELD} />
           <input name="b" required placeholder="Medeo" className={FIELD} />
-          <p className="text-[0.6875rem] leading-snug text-steel-600">
+          <p className="text-xs leading-snug text-steel-400">
             Every match they have played on the same side, in detail.
           </p>
           <SubmitButton
@@ -57,7 +57,7 @@ export function FeatureAdmin() {
           <p className="figure-label">Two players, against each other</p>
           <input name="a" required placeholder="J!nX" className={FIELD} />
           <input name="b" required placeholder="$t!nX" className={FIELD} />
-          <p className="text-[0.6875rem] leading-snug text-steel-600">
+          <p className="text-xs leading-snug text-steel-400">
             Every match they have played on opposite sides, with the head to
             head. The record of which side came out ahead, not a claim about
             who is better.
@@ -83,7 +83,7 @@ export function FeatureAdmin() {
             placeholder="2026-08-07/46"
             className={`${FIELD} font-mono`}
           />
-          <p className="text-[0.6875rem] leading-snug text-steel-600">
+          <p className="text-xs leading-snug text-steel-400">
             The scoreboard, every capture with the clock on it, and what the
             scoreline does not tell you.
           </p>
@@ -99,7 +99,7 @@ export function FeatureAdmin() {
           <input type="hidden" name="kind" value="player" />
           <p className="figure-label">One player, so far</p>
           <input name="name" required placeholder="Romek" className={FIELD} />
-          <p className="text-[0.6875rem] leading-snug text-steel-600">
+          <p className="text-xs leading-snug text-steel-400">
             Every match they have played, what they are good at, and the nights
             worth pointing at.
           </p>

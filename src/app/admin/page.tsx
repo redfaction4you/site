@@ -87,9 +87,8 @@ export default async function AdminPage({ searchParams }: Props) {
         <p className="mt-4 text-sm leading-relaxed text-steel-400">
           No key is configured, so this page is closed to everybody including
           whoever deployed it. Set <code className="text-steel-200">RF4U_ADMIN_KEY</code>{" "}
-          in the environment to at least eight characters, then open{" "}
-          <code className="text-steel-200">/admin?key=...</code> once on each
-          device you want to use it from.
+          in the environment to at least eight characters, and it will ask for
+          it here. A key in the URL does nothing.
         </p>
       </div>
     );
@@ -118,7 +117,7 @@ export default async function AdminPage({ searchParams }: Props) {
           />
           <button
             type="submit"
-            className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-[0.6875rem] font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
+            className="shrink-0 rounded-sm bg-rust-500 px-4 py-2 font-display text-xs font-semibold uppercase tracking-wider text-white hover:bg-rust-400"
           >
             Unlock
           </button>
@@ -175,6 +174,38 @@ export default async function AdminPage({ searchParams }: Props) {
     )
   ).filter((night) => night.anomalies.length > 0);
 
+  /*
+   * One row per check, not per anomaly.
+   *
+   * `side-reshuffled` fires once for each colour on every night the sides
+   * moved, so five ordinary nights produce ten rows of the same sentence. A
+   * list where the same finding repeats is a list nobody reads to the bottom of,
+   * which is the failure this section exists to avoid.
+   */
+  const byCheck = [
+    ...vetted
+      .flatMap((night) => night.anomalies.map((anomaly) => ({ ...anomaly, day: night.day })))
+      .reduce((grouped, anomaly) => {
+        const existing = grouped.get(anomaly.check);
+        if (existing) {
+          existing.count += 1;
+          if (!existing.days.includes(anomaly.day)) existing.days.push(anomaly.day);
+          // An error among warnings colours the whole group as one.
+          if (anomaly.severity === "error") existing.severity = "error";
+        } else {
+          grouped.set(anomaly.check, {
+            check: anomaly.check,
+            severity: anomaly.severity,
+            detail: anomaly.detail,
+            days: [anomaly.day],
+            count: 1,
+          });
+        }
+        return grouped;
+      }, new Map<string, { check: string; severity: string; detail: string; days: string[]; count: number }>())
+      .values(),
+  ].sort((a, b) => (a.severity === b.severity ? b.count - a.count : a.severity === "error" ? -1 : 1));
+
   const errors = vetted.flatMap((night) =>
     night.anomalies.filter((a) => a.severity === "error").map((a) => ({ ...a, day: night.day })),
   );
@@ -202,10 +233,10 @@ export default async function AdminPage({ searchParams }: Props) {
     minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} hours ago`;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-16">
+    <div className="mx-auto max-w-6xl px-4 pb-16">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-basalt-800 py-2.5">
         <h1 className="eyebrow">Admin</h1>
-        <div className="flex items-baseline gap-4 font-mono text-xs text-steel-600">
+        <div className="flex items-baseline gap-4 font-mono text-xs text-steel-400">
           <Link href="/link" className="hover:text-rust-300">
             Add a recording
           </Link>
@@ -239,7 +270,7 @@ export default async function AdminPage({ searchParams }: Props) {
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <section>
           <h2 className="rule-heading">State of the archive</h2>
-          <dl className="mt-2 space-y-1 text-xs">
+          <dl className="mt-2 space-y-1.5 text-sm">
             {/* One row per server, because one row for all of them is how a
                 dark server hides behind a live one. */}
             {pings.length === 0 ? (
@@ -308,24 +339,24 @@ export default async function AdminPage({ searchParams }: Props) {
 
         <section>
           <h2 className="rule-heading">Things you can do</h2>
-          <ul className="mt-2 space-y-1 text-xs">
+          <ul className="mt-2 space-y-1.5 text-sm">
             <li>
               <Link href="/link" className="text-rust-400 hover:text-rust-300">
                 Add a recording
               </Link>
-              <span className="text-steel-600"> — attach a video to a match</span>
+              <span className="text-steel-400"> — attach a video to a match</span>
             </li>
             <li>
               <Link href="/matches" className="text-steel-300 hover:text-rust-300">
                 The archive
               </Link>
-              <span className="text-steel-600"> — every night on record</span>
+              <span className="text-steel-400"> — every night on record</span>
             </li>
             <li>
               <Link href="/server" className="text-steel-300 hover:text-rust-300">
                 Server
               </Link>
-              <span className="text-steel-600"> — who is playing right now</span>
+              <span className="text-steel-400"> — who is playing right now</span>
             </li>
             <li>
               <a
@@ -336,7 +367,7 @@ export default async function AdminPage({ searchParams }: Props) {
               >
                 Health
               </a>
-              <span className="text-steel-600"> — what UptimeRobot polls</span>
+              <span className="text-steel-400"> — what UptimeRobot polls</span>
             </li>
           </ul>
         </section>
@@ -350,37 +381,46 @@ export default async function AdminPage({ searchParams }: Props) {
       {vetted.length > 0 ? (
         <section className="mt-7">
           <h2 className="rule-heading">Worth checking</h2>
-          <ul className="mt-2 space-y-1">
-            {vetted.flatMap((night) =>
-              night.anomalies.map((anomaly, i) => (
-                <li
-                  key={`${night.day}-${anomaly.check}-${i}`}
-                  className="flex flex-wrap items-baseline gap-x-2 border-b border-basalt-800 py-1 text-xs"
+          {/*
+            Grouped by check rather than one row per anomaly.
+            `side-reshuffled` fires twice a night, once for each colour, so five
+            nights filled the screen with ten rows of the same sentence and the
+            one row that mattered would have been lost among them. The finding
+            is the check; the nights are how often.
+          */}
+          <ul className="mt-3 space-y-2">
+            {byCheck.map((group) => (
+              <li
+                key={group.check}
+                className="border-b border-basalt-800 pb-2 sm:flex sm:items-baseline sm:gap-4"
+              >
+                <span
+                  className={
+                    "block shrink-0 font-mono text-xs uppercase tracking-wider sm:w-44 " +
+                    (group.severity === "error" ? "text-rust-400" : "text-oxide-400")
+                  }
                 >
-                  <span
-                    className={
-                      "shrink-0 font-mono text-[0.5625rem] uppercase tracking-wider " +
-                      (anomaly.severity === "error"
-                        ? "text-rust-400"
-                        : "text-steel-600")
-                    }
-                  >
-                    {anomaly.check}
-                  </span>
-                  <Link
-                    href={`/matches/${night.day}`}
-                    className="shrink-0 font-mono text-[0.625rem] text-steel-600 hover:text-rust-300"
-                  >
-                    {dayLabel(night.day)}
-                  </Link>
-                  <span className="min-w-0 flex-1 text-steel-400">
-                    {anomaly.detail}
-                  </span>
-                </li>
-              )),
-            )}
+                  {group.check}
+                  <span className="text-steel-400"> ×{group.count}</span>
+                </span>
+                <span className="mt-1 block min-w-0 flex-1 text-sm leading-snug text-steel-300 sm:mt-0">
+                  {group.detail}
+                </span>
+                <span className="mt-1 flex shrink-0 flex-wrap gap-x-2 sm:mt-0">
+                  {group.days.map((day) => (
+                    <Link
+                      key={day}
+                      href={`/matches/${day}`}
+                      className="font-mono text-xs text-steel-400 hover:text-rust-300"
+                    >
+                      {dayLabel(day)}
+                    </Link>
+                  ))}
+                </span>
+              </li>
+            ))}
           </ul>
-          <p className="mt-2 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-2 text-sm leading-snug text-steel-400">
             Nothing here is hidden from the site. A flawed record beats no
             record, so the rows stay as sent and the figures they contradict are
             withheld where they would mislead.
@@ -395,13 +435,13 @@ export default async function AdminPage({ searchParams }: Props) {
       <h2 className="mt-10 font-display text-lg font-bold text-steel-100">
         Who is who
       </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-steel-400">
+      <p className="max-w-2xl text-sm leading-relaxed text-steel-300">
         The server gives every player an identity that survives a name change, so
         somebody who plays under four names is one person here and their record
         is already added up as one. All this page decides is what to call them.
         Leave a name blank to go back to the one they use most.
       </p>
-      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-steel-600">
+      <p className="max-w-2xl text-sm leading-relaxed text-steel-400">
         The identity comes from the connection, so two people sharing one
         household would be merged and one person on a changing connection could
         still split. It is right far more often than names are, and it is not
@@ -425,7 +465,7 @@ export default async function AdminPage({ searchParams }: Props) {
       */}
       <section className="mt-6 border-t border-basalt-800 pt-4">
         <h3 className="rule-heading">Same person, two identities</h3>
-        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-steel-500">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-steel-400">
           Everything the first one did is credited to the second, everywhere on
           the site, including in writing that has already been published. No rows
           are deleted and nothing is lost, so this can be undone.
@@ -451,7 +491,7 @@ export default async function AdminPage({ searchParams }: Props) {
             </select>
           </label>
 
-          <span className="pb-1.5 text-xs text-steel-600">is really</span>
+          <span className="pb-1.5 text-xs text-steel-400">is really</span>
 
           <label className="text-xs text-steel-500">
             <span className="block pb-1">This person</span>
@@ -481,7 +521,7 @@ export default async function AdminPage({ searchParams }: Props) {
 
           <button
             type="submit"
-            className="shrink-0 rounded-sm border border-basalt-600 px-3 py-1 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+            className="shrink-0 rounded-sm border border-basalt-600 px-3 py-1 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
           >
             Join
           </button>
@@ -505,13 +545,13 @@ export default async function AdminPage({ searchParams }: Props) {
                   {merge.sourceName === null ? (
                     <>
                       An identity with no matches
-                      <span className="text-steel-600"> is </span>
+                      <span className="text-steel-400"> is </span>
                       {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
                     </>
                   ) : merge.sourceName === nameOf.get(merge.mergedInto) ? (
                     <>
                       {merge.sourceName}
-                      <span className="text-steel-600">
+                      <span className="text-steel-400">
                         {" "}
                         &mdash; a second connection of theirs
                       </span>
@@ -519,19 +559,19 @@ export default async function AdminPage({ searchParams }: Props) {
                   ) : (
                     <>
                       {merge.sourceName}
-                      <span className="text-steel-600"> is </span>
+                      <span className="text-steel-400"> is </span>
                       {nameOf.get(merge.mergedInto) ?? "somebody no longer on record"}
                     </>
                   )}
                 </span>
                 {merge.note ? (
-                  <span className="text-steel-600">{merge.note}</span>
+                  <span className="text-steel-400">{merge.note}</span>
                 ) : null}
                 <form action={unmergeIdentity} className="ml-auto">
                   <input type="hidden" name="identityKey" value={merge.identityKey} />
                   <button
                     type="submit"
-                    className="font-mono text-[0.625rem] text-steel-600 hover:text-rust-300"
+                    className="font-mono text-xs text-steel-400 hover:text-rust-300"
                   >
                     undo
                   </button>
@@ -540,13 +580,13 @@ export default async function AdminPage({ searchParams }: Props) {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-xs text-steel-600">
+          <p className="mt-3 text-xs text-steel-400">
             Nothing has been joined by hand. Every person below is grouped
             exactly as the server grouped them.
           </p>
         )}
 
-        <p className="mt-3 max-w-2xl text-[0.6875rem] leading-snug text-steel-600">
+        <p className="mt-3 max-w-2xl text-sm leading-snug text-steel-400">
           Two people who share a connection are one identity here and cannot be
           separated: the archive holds nothing that tells them apart. That one
           needs the telemetry to stop keying on the address.
@@ -576,12 +616,18 @@ export default async function AdminPage({ searchParams }: Props) {
         </p>
       ) : null}
 
-      <ul className="mt-3 space-y-1">
+      {/*
+        Two columns on a wide screen, because this is fifteen rows and grows by
+        one every time somebody new turns up. One column ran the page to twice
+        the height of everything else on it for no reason: a row is a name, a
+        line about it and a box, none of which wants the full width.
+      */}
+      <ul className="mt-3 grid gap-x-8 lg:grid-cols-2">
         {identities.map((entry) => (
           <li
             key={entry.identityKey}
             className={
-              "border-b border-basalt-800 py-2 " +
+              "border-b border-basalt-800 px-2 py-2 " +
               (entry.names.length > 1 ? "bg-rust-500/[0.04]" : "")
             }
           >
@@ -592,33 +638,32 @@ export default async function AdminPage({ searchParams }: Props) {
               <input type="hidden" name="identityKey" value={entry.identityKey} />
 
               <span className="min-w-0 flex-1">
-                <span className="block text-sm text-steel-100">
+                <span className="block text-base text-steel-100">
                   {entry.displayName}
                   {entry.chosen ? (
-                    <span className="ml-2 font-mono text-[0.5625rem] uppercase tracking-wider text-rust-400">
+                    <span className="ml-2 font-mono text-xs uppercase tracking-wider text-rust-400">
                       set
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-0.5 block text-xs text-steel-500">
+                <span className="mt-0.5 block text-sm text-steel-400">
                   {entry.names.length > 1 ? (
                     <>known as {entry.names.join(", ")}</>
                   ) : (
-                    <span className="text-steel-600">one name only</span>
+                    <span className="text-steel-500">one name only</span>
                   )}
                   {entry.serverKeys > 1 ? (
                     <span className="text-oxide-400">
                       {" "}
-                      · {entry.serverKeys} identities joined by hand
+                      · {entry.serverKeys} identities joined
                     </span>
                   ) : null}
                 </span>
-              </span>
-
-              <span className="shrink-0 font-mono text-[0.625rem] tabular-nums text-steel-600">
-                {entry.matchesPlayed}{" "}
-                {entry.matchesPlayed === 1 ? "match" : "matches"}
-                {entry.lastSeen ? ` · ${dayLabel(entry.lastSeen)}` : ""}
+                <span className="mt-0.5 block font-mono text-xs tabular-nums text-steel-500">
+                  {entry.matchesPlayed}{" "}
+                  {entry.matchesPlayed === 1 ? "match" : "matches"}
+                  {entry.lastSeen ? ` · ${dayLabel(entry.lastSeen)}` : ""}
+                </span>
               </span>
 
               <input
@@ -627,11 +672,11 @@ export default async function AdminPage({ searchParams }: Props) {
                 defaultValue={entry.chosen ? entry.displayName : ""}
                 placeholder={entry.displayName}
                 aria-label={`Display name for ${entry.displayName}`}
-                className="w-40 shrink-0 rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none"
+                className="w-36 shrink-0 rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none"
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-sm border border-basalt-600 px-3 py-1 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+                className="shrink-0 rounded-sm border border-basalt-600 px-3 py-1 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
               >
                 Save
               </button>

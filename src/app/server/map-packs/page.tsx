@@ -230,10 +230,19 @@ export default async function MapPacksPage() {
         </section>
       ) : (
         <section className="mt-6">
+          {/*
+            Not "back to the standing rotation", which is what this said and
+            was not true. Switching a pack off tells the applier to stop
+            changing the server; it does not put anything back, because this
+            system knows what it set and not what was there before. The server
+            keeps running whatever rotation it was last given, and saying
+            otherwise described a state that does not exist.
+          */}
           <p className="max-w-3xl text-sm leading-relaxed text-steel-400">
-            No themed pack is running at the moment &mdash; the deathmatch
-            server is on its standing rotation. When a pack is on, this page
-            says which, lists every map in it and credits whoever made them.
+            No themed pack is running at the moment. The deathmatch server is
+            on whatever rotation it was last given, which may well be the last
+            pack listed below. When a pack is switched on, this page says which,
+            lists every map in it and credits whoever made them.
           </p>
         </section>
       )}

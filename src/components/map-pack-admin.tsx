@@ -45,7 +45,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
   return (
     <div className="mt-10 border-t border-basalt-800 pt-6">
       <h3 className="rule-heading">Deathmatch map packs</h3>
-      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-steel-500">
+      <p className="mt-2 max-w-4xl text-sm leading-relaxed text-steel-400">
         A themed rotation for the DM server. Switching one on changes the level
         list, what the server calls itself and the message players see when they
         join &mdash; nothing else about the server moves.{" "}
@@ -71,29 +71,29 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
               </span>
             ) : null}
           </p>
-          <p className="mt-1 font-mono text-[0.6875rem] text-steel-500">
+          <p className="mt-1 font-mono text-xs text-steel-500">
             {active.maps.length} maps · server name:{" "}
-            {active.serverName ?? <span className="text-steel-600">unchanged</span>}
+            {active.serverName ?? <span className="text-steel-400">unchanged</span>}
           </p>
-          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-1 text-xs leading-snug text-steel-400">
             Welcome message: &ldquo;{welcomeFor(active)}&rdquo;
           </p>
           <form action={deactivateMapPacks} className="mt-2">
             <button
               type="submit"
-              className="rounded-sm border border-basalt-600 px-3 py-1 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+              className="rounded-sm border border-basalt-600 px-3 py-1 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
             >
               Switch off
             </button>
           </form>
-          <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-1.5 text-xs leading-snug text-steel-400">
             Switching off leaves the server exactly as it is. It does not put a
             previous rotation back, because this only knows what it set. The
             pack cannot be deleted while it is on, so that the site never
             forgets a rotation the server is still running.
           </p>
           {/* Not obvious from the button, and it throws away a real reading. */}
-          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-1 text-xs leading-snug text-steel-400">
             Switching a pack on again restarts its clock: the figures on the
             public page are counted from the moment it was last activated.
           </p>
@@ -113,11 +113,11 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
               className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-basalt-800 pb-2"
             >
               <span className="text-sm text-steel-200">{pack.name}</span>
-              <span className="font-mono text-[0.6875rem] text-steel-600">
+              <span className="font-mono text-xs text-steel-400">
                 {pack.maps.length} maps · /{pack.slug}
               </span>
               {pack.active ? (
-                <span className="font-display text-[0.625rem] uppercase tracking-wider text-rust-400">
+                <span className="font-display text-xs uppercase tracking-wider text-rust-400">
                   on
                 </span>
               ) : (
@@ -125,7 +125,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
                   <input type="hidden" name="slug" value={pack.slug} />
                   <button
                     type="submit"
-                    className="rounded-sm border border-basalt-600 px-2.5 py-0.5 font-display text-[0.625rem] uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+                    className="rounded-sm border border-basalt-600 px-2.5 py-0.5 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
                   >
                     Switch on
                   </button>
@@ -135,7 +135,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
                 <input type="hidden" name="slug" value={pack.slug} />
                 <button
                   type="submit"
-                  className="font-display text-[0.625rem] uppercase tracking-wider text-steel-600 hover:text-rust-400"
+                  className="font-display text-xs uppercase tracking-wider text-steel-400 hover:text-rust-400"
                 >
                   Delete
                 </button>
@@ -151,10 +151,12 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
         separate edit mode, and re-pasting a corrected map list is the common
         case anyway.
       */}
-      <form action={saveMapPack} className="mt-6 grid max-w-3xl gap-3">
-        <p className="figure-label">Add or edit a pack</p>
+      {/* Two columns from `lg`: the settings are eight short fields and a
+          textarea, and stacking them ran this form down a whole screen. */}
+      <form action={saveMapPack} className="mt-6 grid gap-x-8 gap-y-3 lg:grid-cols-2">
+        <p className="figure-label lg:col-span-2">Add or edit a pack</p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2">
           <div>
             <label className={LABEL} htmlFor="pack-name">
               Name
@@ -195,20 +197,8 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
           />
         </div>
 
-        <div>
-          <label className={LABEL} htmlFor="pack-blurb">
-            Blurb for the public page
-          </label>
-          <textarea
-            id="pack-blurb"
-            name="blurb"
-            rows={2}
-            maxLength={600}
-            placeholder="Ten maps with a haunted streak, on the server until November."
-            className={FIELD}
-          />
-        </div>
-
+        {/* Beside the server name: both are single lines bound for the game,
+            and both go through asciiForGame on the way out. */}
         <div>
           <label className={LABEL} htmlFor="pack-welcome">
             Welcome message — blank writes one from the pack
@@ -222,7 +212,21 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
           />
         </div>
 
-        <div>
+        <div className="lg:col-span-2">
+          <label className={LABEL} htmlFor="pack-blurb">
+            Blurb for the public page
+          </label>
+          <textarea
+            id="pack-blurb"
+            name="blurb"
+            rows={2}
+            maxLength={600}
+            placeholder="Ten maps with a haunted streak, on the server until November."
+            className={FIELD}
+          />
+        </div>
+
+        <div className="lg:col-span-2">
           <label className={LABEL} htmlFor="pack-maps">
             Maps, one per line: filename | title | author | link
           </label>
@@ -236,7 +240,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             }
             className={`${FIELD} font-mono text-xs`}
           />
-          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-1 text-xs leading-snug text-steel-400">
             Only the filename is required and it must end in{" "}
             <code className="text-steel-500">.rfl</code>. A bad filename is
             refused here, because the server&rsquo;s own answer to one is to drop
@@ -246,7 +250,7 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
           {/* The title is not decoration: it is the join between a pack and the
               archive, and an entry without one goes figureless on the public
               page. Worth saying on the form rather than in a handoff. */}
-          <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
+          <p className="mt-1.5 text-xs leading-snug text-steel-400">
             <strong className="text-steel-500">Give every map a title.</strong>{" "}
             The server reports a map by its display name and never by its
             filename, so the title is how a map is matched to what has been
@@ -275,14 +279,14 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
 
       {packs.length > 0 ? (
         <details className="mt-4">
-          <summary className="cursor-pointer font-display text-[0.6875rem] uppercase tracking-widest text-steel-500 hover:text-steel-300">
+          <summary className="cursor-pointer font-display text-xs uppercase tracking-widest text-steel-500 hover:text-steel-300">
             Copy an existing pack&rsquo;s map list
           </summary>
           <div className="mt-2 space-y-3">
             {packs.map((pack) => (
               <div key={pack.slug}>
                 <p className="figure-label">{pack.name}</p>
-                <pre className="mt-1 overflow-x-auto rounded-sm border border-basalt-700 bg-basalt-900 p-2 font-mono text-[0.6875rem] text-steel-400">
+                <pre className="mt-1 overflow-x-auto rounded-sm border border-basalt-700 bg-basalt-900 p-2 font-mono text-xs text-steel-400">
                   {mapsToText(pack)}
                 </pre>
               </div>
