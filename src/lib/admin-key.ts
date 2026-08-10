@@ -9,10 +9,17 @@ import { cookies } from "next/headers";
  * feature used by one person a few times a month. What this needs is a way to
  * say "this browser is the owner's", once.
  *
- * So: visit `/admin?key=...` once on a device. The key is checked, a signed
- * cookie is set, and the URL is replaced so the key does not sit in the address
- * bar or in history. From then on the page opens. A new device means visiting
- * with the key once more.
+ * So: type the key into the box on `/admin` once on a device. It is checked, a
+ * signed cookie is set, and the browser is redirected to the plain URL. From
+ * then on the page opens. A new device means typing it once more.
+ *
+ * **Not `/admin?key=...`.** This file and the page both used to say that was
+ * the way in, and it never was: a page render cannot set a cookie, so only the
+ * form post can unlock anything. Worse, a key in a URL stays in the address bar
+ * and in history, which is precisely what the paragraph claiming to redirect
+ * said it was avoiding. The page ignores the parameter now rather than
+ * pre-filling it, so following the old instruction fails visibly instead of
+ * leaving a secret lying around and appearing to work.
  *
  * The cookie holds a signature rather than the key, so a copy of it cannot be
  * turned back into the secret. It is httpOnly and sameSite lax, so script on the

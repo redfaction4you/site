@@ -4,6 +4,10 @@ import Link from "next/link";
 import { dayLabel } from "@/components/match-archive";
 import { adminState } from "@/lib/admin-key";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
+import { listSyncPings } from "@/lib/sync-ping";
+import { dmTotals } from "@/lib/dm/queries";
+import { timePlayed } from "@/lib/dm/format";
+import { collidingNames } from "@/lib/matches/display-name";
 import {
   archiveTotals,
   listDays,
@@ -38,11 +42,21 @@ const PROBLEMS: Record<string, string> = {
     "Nothing was written: the archive has no completed matches for that subject. For a pairing they must have shared a side, for a rivalry they must have been on opposite sides, and a name has to be the one the site shows rather than one of their older ones.",
   "feature-unwritten":
     "Nothing was written: three attempts were made and each was refused by the fact check, or the model could not be reached. Model quota is the usual cause — npm run ai:quota says. Trying again later is reasonable.",
+  "name-not-on-record":
+    "Not renamed: nobody has played under that name, and a player page is found by name — so it would put that label on every board and a 404 behind every link to it. Use one of the names listed beside them.",
+  "name-ambiguous":
+    "Not renamed: somebody else has played under that name too, so a page reached by it would have to pick one of them. cowboy dan is the live example — two different people have used it.",
+  "pack-exists":
+    "Not saved: a pack with that name already exists. Saving would have replaced its maps and its blurb. Edit that one, or choose a different name.",
+  "pack-missing":
+    "Nothing was switched on: that pack no longer exists. Whatever was on has been left alone.",
+  "pack-active":
+    "Not deleted: that pack is the one currently on. Switch it off first — deleting it would leave the server running a rotation the site no longer knows about.",
   default: "That was refused, and nothing was changed.",
 };
 
 type Props = {
-  searchParams: Promise<{ key?: string; wrong?: string; saved?: string; problem?: string }>;
+  searchParams: Promise<{ wrong?: string; saved?: string; problem?: string }>;
 };
 
 /**
@@ -52,10 +66,15 @@ type Props = {
  * the wrong match, this decides what people are called across every page. That
  * is worth a key.
  *
- * The key is typed once per browser. `/admin?key=...` sets a signed cookie and
- * redirects to the plain URL, so the secret is not left in the address bar or
- * in history, and the page simply opens from then on. Nothing to remember, no
- * account, no session that expires while you are using it.
+ * The key is typed once per browser, into the box below. The form post sets a
+ * signed cookie and redirects to the plain URL, and the page simply opens from
+ * then on. Nothing to remember, no account, no session that expires while you
+ * are using it.
+ *
+ * `?key=` in the URL does nothing, deliberately. See `admin-key.ts`: only a
+ * form post can set a cookie, so the parameter never unlocked anything, and
+ * pre-filling the box from it put the secret in the address bar and in history
+ * while looking like the supported way in.
  */
 export default async function AdminPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -89,11 +108,12 @@ export default async function AdminPage({ searchParams }: Props) {
           </p>
         ) : null}
         <form action={unlock} className="mt-4 flex gap-2">
+          {/* Never pre-filled from the URL: see the note above the component. */}
           <input
             name="key"
             type="password"
             autoComplete="current-password"
-            defaultValue={params.key ?? ""}
+            aria-label="Admin key"
             className="min-w-0 flex-1 rounded-sm border border-basalt-600 bg-basalt-850 px-3 py-2 font-mono text-sm text-steel-100 focus:border-rust-500 focus:outline-none"
           />
           <button
@@ -107,15 +127,32 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [identities, merges, days, totals, lastSync, packs] = await Promise.all([
-    listIdentities(),
-    listMerges(),
-    listDays(),
-    archiveTotals(),
-    lastSyncAt(),
-    listMapPacks(),
-  ]);
-  const merged = identities.filter((entry) => entry.names.length > 1);
+  const [identities, merges, days, totals, lastSync, packs, pings, dm] =
+    await Promise.all([
+      listIdentities(),
+      listMerges(),
+      listDays(),
+      archiveTotals(),
+      lastSyncAt(),
+      listMapPacks(),
+      listSyncPings(),
+      dmTotals(),
+    ]);
+
+  // People who have played under more than one name. Not "renamed": most of
+  // them were never touched on this page, and calling them renamed is how the
+  // stat below came to say something that was not true.
+  const multiNamed = identities.filter((entry) => entry.names.length > 1);
+
+  /*
+   * Two people the site shows under one name.
+   *
+   * Nothing on the page could produce this until now — `setDisplayName` refuses
+   * an ambiguous name — but `DISPLAY_NAME` falls back to the most used name, so
+   * two people who have only ever played as the same thing collide with nobody
+   * having typed anything. It matters because a player page is found by name.
+   */
+  const colliding = collidingNames(identities);
 
   // What a merged-away identity now answers to, for the undo list.
   const nameOf = new Map(identities.map((e) => [e.identityKey, e.displayName]));
@@ -142,10 +179,27 @@ export default async function AdminPage({ searchParams }: Props) {
     night.anomalies.filter((a) => a.severity === "error").map((a) => ({ ...a, day: night.day })),
   );
 
-  const syncMinutes = lastSync
-    ? Math.round((Date.now() - lastSync.getTime()) / 60_000)
+  /*
+   * Each server on its own, which is the reading health had to be rewritten to.
+   *
+   * This said "Results last received" and took it from `max(matches.ingested_at)`
+   * — how long since something was **written**. That is the exact metric
+   * `/api/health` abandoned on 7 August: once unchanged days stopped being
+   * rewritten, a quiet afternoon wrote nothing and the answer read as a dead
+   * pipeline while the VPS synced every fifteen minutes. It was also blind to
+   * the deathmatch server, because it only ever looked at `matches`.
+   *
+   * `lastIngest` is kept, because "when did the archive last actually change"
+   * is a real and different question and this is the page where it is useful.
+   */
+  const now = Date.now();
+
+  const writeMinutes = lastSync
+    ? Math.round((now - lastSync.getTime()) / 60_000)
     : null;
-  const syncStale = syncMinutes === null || syncMinutes > SYNC_STALE_MINUTES;
+
+  const ago = (minutes: number): string =>
+    minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} hours ago`;
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-16">
@@ -186,27 +240,59 @@ export default async function AdminPage({ searchParams }: Props) {
         <section>
           <h2 className="rule-heading">State of the archive</h2>
           <dl className="mt-2 space-y-1 text-xs">
+            {/* One row per server, because one row for all of them is how a
+                dark server hides behind a live one. */}
+            {pings.length === 0 ? (
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-steel-500">Servers reporting</dt>
+                <dd className="text-oxide-400">none yet</dd>
+              </div>
+            ) : (
+              pings.map((ping) => {
+                const minutes = Math.round((now - ping.lastSeenAt.getTime()) / 60_000);
+                return (
+                  <div
+                    key={ping.server}
+                    className="flex items-baseline justify-between gap-3"
+                  >
+                    <dt className="text-steel-500">{ping.server} last called in</dt>
+                    <dd
+                      className={
+                        minutes > SYNC_STALE_MINUTES ? "text-rust-400" : "text-steel-200"
+                      }
+                    >
+                      {ago(minutes)}
+                    </dd>
+                  </div>
+                );
+              })
+            )}
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-steel-500">Results last received</dt>
-              <dd className={syncStale ? "text-oxide-400" : "text-steel-200"}>
-                {syncMinutes === null
-                  ? "never"
-                  : syncMinutes < 60
-                    ? `${syncMinutes} min ago`
-                    : `${Math.round(syncMinutes / 60)} hours ago`}
+              <dt className="text-steel-500">Archive last changed</dt>
+              <dd className="text-steel-200">
+                {writeMinutes === null ? "never" : ago(writeMinutes)}
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-steel-500">Archive</dt>
+              <dt className="text-steel-500">Capture the Flag</dt>
               <dd className="text-steel-200">
                 {totals.matchCount} matches · {totals.dayCount} nights
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-steel-500">Deathmatch</dt>
+              <dd className="text-steel-200">
+                {dm.rounds} {dm.rounds === 1 ? "round" : "rounds"} ·{" "}
+                {timePlayed(dm.secondsPlayed)} played
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-steel-500">People</dt>
               <dd className="text-steel-200">
                 {identities.length}
-                {merged.length > 0 ? ` · ${merged.length} renamed` : ""}
+                {multiNamed.length > 0
+                  ? ` · ${multiNamed.length} with more than one name`
+                  : ""}
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
@@ -467,10 +553,26 @@ export default async function AdminPage({ searchParams }: Props) {
         </p>
       </section>
 
-      {merged.length > 0 ? (
+      {/*
+        Two people under one name, before the list rather than inside it.
+        Everything that finds a person by name has to pick one of them, and a
+        player page is found by name, so this is worth acting on rather than
+        noticing.
+      */}
+      {colliding.length > 0 ? (
+        <p className="mt-4 border-l-2 border-rust-500 px-3 py-1 text-xs leading-relaxed text-steel-200">
+          More than one person is shown as{" "}
+          <span className="text-steel-100">{colliding.join(", ")}</span>. A player
+          page is reached by name, so one of them is unreachable. Give each a
+          name of their own below, or join them if they are the same person.
+        </p>
+      ) : null}
+
+      {multiNamed.length > 0 ? (
         <p className="mt-4 text-xs text-steel-500">
-          {merged.length} {merged.length === 1 ? "person has" : "people have"}{" "}
-          played under more than one name.
+          {multiNamed.length}{" "}
+          {multiNamed.length === 1 ? "person has" : "people have"} played under
+          more than one name.
         </p>
       ) : null}
 

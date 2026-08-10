@@ -88,7 +88,14 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
           </form>
           <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
             Switching off leaves the server exactly as it is. It does not put a
-            previous rotation back, because this only knows what it set.
+            previous rotation back, because this only knows what it set. The
+            pack cannot be deleted while it is on, so that the site never
+            forgets a rotation the server is still running.
+          </p>
+          {/* Not obvious from the button, and it throws away a real reading. */}
+          <p className="mt-1 text-[0.6875rem] leading-snug text-steel-600">
+            Switching a pack on again restarts its clock: the figures on the
+            public page are counted from the moment it was last activated.
           </p>
         </div>
       ) : (
@@ -235,6 +242,24 @@ export function MapPackAdmin({ packs }: { packs: MapPack[] }) {
             refused here, because the server&rsquo;s own answer to one is to drop
             it and quietly run a shorter rotation. Lines starting with{" "}
             <code className="text-steel-500">#</code> are ignored.
+          </p>
+          {/* The title is not decoration: it is the join between a pack and the
+              archive, and an entry without one goes figureless on the public
+              page. Worth saying on the form rather than in a handoff. */}
+          <p className="mt-1.5 text-[0.6875rem] leading-snug text-steel-600">
+            <strong className="text-steel-500">Give every map a title.</strong>{" "}
+            The server reports a map by its display name and never by its
+            filename, so the title is how a map is matched to what has been
+            played on it. Without one it shows on{" "}
+            <Link
+              href="/server/map-packs"
+              className="text-steel-500 hover:text-rust-300"
+            >
+              the public page
+            </Link>{" "}
+            with no time, no rounds and no frags. Author and link are for custom
+            maps: a player whose client cannot fetch a map has no other way to
+            get it.
           </p>
         </div>
 

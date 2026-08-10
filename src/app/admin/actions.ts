@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
 import { db } from "@/lib/db";
 import { mapPacks, matchPlayers, playerIdentities, type MapPackEntry } from "@/lib/db/schema";
+import { IDENTITY_KEY } from "@/lib/matches/identities";
+import { checkDisplayName } from "@/lib/matches/display-name";
 import { isLevelFilename } from "@/lib/map-packs";
 import {
   buildFeatureFacts,
@@ -69,6 +71,28 @@ export async function setDisplayName(formData: FormData): Promise<void> {
     // answer for anybody whose names were never confusing.
     await db.delete(playerIdentities).where(eq(playerIdentities.identityKey, identityKey));
   } else {
+    /*
+     * A name that cannot be found is not a name.
+     *
+     * A player page is reached by name — `getPlayer` filters on `playedBy` and
+     * calls `notFound()` when nothing matches — so a display name nobody played
+     * under gives somebody a label on every board and a 404 behind every link
+     * to it. This accepted any forty characters until 9 August. See
+     * `display-name.ts` for the two rules and why the second one exists.
+     */
+    const used = await db
+      .select({ key: IDENTITY_KEY, name: matchPlayers.name })
+      // counts-everything: naming somebody is not a total, the same reason
+      // `canonicalNames` reads every row. A name used only in a match that did
+      // not count is still a name their page can be reached by.
+      .from(matchPlayers)
+      .groupBy(IDENTITY_KEY, matchPlayers.name);
+
+    const verdict = checkDisplayName(displayName, identityKey, used);
+    if (verdict !== "ok") redirect(`/admin?problem=name-${verdict}`);
+  }
+
+  if (displayName) {
     await db
       .insert(playerIdentities)
       .values({ identityKey, displayName, note })
@@ -278,6 +302,26 @@ export async function saveMapPack(formData: FormData): Promise<void> {
   const bad = maps.filter((entry) => !isLevelFilename(entry.filename));
   if (maps.length === 0 || bad.length > 0) redirect("/admin?problem=1");
 
+  /*
+   * A new pack may not land on an existing one.
+   *
+   * The write is an upsert on the slug and the slug is derived from the name,
+   * so "Halloween" saved twice, or "Halloween 2026" beside "halloween-2026",
+   * silently replaced the first pack's maps, blurb and server name and then
+   * said "Saved". It was the only way to lose data on this page. Editing an
+   * existing pack posts its slug in a hidden field, which is how the two are
+   * told apart.
+   */
+  const editing = String(formData.get("slug") ?? "").trim().length > 0;
+  if (!editing) {
+    const [clash] = await db
+      .select({ name: mapPacks.name })
+      .from(mapPacks)
+      .where(eq(mapPacks.slug, slug))
+      .limit(1);
+    if (clash) redirect("/admin?problem=pack-exists");
+  }
+
   const values = {
     slug,
     name,
@@ -311,11 +355,39 @@ export async function activateMapPack(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "").trim();
   if (!slug) redirect("/admin?problem=1");
 
-  await db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true));
-  await db
-    .update(mapPacks)
-    .set({ active: true, activatedAt: new Date(), updatedAt: new Date() })
-    .where(eq(mapPacks.slug, slug));
+  /*
+   * Refused rather than applied to nothing.
+   *
+   * Without this, a slug that does not exist clears the active flag, matches no
+   * row, and reports "Saved": switching a pack on would have switched the
+   * current one off instead, which is the least expected outcome on the page.
+   */
+  const [exists] = await db
+    .select({ slug: mapPacks.slug })
+    .from(mapPacks)
+    .where(eq(mapPacks.slug, slug))
+    .limit(1);
+  if (!exists) redirect("/admin?problem=pack-missing");
+
+  /*
+   * One batch, which this said it was and was not.
+   *
+   * It was a clear awaited and then a set awaited, so between the two **no pack
+   * was active** — and the VPS polls `/api/rf4u/map-pack/active` every five
+   * minutes, so that window is reachable. Exactly the shape of the ingest bug
+   * of 6 August, where a delete awaited then an insert awaited left a match with
+   * no players about fifteen hundred times a day.
+   *
+   * `db.batch`, not `db.transaction`: `neon-http` cannot hold an interactive
+   * transaction across awaits, the same reason `matches/ingest.ts` uses it.
+   */
+  await db.batch([
+    db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true)),
+    db
+      .update(mapPacks)
+      .set({ active: true, activatedAt: new Date(), updatedAt: new Date() })
+      .where(eq(mapPacks.slug, slug)),
+  ]);
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
@@ -336,10 +408,27 @@ export async function deactivateMapPacks(): Promise<void> {
   redirect("/admin?saved=1");
 }
 
+/**
+ * Deletes a pack, and refuses to delete the one that is on.
+ *
+ * Nothing tells the server to stop running a rotation that has already been
+ * applied, so deleting the active pack leaves the DM server playing it while
+ * the site forgets it exists: `/server` goes back to saying no themed pack is
+ * running, over a server that is running one, and there is no record of what it
+ * is. Switching it off first is the same two clicks and leaves the site honest.
+ */
 export async function deleteMapPack(formData: FormData): Promise<void> {
   if (!(await allowed())) redirect("/admin");
   const slug = String(formData.get("slug") ?? "").trim();
   if (!slug) redirect("/admin?problem=1");
+
+  const [pack] = await db
+    .select({ active: mapPacks.active })
+    .from(mapPacks)
+    .where(eq(mapPacks.slug, slug))
+    .limit(1);
+  if (pack?.active) redirect("/admin?problem=pack-active");
+
   await db.delete(mapPacks).where(eq(mapPacks.slug, slug));
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
