@@ -50,6 +50,22 @@
   --color-steel-200: #cfcdc6;
   --color-steel-300: #b9b6ad;
   --color-steel-400: #8b887f;
+  /*
+   * `steel-500`, `600` and `700` do not clear 4.5:1 as text. Measured 10 Aug:
+   * 3.82, 3.51 and 3.20 against the page, and 3.45, 3.17 and 2.89 on a
+   * `.plate`. Between them they carry 158 uses, mostly captions and the small
+   * caps labels that say what a number means.
+   *
+   * Lifting them was tried and undone. To clear the floor on a plate they have
+   * to reach about #868279, which is `steel-400` (#8b887f) to the eye, so the
+   * four greys collapse into one and the palette loses the hierarchy it exists
+   * for. **There is no readable grey below `steel-400` on this background.**
+   *
+   * So the fix is not a value here, it is which token gets used: quiet *text*
+   * wants `steel-400`, and 500 to 700 want to be borders, rules and
+   * placeholders. `/admin` was moved that way on 9 August; the rest of the site
+   * has not been, because it restyles every page and that is the owner's call.
+   */
   --color-steel-500: #6f6d66;
   /*
    * These two were used 74 times across the components and never defined, so
