@@ -41,11 +41,33 @@ import {
   buildProfileFacts,
   writeProfile,
 } from "./player-profile";
+import { getServerStatus } from "@/lib/server-status";
 import { announceColumn, announceOpinion } from "./discord";
 import { COLUMNIST_NAME } from "./opinion";
 
-/** How long after the last match before a night counts as finished. */
-const QUIET_MINUTES = 75;
+/**
+ * How long after the last match before a night counts as finished.
+ *
+ * Was 75, cut to 30 on 10 August by the owner, who watches these evenings:
+ * matches run back to back with gaps of a few minutes, ten at the outside,
+ * fifteen if something has gone wrong. Seventy-five minutes was insurance
+ * bought at the price of the write-up landing over an hour after everyone had
+ * gone to bed.
+ */
+const QUIET_MINUTES = 30;
+
+/**
+ * The longest a night can be held open by people still on the server.
+ *
+ * The timer is a proxy for "are they still playing" and the server itself is
+ * the real answer, so `findFinishedNights` waits for it to empty. But
+ * occupancy is not the same as playing: on the match server somebody can sit
+ * in warmup for hours recording nothing, and a column that waits for an idler
+ * is a column that never arrives. Past this, the timer wins and it is written
+ * anyway — which is the old 75 minutes, kept for exactly the case it was
+ * bought for.
+ */
+const OCCUPIED_CEILING_MINUTES = 75;
 
 /**
  * The least time between two things being announced, measured on the clock.
@@ -147,14 +169,56 @@ async function findFinishedNights(): Promise<Candidate[]> {
 
   const today = calendarDay(new Date(), ARCHIVE_TIME_ZONE);
   const quietBefore = Date.now() - QUIET_MINUTES * 60_000;
+  const ceilingBefore = Date.now() - OCCUPIED_CEILING_MINUTES * 60_000;
 
-  return rows.filter((row) => {
+  const finished = rows.filter((row) => {
     if (row.matchCount === 0) return false;
     if (row.archiveDay < today) return true;
     // Today: only once things have gone quiet.
     const last = row.lastEnd ? new Date(row.lastEnd).getTime() : 0;
     return last > 0 && last < quietBefore;
   });
+
+  /*
+   * Quiet, but are they still there?
+   *
+   * The clock only tells you when the last match *ended*. Between matches
+   * everybody is still on the server picking the next map, and thirty minutes
+   * of that is well within a normal evening — so a timer short enough to be
+   * useful is also short enough to write the night up while it is still going
+   * on. Asking the server settles it directly.
+   *
+   * Three deliberate weaknesses, all failing towards writing rather than
+   * towards silence, because a column that never arrives is the failure that
+   * actually happened here:
+   *
+   *   - Only today's night is held back. Yesterday is over whoever is on now.
+   *   - `unknown` writes. The status comes from a third-party server browser
+   *     over HTTP and it is allowed to be down; a night must not go unwritten
+   *     because somebody else's API did.
+   *   - Past `OCCUPIED_CEILING_MINUTES` the timer wins regardless, so an idler
+   *     in warmup cannot hold a night open indefinitely.
+   */
+  const heldOpen = finished.some((row) => row.archiveDay === today);
+  if (!heldOpen) return finished;
+
+  const overCeiling = finished.some(
+    (row) =>
+      row.archiveDay === today &&
+      row.lastEnd !== null &&
+      new Date(row.lastEnd).getTime() < ceilingBefore,
+  );
+  if (overCeiling) return finished;
+
+  const status = await getServerStatus();
+  const playing = status.state === "online" ? status.players : 0;
+  if (playing === 0) return finished;
+
+  console.log(
+    `[ai] ${playing} still on the server, holding tonight's column until they leave ` +
+      `or ${OCCUPIED_CEILING_MINUTES} minutes have passed`,
+  );
+  return finished.filter((row) => row.archiveDay !== today);
 }
 
 export async function backfillColumns(): Promise<number> {
