@@ -67,9 +67,24 @@ export function welcomeFor(pack: {
 }): string {
   if (pack.welcomeMessage?.trim()) return asciiForGame(pack.welcomeMessage);
   const count = pack.maps.length;
+  /*
+   * The generated one says how stats work here, not just what is playing.
+   *
+   * Asked for on 10 August: somebody joining should know straight away that
+   * they are being recorded and where to look. It is written here rather than
+   * into a pack's own `welcomeMessage` field on purpose — a per-pack string
+   * freezes to that pack, and the next pack somebody makes silently loses it.
+   *
+   * **The wording differs from the match server's on purpose.** Everything on
+   * this server is recorded whether or not a match is running, and the board is
+   * ranked on time played; the match server only records inside a started
+   * match. Telling a newcomer the wrong one of those is worse than telling them
+   * nothing.
+   */
   return asciiForGame(
     `Now playing: ${pack.name} - ${count} ${count === 1 ? "map" : "maps"}. ` +
-      `Full list and credits at RedFaction4You.com/server/map-packs`,
+      `All play here is recorded and ranked on time played. ` +
+      `Your stats: RedFaction4You.com/stats`,
   );
 }
 

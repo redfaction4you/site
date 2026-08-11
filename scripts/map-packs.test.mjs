@@ -93,7 +93,9 @@ test("a pack with no message of its own gets one written from it", () => {
     maps: [{ filename: "a.rfl" }, { filename: "b.rfl" }, { filename: "c.rfl" }],
   });
   assert.match(message, /^Now playing: Stock Favourites - 3 maps\./);
-  assert.match(message, /RedFaction4You\.com\/server\/map-packs$/);
+  // It used to end by pointing at the map list. It points at the stats now,
+  // because what a newcomer needs to know is that they are being recorded.
+  assert.match(message, /RedFaction4You\.com\/stats$/);
 });
 
 test("one map is not 1 maps", () => {
@@ -167,16 +169,25 @@ test("a null server name is not the same as an empty one", () => {
  * update the value in the same commit. Anything else failing it means a
  * refactor has changed what the server is told.
  */
+/*
+ * Updated deliberately on 10 August, which is what this test is for.
+ *
+ * Two changes were asked for and both move it: Glass House came out of the
+ * rotation, and the generated welcome now tells a newcomer how stats work here
+ * rather than where the map list is. The old value was f28453bc947e4e87 against
+ * three levels and the old wording. Anything else moving this is a refactor
+ * quietly telling the DM server to restart.
+ */
 test("the fingerprint of the live pack has not moved", () => {
   assert.equal(
     fingerprintOf({
       slug: "stock-favourites",
       serverName: "RedFaction4You.com [DM] - Stock Favourites",
       welcomeMessage:
-        "Now playing: Stock Favourites - 3 maps. Full list and credits at RedFaction4You.com/server/map-packs",
-      levels: ["dm04.rfl", "dm07.rfl", "glass_house.rfl"],
+        "Now playing: Stock Favourites - 2 maps. All play here is recorded and ranked on time played. Your stats: RedFaction4You.com/stats",
+      levels: ["dm04.rfl", "dm07.rfl"],
     }),
-    "f28453bc947e4e87",
+    "fb2c1151039e3f49",
   );
 });
 
@@ -190,9 +201,22 @@ test("the welcome message a pack writes for itself matches the live one", () => 
       maps: [
         { filename: "dm04.rfl", title: "Badlands" },
         { filename: "dm07.rfl", title: "High Rise" },
-        { filename: "glass_house.rfl", title: "Glass House" },
       ],
     }),
-    "Now playing: Stock Favourites - 3 maps. Full list and credits at RedFaction4You.com/server/map-packs",
+    "Now playing: Stock Favourites - 2 maps. All play here is recorded and ranked on time played. Your stats: RedFaction4You.com/stats",
   );
+});
+
+test("the welcome says how this server records, not how the match server does", () => {
+  // The distinction a newcomer actually needs. DM records everything and ranks
+  // on time; the match server only records inside a started match. Saying the
+  // wrong one is worse than saying nothing.
+  const welcome = welcomeFor({
+    name: "Anything",
+    welcomeMessage: null,
+    maps: [{ filename: "a.rfl" }],
+  });
+  assert.match(welcome, /recorded/);
+  assert.match(welcome, /time played/);
+  assert.match(welcome, /RedFaction4You\.com\/stats/);
 });
