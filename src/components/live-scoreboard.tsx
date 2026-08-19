@@ -102,7 +102,7 @@ function Side({
       <Head />
       <ol>
         {ranked.map((player, index) => (
-          <Row key={player.name} player={player} rank={index + 1} />
+          <Row key={`${player.name}-${index}`} player={player} rank={index + 1} />
         ))}
       </ol>
     </div>
@@ -129,7 +129,7 @@ export function LiveScoreboard({
         <Head />
         <ol>
           {ranked.map((player, index) => (
-            <Row key={player.name} player={player} rank={index + 1} />
+            <Row key={`${player.name}-${index}`} player={player} rank={index + 1} />
           ))}
         </ol>
       </div>

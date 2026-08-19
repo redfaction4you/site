@@ -641,8 +641,8 @@ export default async function ServerPage() {
               <div className="mb-4">
                 <h3 className="rule-heading">On the server now</h3>
                 <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                  {dmOnline.game.players.map((player) => (
-                    <li key={player.name} className="text-sm text-steel-200">
+                  {dmOnline.game.players.map((player, index) => (
+                    <li key={`${player.name}-${index}`} className="text-sm text-steel-200">
                       {player.name}
                       {player.kills != null ? (
                         <span className="ml-1.5 font-mono text-xs tabular-nums text-steel-500">
@@ -665,9 +665,9 @@ export default async function ServerPage() {
               <div>
                 <h3 className="rule-heading">Most time on the server</h3>
                 <ul className="mt-2 max-w-[26rem] space-y-1.5">
-                  {dmLeaders.map((player) => (
+                  {dmLeaders.map((player, index) => (
                     <li
-                      key={player.name}
+                      key={`${player.name}-${index}`}
                       className="flex items-baseline justify-between gap-3 text-sm"
                     >
                       <Link

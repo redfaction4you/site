@@ -335,7 +335,7 @@ export default async function MapPage({ params }: Props) {
 
             <ol>
               {record.players.map((player, index) => (
-                <li key={player.name} className="border-b border-basalt-800">
+                <li key={`${player.name}-${index}`} className="border-b border-basalt-800">
                   <Link
                     href={`/players/${encodeURIComponent(player.name)}`}
                     className="group flex items-baseline gap-2 py-1"

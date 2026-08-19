@@ -79,14 +79,14 @@ export function NightScoreboard({
         </thead>
 
         <tbody>
-          {players.map((player) => {
+          {players.map((player, index) => {
             const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
             const kd =
               player.deaths > 0 ? player.kills / player.deaths : player.kills;
 
             return (
               <tr
-                key={player.name}
+                key={`${player.name}-${index}`}
                 className="border-b border-basalt-800 odd:bg-steel-500/[0.04] hover:bg-rust-500/[0.07]"
               >
                 <td className="whitespace-nowrap px-2 py-1">

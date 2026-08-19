@@ -81,10 +81,10 @@ export default async function DmStatsPage() {
               </tr>
             </thead>
             <tbody>
-              {players.map((player) => {
+              {players.map((player, index) => {
                 const accuracy = accuracyOf(player.shotsHit, player.shotsFired);
                 return (
-                  <tr key={player.name} className="border-b border-basalt-800">
+                  <tr key={`${player.name}-${index}`} className="border-b border-basalt-800">
                     <td className="px-3 py-2">
                       {/* The player page shows the CTF and DM records side by
                           side, so the same page serves both games. */}

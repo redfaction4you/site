@@ -165,8 +165,8 @@ function Scoreboard({
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => (
-            <tr key={`${player.team}-${player.name}`} className="border-t border-basalt-700">
+          {players.map((player, index) => (
+            <tr key={`${player.team}-${player.name}-${index}`} className="border-t border-basalt-700">
               <td className="max-w-[10rem] truncate px-3 py-1.5">
                 <PlayerLink name={player.name} />
               </td>
@@ -781,8 +781,8 @@ export async function MatchDetailView({
               <div className="grid gap-3 sm:grid-cols-2">
                 {active
                   .filter((p) => p.weaponStats.length > 0)
-                  .map((player) => (
-                    <div key={player.name} className="panel p-3">
+                  .map((player, index) => (
+                    <div key={`${player.name}-${index}`} className="panel p-3">
                       <p className="text-xs text-steel-300">{player.name}</p>
                       <table className="mt-1.5 w-full text-xs">
                         <thead>
