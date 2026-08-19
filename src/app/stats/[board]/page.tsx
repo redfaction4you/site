@@ -121,9 +121,11 @@ export default async function BoardPage({ params }: Props) {
             </div>
 
             <ol>
-              {entries.map((entry) => (
+              {entries.map((entry, place) => (
                 <li
-                  key={entry.player.name}
+                  // Two unmerged identities can share a display name, so the
+                  // name is not unique down a full board.
+                  key={`${entry.player.name}-${place}`}
                   className="border-t border-basalt-800 first:border-t-0"
                 >
                   <Link
@@ -178,8 +180,8 @@ export default async function BoardPage({ params }: Props) {
             These are the players still under the threshold above.
           </p>
           <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-            {excluded.map((player) => (
-              <li key={player.name} className="text-xs">
+            {excluded.map((player, index) => (
+              <li key={`${player.name}-${index}`} className="text-xs">
                 <Link
                   href={`/players/${encodeURIComponent(player.name)}`}
                   className="text-steel-300 hover:text-rust-300"

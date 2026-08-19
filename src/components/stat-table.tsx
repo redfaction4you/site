@@ -75,20 +75,37 @@ export function StatTable({
   const direction: "asc" | "desc" =
     dir === "asc" || dir === "desc" ? dir : naturalDir(active);
 
-  // Per column: everybody's value, and the best among those allowed to lead it.
+  /*
+   * Per column: everybody's value, and the best among those allowed to lead it.
+   *
+   * Held by position rather than by name, because a name is not unique here and
+   * the code assumed it was. Two rows can carry the same one: an identity the
+   * admin page has not merged yet is two groups with one display name, which is
+   * the archive working as designed rather than a fault in the data.
+   *
+   * Keyed by `name.toLowerCase()`, the second of those rows overwrote the
+   * first, so both printed the first's figure and both sorted as though they
+   * were one player. Every column was wrong and only the win rate looked it,
+   * because it is the one board whose `format` reads the player as well as the
+   * value, so its record stayed right while its percentage did not. That is the
+   * dangerous shape: sixteen columns quietly agreeing, one visibly disagreeing.
+   *
+   * A position is the only handle a row actually has. Nothing derived, nothing
+   * that two rows can share.
+   */
   const measured = new Map<
     string,
-    { values: Map<string, number | null>; leader: number | null }
+    { values: (number | null)[]; leader: number | null }
   >();
 
   for (const board of columns) {
-    const values = new Map<string, number | null>();
+    const values: (number | null)[] = [];
     const qualified: number[] = [];
 
     for (const player of players) {
       const value = board.value(player);
       const usable = value !== null && Number.isFinite(value) ? value : null;
-      values.set(player.name.toLowerCase(), usable);
+      values.push(usable);
       if (usable !== null && board.qualifies(player)) qualified.push(usable);
     }
 
@@ -102,10 +119,13 @@ export function StatTable({
     });
   }
 
-  const rows = [...players].sort((a, b) => {
+  // The position travels with the row, so sorting cannot separate a player from
+  // their own figures.
+  const rows = players.map((player, index) => ({ player, index }));
+  rows.sort((a, b) => {
     const column = measured.get(active.key);
-    const left = column?.values.get(a.name.toLowerCase()) ?? null;
-    const right = column?.values.get(b.name.toLowerCase()) ?? null;
+    const left = column?.values[a.index] ?? null;
+    const right = column?.values[b.index] ?? null;
 
     // Nothing recorded sorts last whichever way the column runs, because it is
     // an absence rather than a low score.
@@ -121,7 +141,7 @@ export function StatTable({
       <table className="w-full">
         <thead>
           <tr>
-            <th className="border-b border-basalt-800 px-2 py-1 text-left" />
+            <th className="sticky left-0 z-20 border-b border-b-basalt-800 border-r border-r-basalt-700 bg-basalt-850 px-2 py-1 text-left" />
             {BOARD_GROUPS.map((group) => (
               <th
                 key={group}
@@ -133,7 +153,7 @@ export function StatTable({
             ))}
           </tr>
           <tr>
-            <th className="whitespace-nowrap border-b border-basalt-700 px-2 py-1.5 text-left font-display text-[0.6875rem] uppercase tracking-wider text-steel-400">
+            <th className="sticky left-0 z-20 whitespace-nowrap border-b border-b-basalt-700 border-r border-r-basalt-700 bg-basalt-850 px-2 py-1.5 text-left font-display text-[0.6875rem] uppercase tracking-wider text-steel-400">
               Player
             </th>
             {columns.map((board) => {
@@ -157,24 +177,38 @@ export function StatTable({
                       : "none"
                   }
                   className={
-                    "whitespace-nowrap border-b border-basalt-700 px-2 py-1.5 text-right font-display text-[0.6875rem] uppercase tracking-wider " +
+                    "group/th whitespace-nowrap border-b border-basalt-700 px-2 py-1.5 text-right font-display text-[0.6875rem] uppercase tracking-wider " +
                     // The band starts at the heading, so the sorted column is
                     // one shape from top to bottom.
                     (current ? "bg-rust-500/[0.07]" : "")
                   }
                 >
                   <Link
-                    href={`/stats?sort=${board.key}&dir=${next}`}
+                    href={`/stats?sort=${board.key}&dir=${next}#players`}
                     title={`${board.label}. ${board.blurb} Sort by this.`}
                     className={
-                      current
+                      "block " +
+                      (current
                         ? "text-rust-400"
-                        : "text-steel-500 hover:text-steel-200"
+                        : "text-steel-500 hover:text-steel-200")
                     }
                   >
                     {board.short}
-                    <span aria-hidden="true" className="ml-0.5">
-                      {current ? (direction === "desc" ? "▾" : "▴") : ""}
+                    {/*
+                      Every heading carries a mark, not only the one in force.
+                      A single arrow on the sorted column tells you which column
+                      is sorted; it does not tell you the other sixteen are
+                      buttons, and the owner reported exactly that — the sorting
+                      "is hard to tell that you can do". The idle mark is the
+                      affordance and the filled one is the state.
+                    */}
+                    <span
+                      aria-hidden="true"
+                      className={
+                        "ml-0.5 " + (current ? "" : "text-steel-700 group-hover/th:text-steel-500")
+                      }
+                    >
+                      {current ? (direction === "desc" ? "▾" : "▴") : "⇅"}
                     </span>
                   </Link>
                 </th>
@@ -184,11 +218,12 @@ export function StatTable({
         </thead>
 
         <tbody>
-          {rows.map((player) => {
-            const key = player.name.toLowerCase();
+          {rows.map(({ player, index }) => {
             return (
               <tr
-                key={player.name}
+                // Two rows can share a name, so the name alone is not a key.
+                // React kept only one of them and warned about the other.
+                key={`${player.name}-${index}`}
                 /*
                   A band per row, which is the whole reason a wide table is
                   readable. Twelve columns without one means tracking a player
@@ -197,7 +232,18 @@ export function StatTable({
                 */
                 className="border-b border-basalt-800 odd:bg-steel-500/[0.04] hover:bg-rust-500/[0.07]"
               >
-                <td className="whitespace-nowrap px-2 py-1.5">
+                {/*
+                  The name column stays put while the rest scrolls.
+
+                  Seventeen columns are 1333px inside a 1048px panel, so a
+                  quarter of the table is off the right edge. The edge fade said
+                  there was more; it could not stop the names going with it, and
+                  a figure in the eleventh column belongs to nobody once the
+                  first has scrolled away. An opaque background rather than the
+                  row band, because a translucent frozen cell shows the columns
+                  sliding underneath it.
+                */}
+                <td className="sticky left-0 z-10 whitespace-nowrap border-r border-basalt-800 bg-basalt-850 px-2 py-1.5">
                   <Link
                     href={`/players/${encodeURIComponent(player.name)}`}
                     className="text-sm text-steel-200 hover:text-rust-300"
@@ -208,7 +254,7 @@ export function StatTable({
 
                 {columns.map((board) => {
                   const column = measured.get(board.key);
-                  const value = column?.values.get(key) ?? null;
+                  const value = column?.values[index] ?? null;
                   const leader = column?.leader ?? null;
                   const qualifies = board.qualifies(player);
                   const leads = value !== null && qualifies && value === leader;

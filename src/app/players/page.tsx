@@ -158,6 +158,7 @@ export default async function PlayersPage({ searchParams }: Props) {
                     "Frags",
                     "Deaths",
                     "F/D",
+                    "Damage",
                     "Caps",
                     "Lead carries",
                     "Acc",
@@ -178,11 +179,16 @@ export default async function PlayersPage({ searchParams }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {players.map((player) => {
+                {players.map((player, index) => {
                   const kd =
                     player.deaths > 0 ? player.kills / player.deaths : player.kills;
                   return (
-                    <tr key={player.name} className="border-t border-basalt-700">
+                    // Same reason as the stats table: an unmerged identity
+                    // puts two rows under one name, and a name is not a key.
+                    <tr
+                      key={`${player.name}-${index}`}
+                      className="border-t border-basalt-700"
+                    >
                       <td className="px-3 py-2">
                         <Link
                           href={`/players/${encodeURIComponent(player.name)}`}
@@ -212,6 +218,15 @@ export default async function PlayersPage({ searchParams }: Props) {
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
                         {kd.toFixed(2)}
+                      </td>
+                      {/* Total damage given, the same figure and the same
+                          formatting the damage board uses, so a reader moving
+                          between the two pages sees one number rather than two
+                          roundings of it. */}
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-400">
+                        {player.damageGiven > 0
+                          ? Math.round(player.damageGiven).toLocaleString("en-GB")
+                          : "-"}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums text-steel-300">
                         {player.caps}

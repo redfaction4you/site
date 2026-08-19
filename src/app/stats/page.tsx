@@ -156,6 +156,20 @@ export default async function StatsPage({ searchParams }: Props) {
             nothing to recognise.
           */}
           <section className="pb-7 pt-4">
+            {/*
+              Said out loud, because it was not discoverable.
+
+              A sorted column is a URL, so the table works with JavaScript off
+              and any view can be pasted into Discord. None of that is visible,
+              and the owner used the page without realising the headings were
+              controls at all.
+            */}
+            <p className="mt-1.5 text-xs leading-relaxed text-steel-500">
+              Every heading sorts: click one to rank by it, click it again to
+              turn it round. The table scrolls sideways for the rest of the
+              columns and the player column stays put while it does.
+            </p>
+
             <div className="mt-2">
               <StatTable players={players} sort={sort} dir={dir} />
             </div>
@@ -210,8 +224,11 @@ export default async function StatsPage({ searchParams }: Props) {
                       </h4>
 
                       <ol className="mt-1">
-                        {entries.slice(0, SHOWN).map((entry) => (
-                          <li key={entry.player.name}>
+                        {/* Keyed by rank, not by name: two unmerged
+                            identities can share a display name and both appear
+                            on the same board. */}
+                        {entries.slice(0, SHOWN).map((entry, place) => (
+                          <li key={`${entry.player.name}-${place}`}>
                             <Link
                               href={`/players/${encodeURIComponent(entry.player.name)}`}
                               className="group flex items-baseline gap-2.5 rounded-sm px-1 py-1 hover:bg-rust-500/[0.07]"
