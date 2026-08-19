@@ -74,7 +74,7 @@ Already done, but for the record:
 
 `Set-Content` and `Out-File` under Windows PowerShell 5.1 write UTF-8 **with a
 byte order mark**. Node's `--env-file` reads the BOM as part of the first key, so
-`PORT=8788` on line one becomes a variable called `﻿PORT` and `PORT` is
+`PORT=8788` on line one becomes a variable called `\uFEFFPORT` and `PORT` is
 simply absent. Every other line in the file parses correctly, which is what makes
 this so hard to see: the file looks right, `Get-Content` prints it right, and
 only the first setting is gone.
