@@ -7,6 +7,7 @@ import {
   type Board,
   type RankablePlayer,
 } from "@/lib/matches/leaderboards";
+import { measureColumns, orderRows } from "@/lib/matches/stat-columns";
 
 /**
  * Every player against every statistic, with the actual numbers.
@@ -78,63 +79,13 @@ export function StatTable({
   /*
    * Per column: everybody's value, and the best among those allowed to lead it.
    *
-   * Held by position rather than by name, because a name is not unique here and
-   * the code assumed it was. Two rows can carry the same one: an identity the
-   * admin page has not merged yet is two groups with one display name, which is
-   * the archive working as designed rather than a fault in the data.
-   *
-   * Keyed by `name.toLowerCase()`, the second of those rows overwrote the
-   * first, so both printed the first's figure and both sorted as though they
-   * were one player. Every column was wrong and only the win rate looked it,
-   * because it is the one board whose `format` reads the player as well as the
-   * value, so its record stayed right while its percentage did not. That is the
-   * dangerous shape: sixteen columns quietly agreeing, one visibly disagreeing.
-   *
-   * A position is the only handle a row actually has. Nothing derived, nothing
-   * that two rows can share.
+   * Both steps live in `stat-columns.ts` so they can be tested. They were
+   * inline here and keyed by the player's lowercased name, which two rows can
+   * share, and the failure that caused was silent in sixteen columns out of
+   * seventeen. See that module for the whole story.
    */
-  const measured = new Map<
-    string,
-    { values: (number | null)[]; leader: number | null }
-  >();
-
-  for (const board of columns) {
-    const values: (number | null)[] = [];
-    const qualified: number[] = [];
-
-    for (const player of players) {
-      const value = board.value(player);
-      const usable = value !== null && Number.isFinite(value) ? value : null;
-      values.push(usable);
-      if (usable !== null && board.qualifies(player)) qualified.push(usable);
-    }
-
-    measured.set(board.key, {
-      values,
-      leader: qualified.length
-        ? board.direction === "low"
-          ? Math.min(...qualified)
-          : Math.max(...qualified)
-        : null,
-    });
-  }
-
-  // The position travels with the row, so sorting cannot separate a player from
-  // their own figures.
-  const rows = players.map((player, index) => ({ player, index }));
-  rows.sort((a, b) => {
-    const column = measured.get(active.key);
-    const left = column?.values[a.index] ?? null;
-    const right = column?.values[b.index] ?? null;
-
-    // Nothing recorded sorts last whichever way the column runs, because it is
-    // an absence rather than a low score.
-    if (left === null && right === null) return 0;
-    if (left === null) return 1;
-    if (right === null) return -1;
-
-    return direction === "desc" ? right - left : left - right;
-  });
+  const measured = measureColumns(players, columns);
+  const rows = orderRows(players, measured.get(active.key), direction);
 
   return (
     <div className="panel overflow-x-auto">
