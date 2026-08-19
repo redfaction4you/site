@@ -55,6 +55,64 @@ export function discordConfigured(): boolean {
   return webhookUrl() !== null;
 }
 
+/**
+ * Whether the configured webhook still exists at Discord.
+ *
+ * `discordConfigured` answers a different and weaker question: is a URL set, and
+ * is it shaped like a webhook. Both stayed true on 19 August while every post
+ * failed, because the webhook had been deleted and recreated and only the URL
+ * changed. `/api/health` reported `configured: true` about a webhook that was
+ * returning 404, which is the monitor saying fine while nothing works.
+ *
+ * A GET on a webhook URL returns its own record and sends no message, so this
+ * costs a request and posts nothing.
+ *
+ * Three states, and the third matters. `true` exists, `false` is a definite 404
+ * or 401 and is a fault worth going red for, `null` is anything else: a timeout,
+ * a 5xx, no network. An unreachable Discord is not a broken configuration and
+ * must not turn a health check red on its own, or the check becomes the thing
+ * that cries wolf.
+ */
+let reachability: { at: number; live: boolean | null } | null = null;
+
+/** Long enough that a monitor polling every minute asks Discord rarely. */
+const REACHABLE_CACHE_MS = 10 * 60 * 1000;
+
+export async function webhookReachable(): Promise<boolean | null> {
+  const url = webhookUrl();
+  if (!url) return null;
+
+  const now = Date.now();
+  if (reachability && now - reachability.at < REACHABLE_CACHE_MS) {
+    return reachability.live;
+  }
+
+  let live: boolean | null;
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+    live =
+      response.ok ? true
+      : response.status === 404 || response.status === 401 ? false
+      : null;
+    if (live === false) {
+      console.warn(
+        `[discord] the configured webhook returned ${response.status}. It has been ` +
+          "deleted or recreated, so nothing can be announced until the new URL is set.",
+      );
+    }
+  } catch {
+    // Could not ask. Not the same as a broken webhook.
+    live = null;
+  }
+
+  reachability = { at: now, live };
+  return live;
+}
+
 function truncate(text: string, limit: number): string {
   if (text.length <= limit) return text;
   // Cut at a paragraph break so the post ends on a whole thought.

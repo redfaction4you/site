@@ -17,7 +17,7 @@ import { listBackups } from "@/lib/backup";
 import { dmIntegrity } from "@/lib/dm/integrity";
 import { listSyncPings } from "@/lib/sync-ping";
 import { quietSince } from "@/lib/sync-freshness";
-import { discordConfigured } from "@/lib/ai/discord";
+import { discordConfigured, webhookReachable } from "@/lib/ai/discord";
 
 /**
  * The VPS syncs every fifteen minutes. Three missed in a row is a problem
@@ -77,6 +77,11 @@ export type Health = {
    */
   announce: {
     configured: boolean;
+    /**
+     * Whether the webhook still exists at Discord. Null when it could not be
+     * asked, which is not the same as broken. See `webhookReachable`.
+     */
+    reachable: boolean | null;
     pending: number;
     oldestPendingHours: number | null;
     stale: boolean;
@@ -206,6 +211,19 @@ export async function getHealth(): Promise<Health> {
     oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS;
 
   /*
+   * Whether the webhook is still there, as opposed to still configured.
+   *
+   * Added the night a recreated webhook stopped every post while this endpoint
+   * reported `configured: true`, because the URL was set and well formed and
+   * nothing here had ever asked Discord whether it resolved. Only a definite
+   * 404 or 401 counts against health: an unreachable Discord is not a broken
+   * configuration, and a check that goes red on a timeout is a check people
+   * learn to ignore.
+   */
+  const reachable = await webhookReachable();
+  const webhookGone = reachable === false;
+
+  /*
    * The deathmatch archive contradicting itself. `vet-live` polls this
    * endpoint, so either shape recurring turns the check red within six hours
    * with nobody watching.
@@ -217,7 +235,7 @@ export async function getHealth(): Promise<Health> {
   const dmBroken = dm.untimed > 0 || dm.phantoms > 0;
 
   return {
-    ok: !syncStale && !backupStale && !announceStale && !dmBroken,
+    ok: !syncStale && !backupStale && !announceStale && !dmBroken && !webhookGone,
     sync: {
       lastAt: lastArrival?.toISOString() ?? null,
       minutesAgo,
@@ -230,6 +248,7 @@ export async function getHealth(): Promise<Health> {
     backup: { lastAt: lastBackup?.toISOString() ?? null, hoursAgo, stale: backupStale },
     announce: {
       configured: discordConfigured(),
+      reachable,
       pending: queued?.pending ?? 0,
       oldestPendingHours,
       stale: announceStale,
