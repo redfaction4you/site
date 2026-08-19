@@ -70,6 +70,70 @@ Already done, but for the record:
 
 ## VPS setup
 
+### Never edit an env file with Windows PowerShell's `Set-Content`
+
+`Set-Content` and `Out-File` under Windows PowerShell 5.1 write UTF-8 **with a
+byte order mark**. Node's `--env-file` reads the BOM as part of the first key, so
+`PORT=8788` on line one becomes a variable called `﻿PORT` and `PORT` is
+simply absent. Every other line in the file parses correctly, which is what makes
+this so hard to see: the file looks right, `Get-Content` prints it right, and
+only the first setting is gone.
+
+It has happened once, on 17 August 2026, when the Discord webhook was updated.
+`PORT` fell back to the app default of 8787, so the broadcaster answered on the
+wrong port and `sync-rf4u-website-archive.ps1` -- which talks to
+`http://127.0.0.1:8788` -- failed with "Unable to connect to the remote server"
+on every run.
+
+The two-day delay before anyone noticed is the part worth remembering. A running
+process keeps the environment it started with, so nothing broke when the file was
+edited. The fault appeared at the next restart, by which time the edit was no
+longer the obvious suspect.
+
+Use an editor that writes UTF-8 without a BOM, or write the bytes yourself:
+
+```powershell
+$p = "C:\RFMatchBroadcast\.env.rf4u"
+$b = [System.IO.File]::ReadAllBytes($p)
+if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) {
+    [System.IO.File]::WriteAllBytes($p, $b[3..($b.Length - 1)])
+}
+```
+
+Check it took, rather than assuming:
+
+```powershell
+cd C:\RFMatchBroadcast
+node "--env-file-if-exists=.env.rf4u" -e "console.log(process.env.PORT)"
+```
+
+`8788` means the file parses. `undefined` means the BOM is still there.
+
+A comment on line one absorbs the damage harmlessly, which is why `.env.dm`
+carried the same BOM without symptoms. Do not rely on that.
+
+### Changing the webhook takes a restart
+
+The broadcaster reads its environment once, at startup. Editing `.env.rf4u` does
+nothing to the process already running, so a webhook change is not in force until
+the task is restarted:
+
+```powershell
+Stop-ScheduledTask -TaskName 'RF4U Match Broadcast'
+Start-ScheduledTask -TaskName 'RF4U Match Broadcast'
+```
+
+Until then it keeps posting to the old URL and logging `HTTP 404
+{"message": "Unknown Webhook"}` to `dataf4u-service.log`, where nothing reads
+it. `/api/health` reports the website's own webhook under `announce.reachable`;
+it says nothing about this one.
+
+Confirm the restart took by checking the port is back:
+
+```powershell
+Get-NetTCPConnection -State Listen | Where-Object LocalPort -eq 8788
+```
+
 On the dedicated server, add two lines to `C:\RFMatchBroadcast\.env.rf4u`:
 
 ```
