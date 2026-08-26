@@ -17,6 +17,7 @@ import { listBackups } from "@/lib/backup";
 import { dmIntegrity } from "@/lib/dm/integrity";
 import { listSyncPings } from "@/lib/sync-ping";
 import { quietSince } from "@/lib/sync-freshness";
+import { serverLabel } from "@/lib/matches/server-names";
 import { discordConfigured, webhookReachable } from "@/lib/ai/discord";
 
 /**
@@ -242,7 +243,9 @@ export async function getHealth(): Promise<Health> {
       stale: syncStale,
       // Named, so a failure says which machine stopped rather than that
       // something did. There will be two of them.
-      quiet: quiet.map((entry) => `${entry.server} (${entry.minutesAgo}m)`),
+      quiet: quiet.map(
+        (entry) => `${serverLabel(entry.server)} (${entry.minutesAgo}m)`,
+      ),
       lastWriteAt: lastIngest?.toISOString() ?? null,
     },
     backup: { lastAt: lastBackup?.toISOString() ?? null, hoursAgo, stale: backupStale },

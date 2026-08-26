@@ -22,6 +22,7 @@ import { vetNight } from "@/lib/matches/vet";
 import { listMapPacks } from "@/lib/map-packs";
 import { MapPackAdmin } from "@/components/map-pack-admin";
 import { FeatureAdmin } from "@/components/feature-admin";
+import { serverLabel } from "@/lib/matches/server-names";
 import {
   lock,
   mergeIdentities,
@@ -353,7 +354,9 @@ export default async function AdminPage({ searchParams }: Props) {
                     key={ping.server}
                     className="flex items-baseline justify-between gap-3"
                   >
-                    <dt className="text-steel-500">{ping.server} last called in</dt>
+                    <dt className="text-steel-500">
+                      {serverLabel(ping.server)} last called in
+                    </dt>
                     <dd
                       className={
                         minutes > SYNC_STALE_MINUTES ? "text-rust-400" : "text-steel-200"
