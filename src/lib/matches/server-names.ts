@@ -32,13 +32,15 @@
  * Keyed case-insensitively on the stored value. Add a line here to rename a
  * server anywhere it is displayed; never edit `RF_SERVER_NAME` on the VPS.
  *
- * The match server is the only entry because it is the only one whose stored
- * name is older than the branding. The deathmatch server already calls itself
- * `RedFaction4You.com [DM]`, which is why the two looked inconsistent in the
- * first place.
+ * Both servers are here, and for the same reason: each was renamed in its own
+ * `.toml`, which is the name players see in the browser, while the stored name
+ * stayed put because it is an identity. `RF_SERVER_NAME` on the VPS is the value
+ * the archive upserts on, so it can never follow a rename; this map is how the
+ * two are kept looking the same without touching it.
  */
 const LABELS: Record<string, string> = {
   "rf4u competitive [match]": "RedFaction4You.com (Match)",
+  "redfaction4you.com [dm]": "RedFaction4You.com (Bot Free Pub)",
 };
 
 /**

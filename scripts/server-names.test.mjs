@@ -28,14 +28,18 @@ test("the match server reads under the site's own branding", () => {
   assert.equal(serverLabel("RF4U Competitive [Match]"), "RedFaction4You.com (Match)");
 });
 
-test("the deathmatch server was already right and is left alone", () => {
-  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RedFaction4You.com [DM]");
+test("the deathmatch server reads under its own new name", () => {
+  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RedFaction4You.com (Bot Free Pub)");
 });
 
-test("the dm: routing prefix never reaches a reader", () => {
+test("the dm: routing prefix is stripped before the lookup, not after", () => {
   // archive_days namespaces the two games so one date can hold both. That is
-  // routing, and routing is not a name.
-  assert.equal(serverLabel("dm:RedFaction4You.com [DM]"), "RedFaction4You.com [DM]");
+  // routing, and routing is not a name. It has to come off first or the stored
+  // value never matches its own entry in the map.
+  assert.equal(
+    serverLabel("dm:RedFaction4You.com [DM]"),
+    "RedFaction4You.com (Bot Free Pub)",
+  );
 });
 
 /* --- what must not happen ------------------------------------------------- */
@@ -68,9 +72,13 @@ test("an empty identity does not become a label", () => {
 
 test("every rename in force can be listed", () => {
   const renames = renamedServers();
+  const labels = renames.map((entry) => entry.label).sort();
 
-  assert.equal(renames.length, 1);
-  assert.equal(renames[0].label, "RedFaction4You.com (Match)");
+  assert.equal(renames.length, 2);
+  assert.deepEqual(labels, [
+    "RedFaction4You.com (Bot Free Pub)",
+    "RedFaction4You.com (Match)",
+  ]);
 });
 
 test("no label is mapped to another label", () => {
