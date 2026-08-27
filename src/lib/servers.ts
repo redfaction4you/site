@@ -59,11 +59,26 @@ export type GameServer = {
    * The message printed in chat when somebody joins.
    *
    * One line, plain ASCII, and it reaches a 2001 bitmap font, so `asciiForGame`
-   * folds anything a browser produced. The match server has none: it is not
-   * showcasing a set of maps, and a queue of automated chat on a server people
-   * are trying to start a match on is noise.
+   * folds anything a browser produced.
+   *
+   * **Every one of them ends on a link to its own page.** Chat in Red Faction
+   * is not clickable, so whatever is written here has to be retyped into a
+   * browser from memory: the link is short, it is the last thing on the line,
+   * and no two servers send people to the same place. `servers.test.mjs`
+   * checks that last part, because the way this breaks is a copy of another
+   * server's message with the link left in it, which is what happened when
+   * these configs were first built.
+   *
+   * The match server points at the archive rather than at its own page. It
+   * runs no pack, so there is no map list there to send anybody to.
+   *
+   * **This file is the source, and it is not what the servers read.** The pub
+   * servers read `map_packs.welcome_message` through the applier and the match
+   * server reads its own TOML, so `npm run apply:welcome` is what carries a
+   * change here to the first of those. Editing this alone changes nothing in
+   * the game.
    */
-  welcome: string | null;
+  welcome: string;
   /**
    * Which palette its page wears.
    *
@@ -97,7 +112,16 @@ export const SERVERS: GameServer[] = [
     port: 17755,
     identity: "RF4U Competitive [Match]",
     packSlug: null,
-    welcome: null,
+    /*
+     * The one that points somewhere other than its own page.
+     *
+     * `/servers/match` carries the live panel and nothing else, because the
+     * levels here are picked per match rather than by a pack. The archive is
+     * where the reason to visit is.
+     */
+    welcome:
+      "Match server. Every match played here is recorded, with scoreboards " +
+      "and records: RedFaction4You.com/matches",
     theme: "default",
   },
   {
@@ -122,7 +146,7 @@ export const SERVERS: GameServer[] = [
     welcome:
       "Themed maps: films, real places, and levels rebuilt from other games. " +
       "All play here is recorded and ranked on time played. " +
-      "Maps and stats: RedFaction4You.com/servers/themed",
+      "Every map and the standings: RedFaction4You.com/themed",
     theme: "default",
   },
   {
@@ -137,7 +161,8 @@ export const SERVERS: GameServer[] = [
     packSlug: "novelty",
     welcome:
       "Novelty maps: liminal spaces, oddities, minigames, and maps too rare " +
-      "to find anywhere else. Full map list: RedFaction4You.com/servers/novelty",
+      "to find anywhere else. Every map on this server: " +
+      "RedFaction4You.com/novelty",
     theme: "novelty",
   },
   {
@@ -152,7 +177,8 @@ export const SERVERS: GameServer[] = [
     packSlug: "halloween",
     welcome:
       "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
-      "map picked for Halloween. Full map list: RedFaction4You.com/servers/halloween",
+      "map picked for Halloween. The whole haunted rotation: " +
+      "RedFaction4You.com/halloween",
     theme: "halloween",
   },
 ];

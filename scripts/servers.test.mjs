@@ -132,3 +132,59 @@ test("the client version is stated once and is current", () => {
   assert.match(SERVER_CLIENT, /^Alpine Faction \d+\.\d+\.\d+$/);
   assert.equal(SERVER_SLOTS, 16);
 });
+
+/* --- the welcome messages ---------------------------------------------------- */
+
+/**
+ * The link each message ends on.
+ *
+ * Only the first path segment is captured, which is all that decides where
+ * somebody lands.
+ */
+const WELCOME_LINK = /RedFaction4You\.com\/([a-z]+)/;
+
+test("every server tells a newcomer where to find it", () => {
+  for (const server of SERVERS) {
+    assert.match(server.welcome, WELCOME_LINK, `${server.slug} carries no link`);
+  }
+});
+
+test("no server sends people to another server's page", () => {
+  /*
+   * This is the failure, not a hypothetical one.
+   *
+   * The Novelty and Halloween configs were built by copying the Themed one,
+   * and both went live announcing the Themed server's map count. A message is
+   * the one thing here nothing else can contradict: the page is right, the
+   * rotation is right, and the server still says the wrong thing to everybody
+   * who joins it.
+   */
+  const slugs = SERVERS.map((server) => server.slug);
+  for (const server of SERVERS) {
+    const landing = server.welcome.match(WELCOME_LINK)[1];
+    const someoneElse = slugs.filter((slug) => slug !== server.slug);
+    assert.ok(
+      !someoneElse.includes(landing),
+      `${server.slug} sends people to /${landing}`,
+    );
+  }
+});
+
+test("a server showcasing a pack links to its own page", () => {
+  // The match server is the exception and says so in the registry: it runs no
+  // pack, so its page has no map list to send anybody to.
+  for (const server of SERVERS.filter((server) => server.packSlug)) {
+    assert.equal(server.welcome.match(WELCOME_LINK)[1], server.slug);
+  }
+});
+
+test("a welcome is one line the 2001 font can draw", () => {
+  for (const server of SERVERS) {
+    // Printable ASCII only. This is also what catches an em dash or a curly
+    // quote arriving from a browser: asciiForGame would drop them on the way
+    // to the server, so the message stored here would stop matching the one
+    // people read.
+    assert.match(server.welcome, /^[\x20-\x7e]+$/, server.slug);
+    assert.ok(server.welcome.length <= 200, `${server.slug} is too long`);
+  }
+});

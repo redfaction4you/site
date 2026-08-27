@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { SERVERS } from "./src/lib/servers";
+
 /**
  * Screenshots come from the R2 bucket, whose domain is not known until the
  * bucket exists. Deriving the pattern from the same variable the app uses means
@@ -53,6 +55,32 @@ const nextConfig: NextConfig = {
       // Permanent: the plural is the name now and that is not going back.
       { source: "/server", destination: "/servers", permanent: true },
       { source: "/server/:path*", destination: "/servers/:path*", permanent: true },
+      /*
+        Each server's page, one segment shorter.
+
+        The in-game welcome message is where most people meet these URLs, and
+        Red Faction's chat is not clickable: the link has to be retyped into a
+        browser from memory. "redfaction4you.com/halloween" is one thing to
+        remember where "/servers/halloween" is two, and the shorter it is the
+        more of it survives the walk to the other window.
+
+        Derived from the registry rather than listed, so a fifth server gets
+        one without anybody remembering to come back here.
+
+        The match server is deliberately left out. "/match" beside "/matches"
+        is two URLs a letter apart meaning different things, and its welcome
+        message points at the archive anyway.
+
+        Temporary on purpose, unlike the singular-to-plural pair above. These
+        are conveniences rather than the canonical URL, and a permanent
+        redirect cached in every browser that ever followed it would be in the
+        way the first time /halloween is wanted for a Halloween event.
+      */
+      ...SERVERS.filter((server) => server.slug !== "match").map((server) => ({
+        source: `/${server.slug}`,
+        destination: `/servers/${server.slug}`,
+        permanent: false,
+      })),
       // The client comparison moved into Guides.
       { source: "/clients", destination: "/guides", permanent: true },
       { source: "/client", destination: "/guides", permanent: true },
