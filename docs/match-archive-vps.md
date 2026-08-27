@@ -168,11 +168,8 @@ powershell -File C:\RFMatchBroadcast\sync-rf4u-website-archive.ps1 -Backfill
 ## The deathmatch server has its own endpoint
 
 `https://redfaction4you.com/api/rf4u/archive/dm`, same secret, same document
-shape, different tables. It is live and nothing is posting to it yet: the DM
-server runs without `-telemetry` until a second broadcaster instance is set up.
-
-The setup, when that happens, is the one above with three differences: its own
-`.env` with `RF4U_ARCHIVE_SYNC_URL` pointing at `/dm`, its own scheduled task,
+shape, different tables. It has been live since 7 August 2026: the DM server runs with `-telemetry`
+and `-telemetry-continuous`, and its own broadcaster is on port 8789.env` with `RF4U_ARCHIVE_SYNC_URL` pointing at `/dm`, its own scheduled task,
 and **the same identity salt as the match server**, so one person is one person
 on both and a merge made on `/admin` applies to both.
 
