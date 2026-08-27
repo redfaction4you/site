@@ -43,7 +43,6 @@ import type { MapPackEntry } from "@/lib/db/schema";
  * here.
  */
 const FORBIDDEN_IN_FILENAME = /[\\\/:*?"<>|]/;
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTER = /[\u0000-\u001f]/;
 
 export function isLevelFilename(value: string): boolean {
