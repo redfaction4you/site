@@ -40,7 +40,7 @@
  */
 const LABELS: Record<string, string> = {
   "rf4u competitive [match]": "RedFaction4You.com (Match)",
-  "redfaction4you.com [dm]": "RedFaction4You.com (Themed Maps)",
+  "redfaction4you.com [dm]": "RedFaction4You.com (Themed)",
 };
 
 /**

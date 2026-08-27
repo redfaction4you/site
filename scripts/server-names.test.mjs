@@ -29,7 +29,7 @@ test("the match server reads under the site's own branding", () => {
 });
 
 test("the deathmatch server reads under whatever it is called now", () => {
-  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RedFaction4You.com (Themed Maps)");
+  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RedFaction4You.com (Themed)");
 });
 
 test("the dm: routing prefix is stripped before the lookup, not after", () => {
@@ -38,7 +38,7 @@ test("the dm: routing prefix is stripped before the lookup, not after", () => {
   // value never matches its own entry in the map.
   assert.equal(
     serverLabel("dm:RedFaction4You.com [DM]"),
-    "RedFaction4You.com (Themed Maps)",
+    "RedFaction4You.com (Themed)",
   );
 });
 
@@ -77,7 +77,7 @@ test("every rename in force can be listed", () => {
   assert.equal(renames.length, 2);
   assert.deepEqual(labels, [
     "RedFaction4You.com (Match)",
-    "RedFaction4You.com (Themed Maps)",
+    "RedFaction4You.com (Themed)",
   ]);
 });
 

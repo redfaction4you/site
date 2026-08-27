@@ -1230,7 +1230,7 @@ export const mapPacks = pgTable(
      * table. A slug that names no server is a pack nothing applies, which is
      * inert rather than dangerous.
      */
-    server: text("server").notNull().default("themed-maps"),
+    server: text("server").notNull().default("themed"),
     /** A paragraph for the public page: what this pack is and why. */
     blurb: text("blurb"),
 

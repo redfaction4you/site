@@ -77,34 +77,47 @@ export const SERVERS: GameServer[] = [
     packSlug: null,
   },
   {
-    slug: "themed-maps",
-    name: "RedFaction4You.com (Themed Maps)",
+    slug: "themed",
+    name: "RedFaction4You.com (Themed)",
     blurb:
-      "Casual deathmatch on whichever themed pack is in circulation. No bots, " +
-      "and a round is recorded whenever anybody is playing.",
+      "Casual deathmatch on maps built around one idea and carried through: " +
+      "films, games, places, jokes. No bots, and a round is recorded whenever " +
+      "anybody is playing.",
     kind: "deathmatch",
     port: 17756,
     /*
      * Still the deathmatch identity, and it always will be.
      *
-     * This server has now been called three things. The archive has called it
-     * one, because `archive_days` upserts on this string and `sync_pings` is
-     * keyed on it, so following a rename here would fork its history and strand
-     * the old name in `sync_pings` where it holds health red forever.
+     * This server has been called RF4U [DM], Bot-Free Pub, Themed Maps and now
+     * Themed. The archive has called it one thing throughout, because
+     * `archive_days` upserts on this string and `sync_pings` is keyed on it, so
+     * following a rename here would fork its history and strand the old name in
+     * `sync_pings` where it holds health red forever.
      */
     identity: "RedFaction4You.com [DM]",
-    packSlug: "stock-favourites",
+    packSlug: "themed",
   },
   {
-    slug: "novelty-maps",
-    name: "RedFaction4You.com (Novelty Maps)",
+    slug: "novelty",
+    name: "RedFaction4You.com (Novelty)",
     blurb:
-      "A pub server for the odd ones: maps that are strange, tiny, or built " +
-      "around a single idea, several of them found nowhere else.",
+      "The odd ones: tiny arenas, jump courses, minigames, and maps that exist " +
+      "to prove a single point.",
     kind: "pub",
     port: 17757,
     identity: null,
-    packSlug: "novelty-maps",
+    packSlug: "novelty",
+  },
+  {
+    slug: "halloween",
+    name: "RedFaction4You.com (Halloween)",
+    blurb:
+      "Haunted houses, graveyards, castles and a great deal of red lighting. " +
+      "Several of these are found nowhere else.",
+    kind: "pub",
+    port: 17758,
+    identity: null,
+    packSlug: "halloween",
   },
 ];
 

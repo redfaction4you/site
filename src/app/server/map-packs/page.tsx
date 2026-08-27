@@ -115,7 +115,7 @@ function PackMaps({ pack, play }: { pack: MapPack; play: PackEntryPlay[] }) {
 }
 
 export default async function MapPacksPage() {
-  const [active, all] = await Promise.all([activeMapPack("themed-maps"), listMapPacks()]);
+  const [active, all] = await Promise.all([activeMapPack("themed"), listMapPacks()]);
   const others = all.filter((pack) => !pack.active);
 
   /*

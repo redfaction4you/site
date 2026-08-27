@@ -48,7 +48,7 @@ export async function GET(request: Request) {
      * third server; until then this keeps the one in the field correct.
      */
     const server =
-      new URL(request.url).searchParams.get("server") ?? "themed-maps";
+      new URL(request.url).searchParams.get("server") ?? "themed";
     const pack = await activeMapPackForServer(server);
     return Response.json(
       { pack },

@@ -1,0 +1,1 @@
+ALTER TABLE "map_packs" ALTER COLUMN "server" SET DEFAULT 'themed';
