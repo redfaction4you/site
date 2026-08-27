@@ -60,14 +60,14 @@ test("the recorded servers keep the identities the archive already has", () => {
   const byslug = Object.fromEntries(SERVERS.map((s) => [s.slug, s]));
 
   assert.equal(byslug["match"].identity, "RF4U Competitive [Match]");
-  assert.equal(byslug["bot-free-pub"].identity, "RedFaction4You.com [DM]");
+  assert.equal(byslug["themed-maps"].identity, "RedFaction4You.com [DM]");
 });
 
 test("an identity is never the display name for the renamed servers", () => {
   // If these ever match it means somebody "tidied" an identity to agree with
   // the name, which is the exact change that forks the archive.
   const renamed = SERVERS.filter(
-    (server) => server.slug === "match" || server.slug === "bot-free-pub",
+    (server) => server.slug === "match" || server.slug === "themed-maps",
   );
 
   for (const server of renamed) {
@@ -111,8 +111,8 @@ test("with no host configured an address is absent, not a broken string", () => 
 /* --- lookup ----------------------------------------------------------------- */
 
 test("a server is found by its slug, and an unknown slug is null", () => {
-  assert.equal(serverBySlug("halloween")?.port, 17757);
-  assert.equal(serverBySlug("micro-maps")?.port, 17758);
+  assert.equal(serverBySlug("novelty-maps")?.port, 17757);
+  assert.equal(serverBySlug("themed-maps")?.port, 17756);
   assert.equal(serverBySlug("nothing-here"), null);
 });
 
