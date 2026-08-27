@@ -633,6 +633,29 @@ export const nightColumns = pgTable(
 
     /** Set once it has been announced, so it is never posted twice. */
     postedAt: timestamp("posted_at", { withTimezone: true }),
+
+    /**
+     * When a delivery was attempted and did not confirm.
+     *
+     * `posted_at` is claimed *before* the request is sent, deliberately: the
+     * comment on `announcePendingColumns` explains why, and the short version is
+     * that a lost acknowledgement used to put the same piece in the channel four
+     * times. Claiming first makes delivery at-most-once.
+     *
+     * The cost of that trade was supposed to be visible. The code said a failed
+     * piece "is visible in /api/health as a pending item", and it was not:
+     * `pending` counts rows whose `posted_at` is null, and a failed piece has
+     * just had `posted_at` set. So the 18 August column and opinion were both
+     * claimed against a webhook that had been deleted, health reported
+     * `pending: 0`, and the only symptom was somebody noticing the channel had
+     * gone quiet. That is the exact failure the six-hour alarm was built for,
+     * and the alarm could not see it.
+     *
+     * Null is the ordinary case. Set, it means the row is claimed and did not
+     * arrive, which is recoverable by clearing `posted_at` by hand -- and which
+     * health now reports rather than leaving for somebody to notice.
+     */
+    announceFailedAt: timestamp("announce_failed_at", { withTimezone: true }),
   },
   (column) => [index("night_columns_generated_idx").on(column.generatedAt)],
 );
@@ -677,6 +700,29 @@ export const opinionPieces = pgTable(
      * an unannounced one is retried on the next sync rather than lost.
      */
     postedAt: timestamp("posted_at", { withTimezone: true }),
+
+    /**
+     * When a delivery was attempted and did not confirm.
+     *
+     * `posted_at` is claimed *before* the request is sent, deliberately: the
+     * comment on `announcePendingColumns` explains why, and the short version is
+     * that a lost acknowledgement used to put the same piece in the channel four
+     * times. Claiming first makes delivery at-most-once.
+     *
+     * The cost of that trade was supposed to be visible. The code said a failed
+     * piece "is visible in /api/health as a pending item", and it was not:
+     * `pending` counts rows whose `posted_at` is null, and a failed piece has
+     * just had `posted_at` set. So the 18 August column and opinion were both
+     * claimed against a webhook that had been deleted, health reported
+     * `pending: 0`, and the only symptom was somebody noticing the channel had
+     * gone quiet. That is the exact failure the six-hour alarm was built for,
+     * and the alarm could not see it.
+     *
+     * Null is the ordinary case. Set, it means the row is claimed and did not
+     * arrive, which is recoverable by clearing `posted_at` by hand -- and which
+     * health now reports rather than leaving for somebody to notice.
+     */
+    announceFailedAt: timestamp("announce_failed_at", { withTimezone: true }),
 
     generatedAt: timestamp("generated_at", { withTimezone: true })
       .defaultNow()

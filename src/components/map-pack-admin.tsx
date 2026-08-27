@@ -236,12 +236,24 @@ export function MapPackAdmin({
           <label className={LABEL} htmlFor="pack-server-name">
             Server name while it is on — blank leaves it alone
           </label>
+          {/* Worth reading before typing in this box. The applier writes this
+              straight into rf4u-dm.toml, so a pack carrying an old name silently
+              renames the server back the next time it is applied. That very
+              nearly undid the rename to Bot-Free Pub: the stored pack still said
+              "RedFaction4You.com [DM] — Stock Favourites" and would have won on
+              the next edit. Leave it blank unless the pack genuinely should
+              rename the server. */}
+          <p className="mt-1 text-xs leading-relaxed text-steel-500">
+            This is written into the server config, so it overrides the name the
+            server is running under. Leave it blank unless this pack should
+            rename the server while it is on.
+          </p>
           <input
             id="pack-server-name"
             name="serverName"
             maxLength={80}
             defaultValue={editing?.serverName ?? ""}
-            placeholder="RedFaction4You.com [DM] — Halloween"
+            placeholder="RedFaction4You.com (Halloween)"
             className={FIELD}
           />
         </div>

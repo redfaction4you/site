@@ -162,6 +162,13 @@
       "when": 1786273559478,
       "tag": "0022_naive_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787790545099,
+      "tag": "0023_nice_wendigo",
+      "breakpoints": true
     }
   ]
 }

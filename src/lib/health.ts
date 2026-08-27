@@ -84,6 +84,15 @@ export type Health = {
      */
     reachable: boolean | null;
     pending: number;
+    /**
+     * Claimed but never confirmed as delivered.
+     *
+     * Distinct from `pending`, and the distinction is the point: a pending piece
+     * has not been tried yet, a failed one has been tried and lost. `posted_at`
+     * is claimed before the request goes out, so a failure leaves a row that
+     * looks posted and `pending` cannot see it. Any value above zero is a fault.
+     */
+    failed: number;
     oldestPendingHours: number | null;
     stale: boolean;
   };
@@ -177,6 +186,31 @@ export async function getHealth(): Promise<Health> {
       ) as unannounced`,
     );
 
+  /*
+   * Pieces that were claimed and did not arrive.
+   *
+   * `pending` above cannot see these and never could. `posted_at` is set before
+   * the request is sent, on purpose, so a delivery that fails leaves a row that
+   * looks posted. The six-hour alarm was built for exactly this failure and was
+   * blind to it: on 18 August a column and an opinion were both claimed against
+   * a webhook that had been deleted, and this endpoint reported `pending: 0`
+   * while the channel stayed silent.
+   *
+   * Any failure at all is a fault, with no grace period. Unlike a queue, which
+   * is only a problem once it stops draining, a recorded failure is already the
+   * end state: nothing retries it, so it will still be there tomorrow.
+   */
+  const [failed] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(
+      sql`(
+        select 1 from ${nightColumns} where ${nightColumns.announceFailedAt} is not null
+        union all
+        select 1 from ${opinionPieces} where ${opinionPieces.announceFailedAt} is not null
+      ) as failures`,
+    );
+  const announceFailures = failed?.count ?? 0;
+
   const oldestPending = queued?.oldest ? new Date(queued.oldest) : null;
   const oldestPendingHours = oldestPending
     ? Math.round((Date.now() - oldestPending.getTime()) / 3_600_000)
@@ -209,7 +243,8 @@ export async function getHealth(): Promise<Health> {
    * of the two it is; neither is healthy.
    */
   const announceStale =
-    oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS;
+    (oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS) ||
+    announceFailures > 0;
 
   /*
    * Whether the webhook is still there, as opposed to still configured.
@@ -253,6 +288,11 @@ export async function getHealth(): Promise<Health> {
       configured: discordConfigured(),
       reachable,
       pending: queued?.pending ?? 0,
+      /**
+       * Claimed but never confirmed as delivered. Always a fault; nothing
+       * retries these, so clear `posted_at` by hand to send one again.
+       */
+      failed: announceFailures,
       oldestPendingHours,
       stale: announceStale,
     },

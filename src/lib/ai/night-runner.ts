@@ -496,13 +496,33 @@ export async function announcePendingColumns(): Promise<number> {
      * filled up, the retry is gone.
      *
      * The trade, stated plainly: a piece whose post genuinely failed will now
-     * never be announced, and will sit on the site unposted. That is visible in
-     * `/api/health` as a pending item, recoverable by clearing `posted_at` by
-     * hand, and it is a far smaller harm than the same article arriving four
-     * times. Delivering at most once and sometimes zero beats delivering at
-     * least once and sometimes four.
+     * never be announced, and will sit on the site unposted. It is recoverable
+     * by clearing `posted_at` by hand, and it is a far smaller harm than the
+     * same article arriving four times. Delivering at most once and sometimes
+     * zero beats delivering at least once and sometimes four.
+     *
+     * `announce_failed_at` is what makes the zero visible. This comment used to
+     * claim the failure showed up in `/api/health` as a pending item; it did
+     * not, because `pending` counts null `posted_at` and this row has just had
+     * it set. Health reads the failure column now.
+     */
+    /*
+     * Recorded, not just logged.
+     *
+     * The comment above promised this was "visible in /api/health as a pending
+     * item". It was not: `pending` counts rows whose `posted_at` is null, and
+     * this row has just had it set. So a failed delivery was invisible to the
+     * one alarm built to catch a failed delivery, which is how the 18 August
+     * column and opinion sat unposted while health reported pending: 0.
+     *
+     * The claim stays: at-most-once is still the right trade. What changes is
+     * that the failure now leaves a mark somebody is told about.
      */
     if (result !== "sent") {
+      await db
+        .update(nightColumns)
+        .set({ announceFailedAt: new Date() })
+        .where(eq(nightColumns.archiveDay, column.archiveDay));
       console.warn(
         `[ai] column ${column.archiveDay} did not confirm as sent (${result}); ` +
           `left claimed rather than retried. Clear posted_at by hand to try again.`,
@@ -587,7 +607,13 @@ export async function announcePendingOpinions(): Promise<number> {
 
   // Claimed once and never un-claimed, for the reason set out in
   // `announcePendingColumns`. This is the piece that went out four times.
+  // The failure is recorded as well as logged, because a warning in a serverless
+  // log is not an alarm and `pending` cannot see a row that is already claimed.
   if (result !== "sent") {
+    await db
+      .update(opinionPieces)
+      .set({ announceFailedAt: new Date() })
+      .where(eq(opinionPieces.archiveDay, pending.archiveDay));
     console.warn(
       `[ai] opinion ${pending.archiveDay} did not confirm as sent (${result}); ` +
         `left claimed rather than retried. Clear posted_at by hand to try again.`,
