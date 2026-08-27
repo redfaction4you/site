@@ -104,9 +104,8 @@ export const SERVERS: GameServer[] = [
     slug: "themed",
     name: "RedFaction4You.com (Themed)",
     blurb:
-      "Casual deathmatch on maps built around one idea and carried through: " +
-      "films, games, places, jokes. No bots, and a round is recorded whenever " +
-      "anybody is playing.",
+      "Films, real places, and levels rebuilt from other games. One idea per " +
+      "map, carried all the way through it.",
     kind: "deathmatch",
     port: 17756,
     /*
@@ -121,7 +120,7 @@ export const SERVERS: GameServer[] = [
     identity: "RedFaction4You.com [DM]",
     packSlug: "themed",
     welcome:
-      "Themed maps: films, games, places and jokes, one idea per map. " +
+      "Themed maps: films, real places, and levels rebuilt from other games. " +
       "All play here is recorded and ranked on time played. " +
       "Maps and stats: RedFaction4You.com/servers/themed",
     theme: "default",
@@ -130,32 +129,30 @@ export const SERVERS: GameServer[] = [
     slug: "novelty",
     name: "RedFaction4You.com (Novelty)",
     blurb:
-      "The odd ones: tiny arenas, jump courses, minigames, and maps that exist " +
-      "to prove a single point.",
+      "Liminal spaces, oddities and minigames. Maps too strange or too rare to " +
+      "turn up anywhere else.",
     kind: "pub",
     port: 17757,
     identity: null,
     packSlug: "novelty",
     welcome:
-      "Novelty maps: tiny arenas, jump courses, minigames and one-idea maps. " +
-      "Nothing here is recorded, so enjoy yourself. " +
-      "Full map list: RedFaction4You.com/servers/novelty",
+      "Novelty maps: liminal spaces, oddities, minigames, and maps too rare " +
+      "to find anywhere else. Full map list: RedFaction4You.com/servers/novelty",
     theme: "novelty",
   },
   {
     slug: "halloween",
     name: "RedFaction4You.com (Halloween)",
     blurb:
-      "Haunted houses, graveyards, castles and a great deal of red lighting. " +
-      "Several of these are found nowhere else.",
+      "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
+      "map picked for Halloween.",
     kind: "pub",
     port: 17758,
     identity: null,
     packSlug: "halloween",
     welcome:
-      "Halloween maps: haunted houses, graveyards, castles and a lot of red " +
-      "lighting. Nothing here is recorded. " +
-      "Full map list: RedFaction4You.com/servers/halloween",
+      "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
+      "map picked for Halloween. Full map list: RedFaction4You.com/servers/halloween",
     theme: "halloween",
   },
 ];
