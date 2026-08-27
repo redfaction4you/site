@@ -17,7 +17,7 @@
  *   anything not named below
  */
 
-import { describeModes, isDeathmatchMode } from "./modes.ts";
+import { describeModes, isPubMode } from "./modes.ts";
 
 /** RF4U match nights are grouped by this calendar day, not by UTC. */
 export const ARCHIVE_TIME_ZONE = "America/Los_Angeles";
@@ -713,7 +713,7 @@ export function sanitizeDay(source: unknown): SanitizedDay {
    * re-sends its recent days every fifteen minutes, so a day rejected at four
    * in the morning lands intact once the URL is corrected.
    */
-  const foreign = matches.filter((match) => isDeathmatchMode(match.mode));
+  const foreign = matches.filter((match) => isPubMode(match.mode));
   if (foreign.length) {
     throw new Error(
       `This endpoint stores capture the flag, and ${foreign.length} of ${matches.length} ` +

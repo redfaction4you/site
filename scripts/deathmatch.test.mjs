@@ -19,7 +19,8 @@ import assert from "node:assert/strict";
 
 import { sanitizeDmDay } from "../src/lib/dm/sanitize.ts";
 import { sanitizeDay } from "../src/lib/matches/sanitize.ts";
-import { isDeathmatchMode, normaliseMode } from "../src/lib/matches/modes.ts";
+import { isCaptureTheFlagMode,
+  isPubMode, normaliseMode } from "../src/lib/matches/modes.ts";
 
 /**
  * A day from the deathmatch server, in the shape the broadcaster sends.
@@ -303,7 +304,7 @@ test("a night of capture the flag is refused by the deathmatch endpoint", () => 
   payload.matches[0].mode = "ctf";
 
   assert.throws(() => sanitizeDmDay(payload), (error) => {
-    assert.match(error.message, /deathmatch/i);
+    assert.match(error.message, /pub play/i);
     // The message has to name the other endpoint. Whoever reads it is on the
     // VPS at the time, fixing a URL in an environment file.
     assert.match(error.message, /\/api\/rf4u\/archive\/ingest/);
@@ -329,14 +330,51 @@ test("one round of the wrong game refuses the whole document", () => {
   assert.throws(() => sanitizeDmDay(payload), /1 of 2 rounds/);
 });
 
-test("the deathmatch endpoint takes the names the engine might use", () => {
-  for (const mode of ["dm", "DM", "Deathmatch", "Team DM", "TeamDM", "tdm"]) {
-    assert.equal(isDeathmatchMode(mode), true, `${mode} should be deathmatch`);
+test("the pub endpoint takes the names the engine might use", () => {
+  for (const mode of [
+    "dm", "DM", "Deathmatch", "Team DM", "TeamDM", "tdm",
+    // Added after the outage below. Alpine's observer can emit all of these.
+    "koth", "KOTH", "dc", "DC", "Damage Control", "bagman", "TBag",
+  ]) {
+    assert.equal(isPubMode(mode), true, `${mode} should be pub play`);
   }
+
+  assert.equal(isCaptureTheFlagMode("ctf"), true);
+  assert.equal(isCaptureTheFlagMode("Capture The Flag"), true);
+  assert.equal(isCaptureTheFlagMode("dc"), false, "DC is not CTF, whatever the initials suggest");
 
   // Punctuation and case cannot decide a game.
   assert.equal(normaliseMode("Team DM"), "TEAMDM");
   assert.equal(normaliseMode(undefined), "");
+});
+
+test("a Damage Control round does not cost the pub archive its whole day", () => {
+  /*
+   * 27 August 2026. The Themed server's rotation gained DC maps, one DC round
+   * finished at 03:44 Pacific, and the day was refused entire because `DC` was
+   * not on the list of modes this code recognised. That server's archive went
+   * quiet for ninety minutes and /api/health went red, over a round nobody
+   * played.
+   *
+   * The mixed rotation is deliberate and is not going away, so a pub day
+   * carrying two game types has to be an ordinary day.
+   */
+  const payload = samplePayload();
+  payload.matches.push({ ...payload.matches[0], id: 6, mode: "DC" });
+
+  const day = sanitizeDmDay(payload);
+  assert.equal(day.rounds.length, 2, "the DC round was dropped or took the day with it");
+});
+
+test("a mode nobody here has heard of is still stored, not refused", () => {
+  // The half of the rule that stops this being retightened into the same
+  // outage. Alpine keeps adding game types and adding a map is not thought of
+  // as a code change; only capture the flag is positively wrong here.
+  const payload = samplePayload();
+  payload.matches.push({ ...payload.matches[0], id: 7, mode: "Sabotage" });
+
+  const day = sanitizeDmDay(payload);
+  assert.equal(day.rounds.length, 2);
 });
 
 test("the match endpoint still takes a mode nobody here has heard of", () => {

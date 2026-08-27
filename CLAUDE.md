@@ -286,13 +286,23 @@ Setup and troubleshooting: `docs/match-archive-vps.md`.
     `modes.ts` is the rule. A misrouted night of DM would land in `matches`
     looking entirely normal, with the flag counters simply zero.
   - **The two checks are deliberately not symmetrical, and there is a test
-    saying so.** The DM endpoint requires a recognised deathmatch mode, because
-    nothing has ever flowed into it and strictness is free. The match endpoint
-    only refuses deathmatch and still accepts a mode nobody has heard of,
-    because `mode` is not in the documented contract and refusing `CTF Pro`
-    would break a sync that has worked since July to defend against a payload
-    that does not exist. Verified against all 7 nights on production before it
-    shipped.
+    saying so.** The match endpoint refuses a pub mode and still accepts a mode
+    nobody has heard of, because `mode` is not in the documented contract and
+    refusing `CTF Pro` would break a sync that has worked since July to defend
+    against a payload that does not exist. The pub endpoint refuses two things
+    only: a round that says CTF, and a round that will not say what it is at
+    all, because the CTF sanitizer reads a missing mode as CTF and a blank one
+    here could be exactly that.
+  - **The pub endpoint used to require a mode from a list, and that was wrong.**
+    It said strictness was free because nothing had ever flowed into it. On
+    27 August 2026 the Themed server's rotation gained Damage Control maps, one
+    DC round finished at 03:44 Pacific, and the whole day was refused because
+    `DC` was not on the list. That server's archive went quiet for ninety
+    minutes and `/api/health` went red, over a round nobody played. A mixed
+    rotation was always going to do this: Themed runs DM and DC maps together
+    by design, so "every round is the same game" was never a property a pub day
+    could have. Refuse what is positively wrong, not whatever is not on a list.
+    Adding a map is not something anybody thinks of as a code change.
   - **A DM round is kept for provenance and never browsed.** No night pages, no
     round pages, no completion rule: a rotation cut short by a map vote is still
     time in which people fragged each other. Rows with nothing recorded are

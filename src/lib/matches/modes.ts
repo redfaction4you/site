@@ -36,30 +36,71 @@ export function normaliseMode(value: unknown): string {
 }
 
 /**
- * Deathmatch, including the team variant.
+ * Everything the pub servers run, which is every game here except capture the
+ * flag.
  *
- * Only one of the two games is enumerated, which is deliberate. Both endpoints
- * ask about deathmatch and neither asks what capture the flag looks like,
- * because the two questions are not equally safe to get wrong:
+ * This set began as "deathmatch, including the team variant", and the comment
+ * above it said strictness cost nothing because nothing had ever flowed into
+ * the deathmatch endpoint. Both of those stopped being true on 27 August 2026.
+ * The Themed server's rotation gained Damage Control maps, one DC round
+ * finished at 03:44 Pacific, and because `DC` was not in this set the endpoint
+ * refused the entire day. That server's archive went quiet for ninety minutes
+ * and `/api/health` went red, over a round nobody played.
  *
- * - The deathmatch endpoint requires a mode in this set. Nothing has ever
- *   flowed into it, so strictness costs nothing and a payload that will not say
- *   which game it is should not be believed.
- * - The match endpoint refuses a mode in this set and accepts everything else,
- *   including modes nobody here has heard of. It has months of working history
- *   behind it and `mode` is not in the documented contract, so refusing
- *   anything unrecognised would break a real sync to defend against a
- *   hypothetical payload.
+ * A mixed rotation was always going to do this. The Themed server runs DM and
+ * DC maps in one rotation by design, so "every round is the same game" was
+ * never a property a pub day could have.
  *
- * Team deathmatch is in this set on purpose. It has sides, so it is not quite
- * the free-for-all the DM record is written for, but it is scored on frags and
- * it belongs nowhere near a board built on flags. If the rotation includes one,
- * the cumulative record is still the right description of it.
+ * The spellings are the ones Alpine's observer can emit, from its GAME_TYPES
+ * map, plus the longhand somebody might type into a config by hand.
  */
-const DM_MODES = new Set(["DM", "DEATHMATCH", "TDM", "TEAMDM", "TEAMDEATHMATCH"]);
+const PUB_MODES = new Set([
+  "DM",
+  "DEATHMATCH",
+  "TDM",
+  "TEAMDM",
+  "TEAMDEATHMATCH",
+  "KOTH",
+  "KINGOFTHEHILL",
+  "DC",
+  "DAMAGECONTROL",
+  "BAGMAN",
+  "BAG",
+  "TBAG",
+  "TEAMBAGMAN",
+]);
 
-export function isDeathmatchMode(value: unknown): boolean {
-  return DM_MODES.has(normaliseMode(value));
+/**
+ * A game that belongs in the pub record rather than the match archive.
+ *
+ * Used by the match endpoint to refuse one, which is the direction that has to
+ * stay strict: `matches` would accept a night of deathmatch without complaint,
+ * the flag counters would simply be zero, and every board on the site would
+ * rank frags from a free-for-all against frags from a five-a-side.
+ */
+export function isPubMode(value: unknown): boolean {
+  return PUB_MODES.has(normaliseMode(value));
+}
+
+/**
+ * Capture the flag, which is the one thing the pub archive must never take.
+ *
+ * The pub endpoint asks this question instead of asking whether a mode is one
+ * it recognises, and the difference is what the outage above was made of.
+ * Refusing what is positively wrong costs a misrouted sync. Refusing whatever
+ * is not on a list costs a real day of a real server every time somebody adds
+ * a map in a game type this file has not been told about, which is a thing
+ * that happens without anybody thinking of it as a code change.
+ *
+ * The asymmetry with the match endpoint is still deliberate and is still the
+ * safe direction. CTF is enumerated here because the match server has sent
+ * exactly one spelling of it for months, so the list cannot go stale the way
+ * the pub list did.
+ */
+const CTF_MODES = new Set(["CTF", "CAPTURETHEFLAG"]);
+
+export function isCaptureTheFlagMode(value: unknown): boolean {
+  return CTF_MODES.has(normaliseMode(value));
 }
 
 /**

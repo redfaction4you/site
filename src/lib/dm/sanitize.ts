@@ -25,7 +25,7 @@
  * the copy that drifts.
  */
 import { tookPart } from "../matches/participation.ts";
-import { describeModes, isDeathmatchMode } from "../matches/modes.ts";
+import { describeModes, isCaptureTheFlagMode, normaliseMode } from "../matches/modes.ts";
 import {
   ARCHIVE_TIME_ZONE,
   DISCARDED_STATUSES,
@@ -294,20 +294,34 @@ export function sanitizeDmDay(source: unknown): SanitizedDmDay {
    *
    * This is the routing check, and it is the only thing standing between a
    * misconfigured `.env` on the VPS and a night of capture the flag written
-   * into the deathmatch record, where it would be summed into everybody's
-   * cumulative frags and nothing would look wrong. See `../matches/modes.ts`.
+   * into the pub record, where it would be summed into everybody's cumulative
+   * frags and nothing would look wrong. See `../matches/modes.ts`.
    *
-   * Every round has to be deathmatch, not most of them. A document carrying
-   * both is not a rotation, it is two servers' data in one file, and there is
-   * no reading of that which is safe to store.
+   * One round of it is enough to refuse the document. A day carrying both is
+   * not a rotation, it is two servers' data in one file, and there is no
+   * reading of that which is safe to store.
+   *
+   * Two things are refused and they are not the same thing. A round that says
+   * CTF is positively the other game. A round that will not say what it is
+   * could be: the CTF sanitizer reads a missing mode as CTF, because it
+   * predates there being two games, so a blank here is a payload this endpoint
+   * has no grounds to believe.
+   *
+   * Everything else is stored, including game types this file has never heard
+   * of, and that is the whole difference between a check and an outage. The
+   * list-based version refused the Themed server's entire day on 27 August
+   * 2026 because one Damage Control round had finished. Adding a map is not
+   * something anybody thinks of as a code change.
    */
   const kept = raw.filter(
     (round) => !DISCARDED_STATUSES.has(text(round.status, 24).toLowerCase()),
   );
-  const foreign = kept.filter((round) => !isDeathmatchMode(round.mode));
+  const foreign = kept.filter(
+    (round) => isCaptureTheFlagMode(round.mode) || normaliseMode(round.mode) === "",
+  );
   if (foreign.length) {
     throw new Error(
-      `This endpoint stores deathmatch, and ${foreign.length} of ${kept.length} ` +
+      `This endpoint stores pub play, and ${foreign.length} of ${kept.length} ` +
         `${kept.length === 1 ? "round is" : "rounds are"} ` +
         `${describeModes(foreign.map((round) => round.mode))}. ` +
         `Capture the flag belongs at /api/rf4u/archive/ingest.`,
