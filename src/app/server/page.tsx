@@ -238,7 +238,7 @@ export default async function ServerPage() {
   const [dmPlayers, dm, activePack] = await Promise.all([
     listDmPlayers(),
     dmTotals(),
-    activeMapPack(),
+    activeMapPack("themed-maps"),
   ]);
   const dmLeaders = dmPlayers.slice(0, 3);
 

@@ -1195,14 +1195,37 @@ export const mapPacks = pgTable(
     /** The URL, and the stable name the VPS logs against. */
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+
+    /**
+     * Which server runs this pack, by its slug in `src/lib/servers.ts`.
+     *
+     * A pack used to belong to nothing, because there was one server that took
+     * packs. With three, "the active pack" stopped being a single answer: the
+     * unique index below now covers `(server, active)` so each server has
+     * exactly one, and the applier on the VPS asks for its own rather than for
+     * the one active pack anywhere.
+     *
+     * Not a foreign key, because the servers are a typed file rather than a
+     * table. A slug that names no server is a pack nothing applies, which is
+     * inert rather than dangerous.
+     */
+    server: text("server").notNull().default("themed-maps"),
     /** A paragraph for the public page: what this pack is and why. */
     blurb: text("blurb"),
 
     /**
      * What the server calls itself while this pack is on.
      *
-     * Null leaves the name alone. Set, it replaces `server_name`, which is
-     * what a player sees in the browser — the point of a themed pack.
+     * Null leaves the name alone, and null is now the right answer almost
+     * always. The servers were renamed on 26 August so that the *server* is the
+     * stable thing and the pack is the content that rotates through it: Themed
+     * Maps runs a Halloween pack in October without becoming a Halloween server.
+     *
+     * Kept because it very nearly caused a silent regression and the story is
+     * the warning. The applier writes this straight into the `.toml`, so the
+     * stored pack still saying "RedFaction4You.com [DM] — Stock Favourites"
+     * would have renamed the server back on its next edit. Set this only when a
+     * pack genuinely should rename the server for its run.
      */
     serverName: text("server_name"),
 
@@ -1215,9 +1238,12 @@ export const mapPacks = pgTable(
     maps: jsonb("maps").$type<MapPackEntry[]>().default([]).notNull(),
 
     /**
-     * Exactly one pack is active. Enforced by a partial unique index rather
-     * than by remembering to clear the others: a second active pack would
-     * have the VPS flip-flopping between them every poll.
+     * Exactly one pack is active **per server**. Enforced by a partial unique
+     * index rather than by remembering to clear the others: two active packs on
+     * one server would have its applier flip-flopping between them every poll.
+     *
+     * It was one active pack across the whole table, which was the same answer
+     * while one server took packs and the wrong one the moment a second did.
      */
     active: boolean("active").default(false).notNull(),
 
@@ -1230,7 +1256,7 @@ export const mapPacks = pgTable(
   (row) => [
     uniqueIndex("map_packs_slug_idx").on(row.slug),
     uniqueIndex("map_packs_one_active_idx")
-      .on(row.active)
+      .on(row.server, row.active)
       .where(sql`${row.active}`),
   ],
 );

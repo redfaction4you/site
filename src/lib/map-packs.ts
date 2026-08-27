@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { mapPacks, type MapPackEntry } from "@/lib/db/schema";
@@ -103,15 +103,33 @@ export const getMapPack = cache(async function getMapPack(
   return row ?? null;
 });
 
-/** The pack currently on, as the public page shows it. */
-export const activeMapPack = cache(async function activeMapPack(): Promise<MapPack | null> {
-  const [row] = await db.select(columns).from(mapPacks).where(eq(mapPacks.active, true));
+/**
+ * The pack currently on for one server, as the public page shows it.
+ *
+ * The server is required, and that is the whole point of this signature. This
+ * used to be `where active` with no server and take the first row, which was the
+ * right answer while one server took packs. The moment a second did, the applier
+ * polling for its own rotation could be handed somebody else's: the deathmatch
+ * server was minutes away from being sent 156 novelty maps and restarted into
+ * them, because both packs were legitimately active and the query could not tell
+ * them apart. The database now enforces one active pack per server; this makes
+ * the read ask the same question.
+ */
+export const activeMapPack = cache(async function activeMapPack(
+  server: string,
+): Promise<MapPack | null> {
+  const [row] = await db
+    .select(columns)
+    .from(mapPacks)
+    .where(and(eq(mapPacks.active, true), eq(mapPacks.server, server)));
   return row ?? null;
 });
 
 /** The pack currently on, as the VPS applies it. Null means "leave it alone". */
-export async function activeMapPackForServer(): Promise<ActiveMapPack | null> {
-  const row = await activeMapPack();
+export async function activeMapPackForServer(
+  server: string,
+): Promise<ActiveMapPack | null> {
+  const row = await activeMapPack(server);
   if (!row) return null;
   const active = toActive(row);
   // A pack with no usable filenames would empty the rotation and leave the

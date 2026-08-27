@@ -35,7 +35,21 @@ export async function GET(request: Request) {
   }
 
   try {
-    const pack = await activeMapPackForServer();
+    /*
+     * Which server is asking.
+     *
+     * Defaulted rather than required, because the applier deployed on the VPS
+     * predates this parameter and asks for "the active pack" full stop. It runs
+     * on the deathmatch server, so that is the safe reading of a missing
+     * parameter: the alternative is answering it with whichever pack the
+     * database returned first, which by then could have been another server's.
+     *
+     * The applier learns to send `?server=` when it is parameterised for the
+     * third server; until then this keeps the one in the field correct.
+     */
+    const server =
+      new URL(request.url).searchParams.get("server") ?? "themed-maps";
+    const pack = await activeMapPackForServer(server);
     return Response.json(
       { pack },
       { headers: { "cache-control": "no-store" } },
