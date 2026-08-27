@@ -29,6 +29,7 @@ import {
   type ServerStatus,
 } from "@/lib/server-status";
 import { SYNC_STALE_MINUTES, lastSyncAt } from "@/lib/health";
+import { serverLabel } from "@/lib/matches/server-names";
 
 export const metadata: Metadata = {
   title: "Server",
@@ -43,7 +44,22 @@ export const dynamic = "force-dynamic";
  * variable rather than a deploy.
  */
 const SERVER = {
-  name: process.env.NEXT_PUBLIC_SERVER_NAME ?? "RF4U Competitive [Match]",
+  /*
+   * Put through the same label map the archive pages use.
+   *
+   * This page tells somebody what to look for in the server browser, so it
+   * showing a name the browser does not is the one way it can be actively
+   * unhelpful. It said "RF4U Competitive [Match]" for a day after the server was
+   * renamed, because the name is an environment variable and the rename happened
+   * in a .toml on the VPS.
+   *
+   * Reading it through `serverLabel` means renaming a server stays one line in
+   * one file, and this page cannot drift from `/api/health` or the admin page
+   * again. An unmapped name is returned unchanged, so nothing else moves.
+   */
+  name: serverLabel(
+    process.env.NEXT_PUBLIC_SERVER_NAME ?? "RF4U Competitive [Match]",
+  ),
   address: process.env.NEXT_PUBLIC_SERVER_ADDRESS ?? null,
   client: process.env.NEXT_PUBLIC_SERVER_CLIENT ?? "Alpine Faction",
   location: process.env.NEXT_PUBLIC_SERVER_LOCATION ?? null,
@@ -58,7 +74,9 @@ const SERVER_BROWSER = "https://rfsb.factionfiles.com/";
  * lookup derives it too.
  */
 const DM_SERVER = {
-  name: process.env.NEXT_PUBLIC_DM_SERVER_NAME ?? "RedFaction4You.com [DM]",
+  name: serverLabel(
+    process.env.NEXT_PUBLIC_DM_SERVER_NAME ?? "RedFaction4You.com [DM]",
+  ),
   address:
     process.env.NEXT_PUBLIC_DM_SERVER_ADDRESS ??
     (process.env.NEXT_PUBLIC_SERVER_ADDRESS
