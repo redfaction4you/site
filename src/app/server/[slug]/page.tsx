@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import Image from "next/image";
+
 import { MapShot } from "@/components/map-shot";
+import { ServerTabs } from "@/components/server-tabs";
 import { getMapPack } from "@/lib/map-packs";
 import { getServerStatus } from "@/lib/server-status";
 import { nextInRotation, positionInRotation, rotationFrom } from "@/lib/server-rotation";
@@ -85,23 +87,58 @@ export default async function ServerPage({ params }: Props) {
       data-server-theme={server.theme}
       className="mx-auto max-w-5xl px-4 pb-16"
     >
-      {/* --- who this is ------------------------------------------------- */}
-      <div className="server-accent-border border-b-2 pb-5 pt-8">
-        <p className="eyebrow">
-          <Link href="/server" className="hover:text-rust-300">
-            Servers
-          </Link>
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-bold text-steel-100 sm:text-4xl">
-          {server.name}
+      {/*
+        One heading for all four, then the tabs, then the one you are on.
+
+        The alternative was a hub page listing four cards and a page behind each,
+        which is one more click to reach the thing everybody wants and puts the
+        map list two pages deep. Tabs are still links, so nothing is lost: every
+        server remains a URL that can be pasted.
+      */}
+      <div className="pt-8">
+        <p className="eyebrow">Play</p>
+        <h1 className="mt-2 font-display text-3xl font-bold uppercase tracking-[0.12em] text-steel-100 sm:text-4xl">
+          Our servers
         </h1>
-        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-steel-300">
+        <ServerTabs active={server.slug} />
+      </div>
+
+      <div className="server-accent-border mt-6 border-b-2 pb-5">
+        <h2 className="font-display text-2xl font-bold text-steel-100">
+          {server.name}
+        </h2>
+        <p className="mt-2 max-w-2xl text-lg leading-relaxed text-steel-300">
           {server.blurb}
         </p>
       </div>
 
       {/* --- what it is doing right now ----------------------------------- */}
-      <section className="server-accent-border server-accent-bg mt-6 rounded-sm border p-5">
+      {/*
+        The level being played, behind the panel that says so.
+
+        FactionFiles keeps a preview image for every map and the lookup already
+        returns its address, so this costs one more request to a host the site is
+        already configured for. A scrim sits over it because the text has to stay
+        legible on whatever the picture happens to be: these are screenshots
+        nobody chose for their contrast, and half of them are dark corridors and
+        the other half are lit by lava.
+      */}
+      <section className="server-accent-border server-accent-bg relative mt-6 overflow-hidden rounded-sm border">
+        {online?.mapInfo?.imageUrl ? (
+          <>
+            <Image
+              src={online.mapInfo.imageUrl}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 960px, 100vw"
+              className="object-cover"
+              priority
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-basalt-950/88" />
+          </>
+        ) : null}
+        <div className="relative p-5">
         {online ? (
           <>
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
@@ -174,6 +211,7 @@ export default async function ServerPage({ params }: Props) {
             server&rsquo;s.
           </p>
         )}
+        </div>
       </section>
 
       {/* --- how to get in ------------------------------------------------ */}
