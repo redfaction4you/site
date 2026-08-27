@@ -100,11 +100,11 @@ export default async function ServerPage({ params }: Props) {
         <ServerTabs active={server.slug} />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-5">
         <h2 className="font-display text-2xl font-bold text-steel-100">
           {server.name}
         </h2>
-        <p className="mt-2 max-w-2xl text-lg leading-relaxed text-steel-300">
+        <p className="mt-1.5 max-w-3xl text-base leading-relaxed text-steel-300">
           {server.blurb}
         </p>
       </div>
@@ -133,7 +133,7 @@ export default async function ServerPage({ params }: Props) {
         only ever talks to us. It also caches and resizes, which the raw
         `preview.php` endpoint does neither of.
       */}
-      <section className="server-accent-border server-accent-bg relative mt-6 overflow-hidden rounded-sm border">
+      <section className="server-accent-border server-accent-bg relative mt-5 overflow-hidden rounded-sm border">
         {online?.mapInfo?.imageUrl ? (
           <>
             <Image
@@ -147,23 +147,39 @@ export default async function ServerPage({ params }: Props) {
             <div className="absolute inset-0 bg-basalt-950/88" />
           </>
         ) : null}
-        <div className="relative p-5">
+        <div className="relative px-4 py-3">
         {online ? (
           <>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
               <div className="min-w-0">
                 <p className="eyebrow server-accent">Playing now</p>
-                <p className="mt-1 font-display text-2xl font-bold text-steel-100">
+                <p className="mt-0.5 font-display text-xl font-bold leading-tight text-steel-100">
                   {online.mapInfo?.name ?? online.map ?? "an unnamed level"}
                 </p>
-                {at !== null ? (
-                  <p className="mt-1 font-mono text-xs text-steel-500">
-                    {at + 1} of {maps.length} in the rotation
+                {/*
+                  Where it is in the rotation, and what follows it, on one line.
+
+                  These were two blocks and the second carried a rule above it,
+                  so a panel reporting an empty server ran to six stacked rows.
+                  They are one fact read forwards and backwards.
+                */}
+                {at !== null || next ? (
+                  <p className="mt-0.5 font-mono text-xs text-steel-500">
+                    {at !== null ? `${at + 1} of ${maps.length}` : null}
+                    {at !== null && next ? " · " : null}
+                    {/* Said as "in rotation" rather than "next", because a vote
+                        changes it and the site is not told. */}
+                    {next ? (
+                      <>
+                        next in rotation:{" "}
+                        <span className="text-steel-400">{next.title ?? next.filename}</span>
+                      </>
+                    ) : null}
                   </p>
                 ) : null}
               </div>
               <div className="text-right">
-                <p className="font-display text-2xl font-bold text-steel-100 tabular-nums">
+                <p className="font-display text-xl font-bold text-steel-100 tabular-nums">
                   {online.humans}
                   <span className="text-steel-500">/{online.maxPlayers}</span>
                 </p>
@@ -184,7 +200,7 @@ export default async function ServerPage({ params }: Props) {
                 this page to answer, and it is free: the browser already
                 returns it beside the level. */}
             {online.game?.players?.length ? (
-              <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-basalt-800 pt-3">
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-basalt-800 pt-2.5">
                 {online.game.players.map((player, index) => (
                   <li
                     key={`${player.name}-${index}`}
@@ -199,14 +215,6 @@ export default async function ServerPage({ params }: Props) {
               </ul>
             ) : null}
 
-            {next ? (
-              <p className="mt-4 border-t border-basalt-800 pt-3 text-sm text-steel-400">
-                Next in rotation:{" "}
-                <span className="text-steel-200">{next.title ?? next.filename}</span>
-                {/* Said as "in rotation" rather than "next", because a vote
-                    changes it and the site is not told. */}
-              </p>
-            ) : null}
           </>
         ) : status.state === "offline" ? (
           <p className="text-sm text-steel-400">
@@ -224,11 +232,18 @@ export default async function ServerPage({ params }: Props) {
       </section>
 
       {/* --- the maps ------------------------------------------------------ */}
+      {/*
+        Headed "Rotation", not by the pack's name.
+
+        The pack is called Halloween, on the Halloween server, under a tab
+        reading HALLOWEEN, below a heading reading RedFaction4You.com
+        (Halloween). A fourth copy was vertical space spent saying nothing.
+      */}
       {maps.length > 0 ? (
-        <section className="mt-9">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-2 border-basalt-700 pb-2">
-            <h2 className="section-heading border-0 pb-0">
-              {pack?.name ?? "The rotation"}
+        <section className="mt-7">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-basalt-700 pb-2">
+            <h2 className="font-display text-sm font-bold uppercase tracking-[0.14em] text-steel-300">
+              Rotation
             </h2>
             <p className="font-mono text-xs text-steel-500">
               {maps.length} maps
@@ -236,11 +251,14 @@ export default async function ServerPage({ params }: Props) {
             </p>
           </div>
 
-          {pack?.blurb ? (
-            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-steel-400">
-              {pack.blurb}
-            </p>
-          ) : null}
+          {/*
+            The pack's own blurb is deliberately not shown.
+
+            It described the same maps the server's blurb described one screen
+            above, and on Halloween it was describing the wrong server outright.
+            It is still edited and still read in the admin, where it is about
+            the pack rather than about this page.
+          */}
 
           {/*
             Every map links to where you can get it.
@@ -260,7 +278,7 @@ export default async function ServerPage({ params }: Props) {
             class strings are constants, so the payload is a list of titles and
             links rather than a list of markup.
           */}
-          <ol className="map-rotation mt-4 grid gap-x-6 sm:grid-cols-2">
+          <ol className="map-rotation mt-3 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
             {ordered.map((map, index) => {
               const isPlaying = at !== null && index === 0;
               return (
