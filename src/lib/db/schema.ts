@@ -1169,6 +1169,18 @@ export type MapPackEntry = {
   /** Where to get it: a FactionFiles page, usually. */
   url?: string;
   /**
+   * The game type this level is played as, where it differs from the server's.
+   *
+   * Alpine resolves `dm`, `tdm`, `ctf`, `koth` and `dc`, and a `[[levels]]`
+   * entry can carry its own `rules` block, so one rotation can mix them. Two of
+   * the 343 maps on record are DC (`DC-Doomsdayb1`, `dcBLERD_RERNERv1`) and
+   * would otherwise be played as deathmatch on a deathmatch server.
+   *
+   * Undefined means "whatever the server is set to", which is the ordinary case
+   * and keeps the written config free of 341 redundant rules blocks.
+   */
+  gameType?: string;
+  /**
    * True when FactionFiles matched the filename by guessing rather than exactly.
    *
    * Kept rather than discarded, because the two honest options are different and

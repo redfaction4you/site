@@ -21,9 +21,39 @@ import type { MapPackEntry } from "@/lib/db/schema";
  * `node:crypto` is imported, and the type is erased at build.
  */
 
-/** A filename the server could actually load. Anything else is a typo. */
+/**
+ * A filename the server could actually load. Anything else is a typo.
+ *
+ * **Stated as what is forbidden, not what is allowed**, and that is the whole
+ * correction. This was an allowlist of `A-Za-z0-9 _.-()[]`, which reads as
+ * cautious and quietly threw away eighteen real maps across the packs: every
+ * name carrying `~`, `{`, `}`, `'` or `!`. `DM-STUs Nighthawks~.rfl`,
+ * `dm_{DVL} Boingy.rfl`, `DM-Sneeky's.rfl` and `dm- ARRRRRRGGGHHH!.rfl` are all
+ * genuine Red Faction levels, and fourteen of the hundred and fifty-six in
+ * Novelty Maps were being dropped.
+ *
+ * It failed in the exact way the module header warns about: the rotation
+ * quietly shortens while the site goes on listing the full pack. Nobody sees a
+ * refusal, because there is nowhere for one to appear.
+ *
+ * The forbidden set is what Windows actually refuses in a filename, which is
+ * the same set `cleanLevelName` on the VPS rejects, plus control characters and
+ * a leading or trailing dot. A mapper in 2003 could name a file anything the
+ * filesystem accepted, so anything the filesystem accepts has to be allowed
+ * here.
+ */
+const FORBIDDEN_IN_FILENAME = /[\\\/:*?"<>|]/;
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTER = /[\u0000-\u001f]/;
+
 export function isLevelFilename(value: string): boolean {
-  return /^[A-Za-z0-9 _.\-()[\]]{1,64}\.rfl$/.test(value.trim());
+  const name = value.trim();
+  if (!/^.{1,64}\.rfl$/i.test(name)) return false;
+  if (FORBIDDEN_IN_FILENAME.test(name)) return false;
+  if (CONTROL_CHARACTER.test(name)) return false;
+  // A leading dot hides the file, and `..` is a path rather than a name.
+  if (name.startsWith(".") || name.includes("..")) return false;
+  return true;
 }
 
 /**

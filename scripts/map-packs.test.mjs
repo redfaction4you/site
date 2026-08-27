@@ -31,8 +31,47 @@ test("a filename the server can load is accepted", () => {
     "Shattered Gorge Mini v2.1.rfl",
     "warlords-pro(no fog).rfl",
     "ctf[pro].rfl",
+    /*
+     * Every one of these is a real Red Faction level and every one was being
+     * silently dropped from its rotation.
+     *
+     * The rule was an allowlist of `A-Za-z0-9 _.-()[]`, which looks careful and
+     * threw away eighteen maps across the packs: fourteen of the hundred and
+     * fifty-six in Novelty Maps alone. The failure had no symptom, because a
+     * dropped level just makes the rotation shorter while the site goes on
+     * listing the full pack, which is exactly what the module header warns
+     * about. It surfaced as one map missing from a written config: 69 levels
+     * where the pack held 70.
+     */
+    "DM-STUs Nighthawks~.rfl",
+    "DM-Blundersgumball~~~.rfl",
+    "dm_{DVL} Boingy.rfl",
+    "DM-Sneeky's.rfl",
+    "DM_Nikki's_Hide_and_Seek.rfl",
+    "dm- ARRRRRRGGGHHH!.rfl",
+    "dm_(MM)_rail arena.rfl",
+    "Dm. in het bos.rfl",
+    "kma Dm s7.rfl",
   ]) {
     assert.equal(isLevelFilename(name), true, name);
+  }
+});
+
+test("what is refused is what a filesystem refuses, and nothing more", () => {
+  // The forbidden set is the one Windows actually rejects, matching
+  // cleanLevelName on the VPS. A mapper in 2003 could name a file anything the
+  // filesystem accepted, so anything it accepted has to be allowed here.
+  for (const name of [
+    'dm"quoted".rfl',
+    "dm<redirect>.rfl",
+    "dm|pipe.rfl",
+    "dm:colon.rfl",
+    "dm*star.rfl",
+    "dm?ask.rfl",
+    ".hidden.rfl",
+    "..\escape.rfl",
+  ]) {
+    assert.equal(isLevelFilename(name), false, JSON.stringify(name));
   }
 });
 
