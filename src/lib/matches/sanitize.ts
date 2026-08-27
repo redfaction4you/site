@@ -352,6 +352,25 @@ function sanitizePlayer(source: Record<string, unknown> = {}): PublicPlayer {
     damageTaken: Math.max(0, finite(source.damage_taken)),
     flagHoldMs: whole(source.flag_hold_ms),
     flagPickups: whole(source.flag_pickups),
+    /*
+     * `powerup_amps`, `powerup_invulns`, `powerup_super_armors` and
+     * `powerup_super_healths` are deliberately not copied here, and the
+     * asymmetry with deathmatch is the part worth writing down.
+     *
+     * The DLL has emitted all four on every player row since the v2 continuous
+     * telemetry build on 7 August, and `player_to_json` has no mode branch, so
+     * the CTF day document carries them too: verified on the 2026-08-21 payload,
+     * where every player row has all four. `dm/sanitize.ts` copies them and
+     * `dm_players` has columns; this side has neither.
+     *
+     * That is a lag rather than a fault. An unnamed field not being copied is
+     * this file's whole design, and naming one is a feature decision about what
+     * the CTF pages should show, not a bug fix. Nothing is lost by waiting:
+     * `sync-rf4u-website-archive.ps1 -Backfill` re-sends every day the
+     * broadcaster holds, and `ingest.ts` rewrites any day older than six hours
+     * even when the hash matches, so columns added later fill in from history.
+     */
+
     flagDrops: whole(source.flag_drops),
     flagReturns: whole(source.flag_returns),
     flagCarrierKills: whole(source.flag_carrier_kills),
