@@ -3,7 +3,7 @@
  *
  * Time on the server is the headline of the whole DM record rather than one
  * column of it, so it appears on `/stats/dm`, `/matches/maps/dm` and
- * `/server/map-packs`. It had been written out three times, and three copies of
+ * `/servers/map-packs`. It had been written out three times, and three copies of
  * a formatter is how "1h 24m" on one page becomes "84m" on the next.
  */
 

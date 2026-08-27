@@ -22,7 +22,7 @@ anything. The full reasoning is in `../BUILD-PLAN.md`.
 `main`. `docs/HANDOVER.md` is the authority on what is built and what is next;
 this file is conventions and gotchas.
 
-Navigation: News, Matches, Players, Stats, Server, Events. The catalogue
+Navigation: News, Matches, Players, Stats, Servers, Events. The catalogue
 sections (maps, mods, models, weapons, tools, videos, guides) are built, empty,
 and hidden with the `hidden` flag in `src/lib/nav.ts`. Their routes still answer
 so shared links keep working.

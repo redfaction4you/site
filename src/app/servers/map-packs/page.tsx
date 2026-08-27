@@ -148,7 +148,7 @@ export default async function MapPacksPage() {
           Map packs
         </h1>
         <p className="font-mono text-xs text-steel-600">
-          <Link href="/server" className="hover:text-rust-300">
+          <Link href="/servers" className="hover:text-rust-300">
             the deathmatch server
           </Link>
         </p>

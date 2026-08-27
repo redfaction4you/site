@@ -3,15 +3,12 @@ import { notFound } from "next/navigation";
 
 import Image from "next/image";
 
-import { MapShot } from "@/components/map-shot";
 import { ServerTabs } from "@/components/server-tabs";
 import { getMapPack } from "@/lib/map-packs";
 import { getServerStatus } from "@/lib/server-status";
 import { nextInRotation, positionInRotation, rotationFrom } from "@/lib/server-rotation";
 import {
   SERVERS,
-  SERVER_CLIENT,
-  SERVER_SLOTS,
   serverAddress,
   serverBySlug,
 } from "@/lib/servers";
@@ -103,7 +100,7 @@ export default async function ServerPage({ params }: Props) {
         <ServerTabs active={server.slug} />
       </div>
 
-      <div className="server-accent-border mt-6 border-b-2 pb-5">
+      <div className="mt-6">
         <h2 className="font-display text-2xl font-bold text-steel-100">
           {server.name}
         </h2>
@@ -226,41 +223,6 @@ export default async function ServerPage({ params }: Props) {
         </div>
       </section>
 
-      {/* --- how to get in ------------------------------------------------ */}
-      <section className="mt-5 grid gap-4 sm:grid-cols-3">
-        <div className="panel p-4">
-          <p className="eyebrow">Address</p>
-          <p className="mt-1 break-all font-mono text-sm text-steel-100">
-            {address ?? "not configured"}
-          </p>
-        </div>
-        <div className="panel p-4">
-          <p className="eyebrow">Client</p>
-          <p className="mt-1 font-mono text-sm text-steel-100">{SERVER_CLIENT}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="eyebrow">Slots</p>
-          <p className="mt-1 font-mono text-sm text-steel-100">
-            {online?.maxPlayers ?? SERVER_SLOTS}
-          </p>
-        </div>
-      </section>
-
-      {/* --- what it is for ------------------------------------------------ */}
-      <section className="mt-8">
-        <h2 className="section-heading">About this server</h2>
-        <p className="mt-3 max-w-3xl text-base leading-relaxed text-steel-300">
-          {server.about}
-        </p>
-        {server.kind === "pub" ? (
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-steel-500">
-            Missing maps download themselves. The server fetches anything you do
-            not have from FactionFiles when it needs it, so you can join without
-            installing a thing.
-          </p>
-        ) : null}
-      </section>
-
       {/* --- the maps ------------------------------------------------------ */}
       {maps.length > 0 ? (
         <section className="mt-9">
@@ -335,28 +297,6 @@ export default async function ServerPage({ params }: Props) {
         </section>
       ) : null}
 
-      {/* --- the picture of what is on, if there is one -------------------- */}
-      {online?.mapInfo ? (
-        <section className="mt-9">
-          <h2 className="section-heading">On now</h2>
-          <div className="panel mt-3 flex flex-wrap items-center gap-5 p-4">
-            <MapShot mapName={online.mapInfo.name} className="w-40" sizes="160px" />
-            <div className="min-w-0">
-              <p className="font-display text-lg font-bold text-steel-100">
-                {online.mapInfo.name}
-              </p>
-              <a
-                href={online.mapInfo.pageUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-                className="server-accent text-sm hover:underline"
-              >
-                Get this map from FactionFiles
-              </a>
-            </div>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

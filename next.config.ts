@@ -47,6 +47,12 @@ const nextConfig: NextConfig = {
       // Tournaments folded into Events. Anything already linked keeps working.
       { source: "/tournaments", destination: "/events", permanent: true },
       { source: "/tournaments/:path*", destination: "/events", permanent: true },
+      // "Server" became "Servers" when a second, third and fourth arrived.
+      // The singular was live and linked, including from in-game welcome
+      // messages printed to everybody who joined, so it keeps working.
+      // Permanent: the plural is the name now and that is not going back.
+      { source: "/server", destination: "/servers", permanent: true },
+      { source: "/server/:path*", destination: "/servers/:path*", permanent: true },
       // The client comparison moved into Guides.
       { source: "/clients", destination: "/guides", permanent: true },
       { source: "/client", destination: "/guides", permanent: true },

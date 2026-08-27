@@ -56,13 +56,6 @@ export type GameServer = {
    */
   packSlug: string | null;
   /**
-   * A paragraph for the server's own page, where the one line blurb is a label.
-   *
-   * Written per server rather than generated from the pack, because what a
-   * server is for outlives whichever rotation is on it today.
-   */
-  about: string;
-  /**
    * The message printed in chat when somebody joins.
    *
    * One line, plain ASCII, and it reaches a 2001 bitmap font, so `asciiForGame`
@@ -104,12 +97,6 @@ export const SERVERS: GameServer[] = [
     port: 17755,
     identity: "RF4U Competitive [Match]",
     packSlug: null,
-    about:
-      "The competitive server. Matches are started deliberately rather than " +
-      "run continuously, which is why nothing here is on a rotation: the map " +
-      "is chosen for the match being played. Every completed match is recorded " +
-      "in full, down to who carried the flag and how far, and that record is " +
-      "what the rest of this site is built from.",
     welcome: null,
     theme: "default",
   },
@@ -133,16 +120,10 @@ export const SERVERS: GameServer[] = [
      */
     identity: "RedFaction4You.com [DM]",
     packSlug: "themed",
-    about:
-      "Deathmatch on maps built around a single idea and carried all the way " +
-      "through it. Films, games, places, jokes, a kitchen where you are the " +
-      "size of a rat. Somebody sat down and made a level out of Pac-Man, and " +
-      "it plays. The rotation changes when a new themed pack goes on, and " +
-      "everything played here is recorded the same way the match server is.",
     welcome:
       "Themed maps: films, games, places and jokes, one idea per map. " +
       "All play here is recorded and ranked on time played. " +
-      "Maps and stats: RedFaction4You.com/server/themed",
+      "Maps and stats: RedFaction4You.com/servers/themed",
     theme: "default",
   },
   {
@@ -155,15 +136,10 @@ export const SERVERS: GameServer[] = [
     port: 17757,
     identity: null,
     packSlug: "novelty",
-    about:
-      "The odd ones. Tiny arenas that fit four people and no more, jump " +
-      "courses, minigames, rail-only boxes, and maps that exist to prove one " +
-      "point and then stop. Some of these are barely levels and that is the " +
-      "appeal. Nothing here is recorded, so play badly with a clear conscience.",
     welcome:
       "Novelty maps: tiny arenas, jump courses, minigames and one-idea maps. " +
       "Nothing here is recorded, so enjoy yourself. " +
-      "Full map list: RedFaction4You.com/server/novelty",
+      "Full map list: RedFaction4You.com/servers/novelty",
     theme: "novelty",
   },
   {
@@ -176,16 +152,10 @@ export const SERVERS: GameServer[] = [
     port: 17758,
     identity: null,
     packSlug: "halloween",
-    about:
-      "Haunted houses, graveyards, castles, catacombs, and a great deal of red " +
-      "lighting. A surprising number of people spent 2003 building somewhere " +
-      "frightening to shoot each other, and this is where they ended up. " +
-      "Several of these maps are hard to find anywhere else. Nothing here is " +
-      "recorded.",
     welcome:
       "Halloween maps: haunted houses, graveyards, castles and a lot of red " +
       "lighting. Nothing here is recorded. " +
-      "Full map list: RedFaction4You.com/server/halloween",
+      "Full map list: RedFaction4You.com/servers/halloween",
     theme: "halloween",
   },
 ];

@@ -9,7 +9,7 @@ import { SERVERS } from "@/lib/servers";
  * site makes: each tab is a real URL somebody can paste into Discord, it works
  * before any JavaScript loads, and the browser's back button does what a person
  * expects. The tab strip is rendered by each server page rather than by a
- * layout, so `/server/map-packs` is not accidentally wrapped in it.
+ * layout, so `/servers/map-packs` is not accidentally wrapped in it.
  *
  * Drawn as buttons rather than underlined words, for the reason `GameTabs`
  * records: the first version of that was small text and the owner could not tell
@@ -27,7 +27,7 @@ export function ServerTabs({ active }: { active: string }) {
         return (
           <Link
             key={server.slug}
-            href={`/server/${server.slug}`}
+            href={`/servers/${server.slug}`}
             aria-current={current ? "page" : undefined}
             data-server-theme={server.theme}
             className={

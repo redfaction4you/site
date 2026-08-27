@@ -441,13 +441,13 @@ export default async function AdminPage({ searchParams }: Props) {
               <span className="text-steel-400"> — every night on record</span>
             </li>
             <li>
-              <Link href="/server" className="text-steel-300 hover:text-rust-300">
+              <Link href="/servers" className="text-steel-300 hover:text-rust-300">
                 Server
               </Link>
               <span className="text-steel-400"> — who is playing right now</span>
             </li>
             <li>
-              <Link href="/server/map-packs" className="text-steel-300 hover:text-rust-300">
+              <Link href="/servers/map-packs" className="text-steel-300 hover:text-rust-300">
                 Map packs
               </Link>
               <span className="text-steel-400">

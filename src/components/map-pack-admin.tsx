@@ -61,7 +61,7 @@ export function MapPackAdmin({
         </strong>
         , and only while nobody is playing, so a change made mid-session waits
         rather than kicking everybody.{" "}
-        <Link href="/server/map-packs" className="text-steel-400 hover:text-rust-300">
+        <Link href="/servers/map-packs" className="text-steel-400 hover:text-rust-300">
           The public page
         </Link>{" "}
         shows whichever is on.
@@ -320,7 +320,7 @@ export function MapPackAdmin({
             filename, so the title is how a map is matched to what has been
             played on it. Without one it shows on{" "}
             <Link
-              href="/server/map-packs"
+              href="/servers/map-packs"
               className="text-steel-500 hover:text-rust-300"
             >
               the public page

@@ -112,7 +112,7 @@ export default async function HomePage() {
       <div className="mx-auto max-w-6xl px-4 pb-10">
       {/* Status readout. One line, with the map the server is on. */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-basalt-800 py-2.5 text-xs">
-        <Link href="/server" className="group flex items-center gap-2">
+        <Link href="/servers" className="group flex items-center gap-2">
           <span
             aria-hidden="true"
             className={
