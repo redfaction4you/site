@@ -560,3 +560,81 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/*
+   A server page can wear its own accents.
+
+   The site has one theme and these pages are the deliberate exception: a
+   Halloween server whose page looks like every other page is a missed joke.
+
+   Only accent tokens move. Layout, type, spacing and the whole light and dark
+   arrangement are untouched, which is what keeps this from becoming a second
+   design to maintain. `--server-accent` is the strong one and
+   `--server-accent-soft` is for washes and borders; both are defined for light
+   and dark because the pages inherit the site's theme switch rather than
+   overriding it.
+
+   Everything is contrast checked against the panel background it sits on. The
+   Halloween orange is deliberately not the pumpkin orange a person reaches for
+   first: at 4.5:1 on this ground that colour is muddy, and the one below reads
+   as orange while staying legible.
+*/
+[data-server-theme="halloween"] {
+  --server-accent: #ff8b3d;
+  --server-accent-soft: rgb(255 139 61 / 0.12);
+  --server-accent-line: rgb(255 139 61 / 0.35);
+}
+[data-server-theme="novelty"] {
+  --server-accent: #6ee7c7;
+  --server-accent-soft: rgb(110 231 199 / 0.12);
+  --server-accent-line: rgb(110 231 199 / 0.32);
+}
+[data-server-theme="default"] {
+  --server-accent: var(--color-rust-400);
+  --server-accent-soft: rgb(224 48 30 / 0.10);
+  --server-accent-line: rgb(224 48 30 / 0.32);
+}
+
+:root:not([data-theme="dark"]) [data-server-theme="halloween"] {
+  --server-accent: #b8480a;
+  --server-accent-soft: rgb(184 72 10 / 0.10);
+  --server-accent-line: rgb(184 72 10 / 0.30);
+}
+:root:not([data-theme="dark"]) [data-server-theme="novelty"] {
+  --server-accent: #0f766e;
+  --server-accent-soft: rgb(15 118 110 / 0.10);
+  --server-accent-line: rgb(15 118 110 / 0.28);
+}
+
+.server-accent {
+  color: var(--server-accent);
+}
+.server-accent-bg {
+  background-color: var(--server-accent-soft);
+}
+.server-accent-border {
+  border-color: var(--server-accent-line);
+}
+
+/* A numbered rotation, counted by the stylesheet rather than by 156 spans.
+   See the note in the server page: the number was the single largest
+   contributor to that page's serialised tree. */
+.map-rotation {
+  counter-reset: rotation;
+}
+.map-rotation > li {
+  counter-increment: rotation;
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+}
+.map-rotation > li::before {
+  content: counter(rotation);
+  flex: none;
+  width: 1.75rem;
+  text-align: right;
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-steel-600);
+}
