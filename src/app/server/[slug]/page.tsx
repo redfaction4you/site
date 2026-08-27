@@ -122,6 +122,19 @@ export default async function ServerPage({ params }: Props) {
         legible on whatever the picture happens to be: these are screenshots
         nobody chose for their contrast, and half of them are dark corridors and
         the other half are lit by lava.
+
+        **Served through our own domain, never hot-linked.** With `unoptimized`
+        the browser fetched it straight from factionfiles.com, and Malwarebytes
+        Browser Guard flags that host: a visitor got a red "Malware blocked"
+        panel over the page, naming our site as the one doing it. Almost
+        certainly a false positive on a game file host, but it does not matter
+        whose fault it is. A malware warning on your own site is worse than any
+        background image is worth, and a third-party request is the thing that
+        triggers it.
+
+        Next's optimiser proxies the image from `/_next/image`, so the browser
+        only ever talks to us. It also caches and resizes, which the raw
+        `preview.php` endpoint does neither of.
       */}
       <section className="server-accent-border server-accent-bg relative mt-6 overflow-hidden rounded-sm border">
         {online?.mapInfo?.imageUrl ? (
@@ -133,7 +146,6 @@ export default async function ServerPage({ params }: Props) {
               sizes="(min-width: 1024px) 960px, 100vw"
               className="object-cover"
               priority
-              unoptimized
             />
             <div className="absolute inset-0 bg-basalt-950/88" />
           </>
