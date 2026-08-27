@@ -1168,6 +1168,15 @@ export type MapPackEntry = {
   author?: string;
   /** Where to get it: a FactionFiles page, usually. */
   url?: string;
+  /**
+   * True when FactionFiles matched the filename by guessing rather than exactly.
+   *
+   * Kept rather than discarded, because the two honest options are different and
+   * a page should be able to choose. An exact match is a link somebody can
+   * follow; a guess is a probable match that could point at a different map with
+   * a similar name, and a download link to the wrong map is worse than none.
+   */
+  guessed?: boolean;
   /** A line about this map, shown under it. */
   note?: string;
 };
