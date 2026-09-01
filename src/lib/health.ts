@@ -119,10 +119,14 @@ export type Health = {
  * The database's half of the health answer, cached for up to an hour.
  *
  * Everything in here is a raw reading — timestamps and counts, never a verdict.
- * The verdicts are computed per request against the clock, so a cached reading
- * can only delay an alarm, never invent a healthy one: a server that stops
- * syncing shows up at most an hour later than it otherwise would, against
- * thresholds measured in hours anyway (`vet-live` polls every six).
+ * The verdicts are computed per request, measured against `snapshotAtIso`, the
+ * moment the reading was taken. Not against the live clock: that was the first
+ * version, on the reasoning that it could "only delay an alarm", and within the
+ * hour it had done the opposite — an aging cache made fresh pings read as an
+ * hour of silence and the endpoint 503ed over two perfectly healthy servers.
+ * Measured as of the snapshot, a verdict is exactly as true as its data, and a
+ * real outage shows up at most one cache lifetime late, against thresholds
+ * measured in hours anyway (`vet-live` polls every six).
  *
  * Cached because this endpoint exists to be polled from outside, and Neon
  * bills for every hour the compute is kept awake: an uptime monitor on a
@@ -208,6 +212,17 @@ const healthSnapshot = unstable_cache(
     const dm = await dmIntegrity();
 
     return {
+      /*
+       * When this reading was taken. Every time-based verdict downstream is
+       * computed against THIS moment, never against the live clock: measured
+       * against the clock, an hour-old cached snapshot of a perfectly healthy
+       * sync reads as an hour of silence, and this endpoint answered 503 over
+       * exactly that on 1 September, failing `vet-live` while both servers
+       * synced on schedule. Age against the snapshot cannot false-alarm; it
+       * only detects a real outage one cache lifetime later, which is the
+       * trade the caching already made.
+       */
+      snapshotAtIso: new Date().toISOString(),
       lastIngestIso: row?.lastIngest ? new Date(row.lastIngest).toISOString() : null,
       matchCount: row?.matchCount ?? 0,
       nightCount: row?.nightCount ?? 0,
@@ -221,12 +236,18 @@ const healthSnapshot = unstable_cache(
       dm,
     };
   },
-  ["health-db-snapshot"],
+  // v2: the key retires the pre-snapshotAtIso entry, which persists across
+  // deploys and would otherwise be read once with the field missing.
+  ["health-db-snapshot-v2"],
   { revalidate: 3600 },
 );
 
 export async function getHealth(): Promise<Health> {
   const snapshot = await healthSnapshot();
+
+  // The clock every time-based verdict is measured against. See the note on
+  // `snapshotAtIso`: the live clock plus a cached reading equals a false alarm.
+  const asOf = new Date(snapshot.snapshotAtIso).getTime();
 
   const lastIngest = snapshot.lastIngestIso ? new Date(snapshot.lastIngestIso) : null;
   const pings = snapshot.pings.map((ping) => ({
@@ -235,7 +256,7 @@ export async function getHealth(): Promise<Health> {
   }));
   const lastArrival = pings[0]?.lastSeenAt ?? lastIngest;
   const minutesAgo = lastArrival
-    ? Math.round((Date.now() - lastArrival.getTime()) / 60_000)
+    ? Math.round((asOf - lastArrival.getTime()) / 60_000)
     : null;
 
   let lastBackup: Date | null = null;
@@ -263,7 +284,7 @@ export async function getHealth(): Promise<Health> {
     ? new Date(snapshot.oldestPendingIso)
     : null;
   const oldestPendingHours = oldestPending
-    ? Math.round((Date.now() - oldestPending.getTime()) / 3_600_000)
+    ? Math.round((asOf - oldestPending.getTime()) / 3_600_000)
     : null;
 
   // Never synced and never backed up is a new deployment, not a fault. Only
@@ -277,7 +298,7 @@ export async function getHealth(): Promise<Health> {
    * minutes old. Before any ping exists at all, this falls back to the old
    * reading so the check is never simply off.
    */
-  const quiet = quietSince(pings, SYNC_STALE_MINUTES);
+  const quiet = quietSince(pings, SYNC_STALE_MINUTES, asOf);
   const syncStale = pings.length
     ? quiet.length > 0
     : minutesAgo !== null && minutesAgo > SYNC_STALE_MINUTES;
