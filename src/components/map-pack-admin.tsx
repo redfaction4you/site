@@ -57,10 +57,12 @@ export function MapPackAdmin({
         list, what the server calls itself and the message players see when they
         join &mdash; nothing else about the server moves.{" "}
         <strong className="text-steel-400">
-          The server picks it up within five minutes
+          The server picks it up on its nightly pass, around 4am Pacific
         </strong>
-        , and only while nobody is playing, so a change made mid-session waits
-        rather than kicking everybody.{" "}
+        , and only while nobody is playing, so a change never kicks anybody.
+        Packs change a few times a season, so the applier checks once a day
+        rather than around the clock; to land one sooner, start the{" "}
+        <code>RF4U DM Map Pack</code> task on the VPS by hand.{" "}
         <Link href="/servers/map-packs" className="text-steel-400 hover:text-rust-300">
           The public page
         </Link>{" "}

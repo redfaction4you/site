@@ -7,10 +7,11 @@ import { mapPacks, type MapPackEntry } from "@/lib/db/schema";
 
 /**
  * Every pack mutation on /admin revalidates this tag. The active-pack read is
- * served from the data cache between mutations, because the VPS polls it every
- * five minutes around the clock and Neon bills for every hour the database is
- * kept awake: this one poll was enough on its own to stop the compute ever
- * suspending. A script that writes `map_packs` directly (link-maps,
+ * served from the data cache between mutations, because Neon bills for every
+ * hour the database is kept awake and the VPS applier's poll of this read was
+ * enough on its own to stop the compute ever suspending back when it ran every
+ * five minutes; it is nightly now, and the cache keeps even that from reaching
+ * Postgres. A script that writes `map_packs` directly (link-maps,
  * apply-welcome, remove-map) bypasses the tag; after one of those, save any
  * pack on /admin or wait out the hourly revalidation.
  */
@@ -137,8 +138,8 @@ const activePackFromDb = unstable_cache(
   },
   ["active-map-pack"],
   // The hour is a backstop for writes that bypass the tag, not the freshness
-  // mechanism: an /admin change lands on the applier's next five-minute poll,
-  // exactly as it did when this read hit the database every time.
+  // mechanism: an /admin change is fresh here immediately, and reaches the
+  // server on the applier's next pass.
   { tags: [MAP_PACKS_CACHE_TAG], revalidate: 3600 },
 );
 

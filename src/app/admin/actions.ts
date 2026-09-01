@@ -257,9 +257,11 @@ export async function unmergeIdentity(formData: FormData): Promise<void> {
  *
  * Nothing here talks to the VPS. The site records what should be true and the
  * applier on that machine polls for it, which is the only direction that works
- * — Vercel cannot open a connection to a home server. The consequence worth
- * knowing is that switching a pack on is not instant and is not meant to look
- * instant: the admin page says "the server picks this up within five minutes".
+ * — Vercel cannot open a connection to a home server. Since 1 September that
+ * poll is nightly at 04:00 Pacific rather than every five minutes: packs change
+ * a few times a season, and the round-the-clock poll was one of the things
+ * keeping the Neon compute permanently awake. The admin page says so, and a
+ * pack can be landed sooner by starting the "RF4U DM Map Pack" task by hand.
  */
 
 /** A URL-safe slug from a pack's name, since nobody wants to type one. */
