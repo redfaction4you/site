@@ -9,6 +9,7 @@
  * So both are measured against how often they are supposed to happen, and
  * anything overdue is reported as such rather than left to be noticed.
  */
+import { unstable_cache } from "next/cache";
 import { desc, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
@@ -114,36 +115,124 @@ export type Health = {
   };
 };
 
+/**
+ * The database's half of the health answer, cached for up to an hour.
+ *
+ * Everything in here is a raw reading — timestamps and counts, never a verdict.
+ * The verdicts are computed per request against the clock, so a cached reading
+ * can only delay an alarm, never invent a healthy one: a server that stops
+ * syncing shows up at most an hour later than it otherwise would, against
+ * thresholds measured in hours anyway (`vet-live` polls every six).
+ *
+ * Cached because this endpoint exists to be polled from outside, and Neon
+ * bills for every hour the compute is kept awake: an uptime monitor on a
+ * five-minute interval was one of the things that stopped the database ever
+ * suspending. Timestamps cross the cache as ISO strings — `unstable_cache`
+ * serialises to JSON, so a `Date` would come back a string on a warm read and
+ * only on a warm read, which is exactly the kind of bug that passes every
+ * first test.
+ */
+const healthSnapshot = unstable_cache(
+  async () => {
+    // counts-everything: this answers "is data arriving", not "what does the
+    // archive say happened". A cancelled match is data arriving.
+    const [row] = await db
+      .select({
+        lastIngest: sql<Date | null>`max(${matches.ingestedAt})`,
+        matchCount: sql<number>`count(*)::int`,
+        nightCount: sql<number>`count(distinct ${matches.archiveDay})::int`,
+      })
+      .from(matches);
+
+    /*
+     * When each server last reached us, which is a different question from when
+     * a row was last written and had been standing in for it.
+     *
+     * Unchanged days stopped being rewritten on 6 August, so `max(ingested_at)`
+     * only moves when something actually happened or when the six hourly
+     * re-verify fires. A quiet afternoon therefore read as a dead pipeline: this
+     * endpoint answered 503 for most of 7 August, and `vet-live` failed with it,
+     * while the VPS was syncing every fifteen minutes and writing `unchanged` in
+     * its own log each time. An alarm that is usually wrong gets ignored, and
+     * then it is not an alarm.
+     *
+     * The pings are the answer now. `lastIngest` stays, as the honest fallback
+     * for the window after this ships and before the first sync lands, and as
+     * what `matchCount` and `nightCount` are read from anyway.
+     */
+    const pings = await listSyncPings();
+
+    /*
+     * Anything written and not yet announced, and how long the oldest has waited.
+     *
+     * Both tables, in one query, because the two announce independently and
+     * either one stopping is the same fault. `generated_at` rather than the
+     * archive day: a piece written today about last Tuesday has waited since
+     * today.
+     */
+    const [queued] = await db
+      .select({
+        pending: sql<number>`count(*)::int`,
+        oldest: sql<Date | null>`min(generated_at)`,
+      })
+      .from(
+        sql`(
+          select ${nightColumns.generatedAt} as generated_at
+          from ${nightColumns} where ${nightColumns.postedAt} is null
+          union all
+          select ${opinionPieces.generatedAt} as generated_at
+          from ${opinionPieces} where ${opinionPieces.postedAt} is null
+        ) as unannounced`,
+      );
+
+    /*
+     * Pieces that were claimed and did not arrive.
+     *
+     * `pending` above cannot see these and never could. `posted_at` is set before
+     * the request is sent, on purpose, so a delivery that fails leaves a row that
+     * looks posted. The six-hour alarm was built for exactly this failure and was
+     * blind to it: on 18 August a column and an opinion were both claimed against
+     * a webhook that had been deleted, and this endpoint reported `pending: 0`
+     * while the channel stayed silent.
+     */
+    const [failed] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(
+        sql`(
+          select 1 from ${nightColumns} where ${nightColumns.announceFailedAt} is not null
+          union all
+          select 1 from ${opinionPieces} where ${opinionPieces.announceFailedAt} is not null
+        ) as failures`,
+      );
+
+    const dm = await dmIntegrity();
+
+    return {
+      lastIngestIso: row?.lastIngest ? new Date(row.lastIngest).toISOString() : null,
+      matchCount: row?.matchCount ?? 0,
+      nightCount: row?.nightCount ?? 0,
+      pings: pings.map((ping) => ({
+        server: ping.server,
+        lastSeenAtIso: ping.lastSeenAt.toISOString(),
+      })),
+      pending: queued?.pending ?? 0,
+      oldestPendingIso: queued?.oldest ? new Date(queued.oldest).toISOString() : null,
+      announceFailures: failed?.count ?? 0,
+      dm,
+    };
+  },
+  ["health-db-snapshot"],
+  { revalidate: 3600 },
+);
+
 export async function getHealth(): Promise<Health> {
-  // counts-everything: this answers "is data arriving", not "what does the
-  // archive say happened". A cancelled match is data arriving.
-  const [row] = await db
-    .select({
-      lastIngest: sql<Date | null>`max(${matches.ingestedAt})`,
-      matchCount: sql<number>`count(*)::int`,
-      nightCount: sql<number>`count(distinct ${matches.archiveDay})::int`,
-    })
-    .from(matches);
+  const snapshot = await healthSnapshot();
 
-  const lastIngest = row?.lastIngest ? new Date(row.lastIngest) : null;
-
-  /*
-   * When each server last reached us, which is a different question from when
-   * a row was last written and had been standing in for it.
-   *
-   * Unchanged days stopped being rewritten on 6 August, so `max(ingested_at)`
-   * only moves when something actually happened or when the six hourly
-   * re-verify fires. A quiet afternoon therefore read as a dead pipeline: this
-   * endpoint answered 503 for most of 7 August, and `vet-live` failed with it,
-   * while the VPS was syncing every fifteen minutes and writing `unchanged` in
-   * its own log each time. An alarm that is usually wrong gets ignored, and
-   * then it is not an alarm.
-   *
-   * The pings are the answer now. `lastIngest` stays, as the honest fallback
-   * for the window after this ships and before the first sync lands, and as
-   * what `matchCount` and `nightCount` are read from anyway.
-   */
-  const pings = await listSyncPings();
+  const lastIngest = snapshot.lastIngestIso ? new Date(snapshot.lastIngestIso) : null;
+  const pings = snapshot.pings.map((ping) => ({
+    server: ping.server,
+    lastSeenAt: new Date(ping.lastSeenAtIso),
+  }));
   const lastArrival = pings[0]?.lastSeenAt ?? lastIngest;
   const minutesAgo = lastArrival
     ? Math.round((Date.now() - lastArrival.getTime()) / 60_000)
@@ -164,54 +253,15 @@ export async function getHealth(): Promise<Health> {
     : null;
 
   /*
-   * Anything written and not yet announced, and how long the oldest has waited.
-   *
-   * Both tables, in one query, because the two announce independently and
-   * either one stopping is the same fault. `generated_at` rather than the
-   * archive day: a piece written today about last Tuesday has waited since
-   * today.
-   */
-  const [queued] = await db
-    .select({
-      pending: sql<number>`count(*)::int`,
-      oldest: sql<Date | null>`min(generated_at)`,
-    })
-    .from(
-      sql`(
-        select ${nightColumns.generatedAt} as generated_at
-        from ${nightColumns} where ${nightColumns.postedAt} is null
-        union all
-        select ${opinionPieces.generatedAt} as generated_at
-        from ${opinionPieces} where ${opinionPieces.postedAt} is null
-      ) as unannounced`,
-    );
-
-  /*
-   * Pieces that were claimed and did not arrive.
-   *
-   * `pending` above cannot see these and never could. `posted_at` is set before
-   * the request is sent, on purpose, so a delivery that fails leaves a row that
-   * looks posted. The six-hour alarm was built for exactly this failure and was
-   * blind to it: on 18 August a column and an opinion were both claimed against
-   * a webhook that had been deleted, and this endpoint reported `pending: 0`
-   * while the channel stayed silent.
-   *
    * Any failure at all is a fault, with no grace period. Unlike a queue, which
    * is only a problem once it stops draining, a recorded failure is already the
    * end state: nothing retries it, so it will still be there tomorrow.
    */
-  const [failed] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(
-      sql`(
-        select 1 from ${nightColumns} where ${nightColumns.announceFailedAt} is not null
-        union all
-        select 1 from ${opinionPieces} where ${opinionPieces.announceFailedAt} is not null
-      ) as failures`,
-    );
-  const announceFailures = failed?.count ?? 0;
+  const announceFailures = snapshot.announceFailures;
 
-  const oldestPending = queued?.oldest ? new Date(queued.oldest) : null;
+  const oldestPending = snapshot.oldestPendingIso
+    ? new Date(snapshot.oldestPendingIso)
+    : null;
   const oldestPendingHours = oldestPending
     ? Math.round((Date.now() - oldestPending.getTime()) / 3_600_000)
     : null;
@@ -267,7 +317,7 @@ export async function getHealth(): Promise<Health> {
    * The query moved to `dm/integrity.ts` so the admin page can ask it too:
    * these were the two alarms the person who would fix them could not see.
    */
-  const dm = await dmIntegrity();
+  const dm = snapshot.dm;
   const dmBroken = dm.untimed > 0 || dm.phantoms > 0;
 
   return {
@@ -287,7 +337,7 @@ export async function getHealth(): Promise<Health> {
     announce: {
       configured: discordConfigured(),
       reachable,
-      pending: queued?.pending ?? 0,
+      pending: snapshot.pending,
       /**
        * Claimed but never confirmed as delivered. Always a fault; nothing
        * retries these, so clear `posted_at` by hand to send one again.
@@ -296,7 +346,7 @@ export async function getHealth(): Promise<Health> {
       oldestPendingHours,
       stale: announceStale,
     },
-    archive: { matches: row?.matchCount ?? 0, nights: row?.nightCount ?? 0 },
+    archive: { matches: snapshot.matchCount, nights: snapshot.nightCount },
     dm: {
       untimedPlayers: dm.untimed,
       phantomRounds: dm.phantoms,

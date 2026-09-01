@@ -1,8 +1,20 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { mapPacks, type MapPackEntry } from "@/lib/db/schema";
+
+/**
+ * Every pack mutation on /admin revalidates this tag. The active-pack read is
+ * served from the data cache between mutations, because the VPS polls it every
+ * five minutes around the clock and Neon bills for every hour the database is
+ * kept awake: this one poll was enough on its own to stop the compute ever
+ * suspending. A script that writes `map_packs` directly (link-maps,
+ * apply-welcome, remove-map) bypasses the tag; after one of those, save any
+ * pack on /admin or wait out the hourly revalidation.
+ */
+export const MAP_PACKS_CACHE_TAG = "map-packs";
 
 /**
  * Themed map packs for the deathmatch server.
@@ -115,14 +127,25 @@ export const getMapPack = cache(async function getMapPack(
  * them apart. The database now enforces one active pack per server; this makes
  * the read ask the same question.
  */
+const activePackFromDb = unstable_cache(
+  async (server: string): Promise<MapPack | null> => {
+    const [row] = await db
+      .select(columns)
+      .from(mapPacks)
+      .where(and(eq(mapPacks.active, true), eq(mapPacks.server, server)));
+    return row ?? null;
+  },
+  ["active-map-pack"],
+  // The hour is a backstop for writes that bypass the tag, not the freshness
+  // mechanism: an /admin change lands on the applier's next five-minute poll,
+  // exactly as it did when this read hit the database every time.
+  { tags: [MAP_PACKS_CACHE_TAG], revalidate: 3600 },
+);
+
 export const activeMapPack = cache(async function activeMapPack(
   server: string,
 ): Promise<MapPack | null> {
-  const [row] = await db
-    .select(columns)
-    .from(mapPacks)
-    .where(and(eq(mapPacks.active, true), eq(mapPacks.server, server)));
-  return row ?? null;
+  return activePackFromDb(server);
 });
 
 /** The pack currently on, as the VPS applies it. Null means "leave it alone". */

@@ -1,7 +1,7 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { checkDisplayName } from "@/lib/matches/display-name";
-import { isLevelFilename } from "@/lib/map-packs";
+import { isLevelFilename, MAP_PACKS_CACHE_TAG } from "@/lib/map-packs";
 import {
   buildFeatureFacts,
   saveFeature,
@@ -366,6 +366,9 @@ export async function saveMapPack(formData: FormData): Promise<void> {
     .values(values)
     .onConflictDoUpdate({ target: mapPacks.slug, set: values });
 
+  // The VPS polls a cached read; without this, an edited pack would sit behind
+  // the cache for up to an hour instead of landing on the next five-minute poll.
+  revalidateTag(MAP_PACKS_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -417,6 +420,7 @@ export async function activateMapPack(formData: FormData): Promise<void> {
       .where(eq(mapPacks.slug, slug)),
   ]);
 
+  revalidateTag(MAP_PACKS_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -432,6 +436,7 @@ export async function activateMapPack(formData: FormData): Promise<void> {
 export async function deactivateMapPacks(): Promise<void> {
   if (!(await allowed())) redirect("/admin");
   await db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true));
+  revalidateTag(MAP_PACKS_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -458,6 +463,7 @@ export async function deleteMapPack(formData: FormData): Promise<void> {
   if (pack?.active) redirect("/admin?problem=pack-active");
 
   await db.delete(mapPacks).where(eq(mapPacks.slug, slug));
+  revalidateTag(MAP_PACKS_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
