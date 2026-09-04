@@ -159,9 +159,12 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   is dry-run by default, so the run that was meant to write prints its dry-run
   report, says nothing was written and exits 0. **It is indistinguishable from a
   successful no-op**, which is why it went unnoticed: `refs:push`,
-  `apply:welcome`, `map:remove`, `link-maps`, `shuffle-packs` and
-  `drives:recompute` had all been silently refusing to act under PowerShell, and
-  the last of those is documented in this file as the way to rerun drive credit.
+  `apply:welcome`, `map:remove` and `drives:recompute` had all been silently
+  refusing to act under PowerShell, and the last of those is documented in this
+  file as the way to rerun drive credit. `link-maps` and `shuffle-packs` were
+  converted in the same pass but were never affected, because they are run
+  directly with `node` and npm is never in the path to strip anything. **Only a
+  script with an entry in `package.json` can be bitten by this.**
   Read flags through `flag()` in `scripts/cli-flags.mjs`, which also reads the
   `npm_config_*` variables npm re-exposes, and print the resolved options so a
   swallowed flag is visible. `scripts/cli-flags.test.mjs` fails if any script

@@ -12,10 +12,10 @@
  * text is `steel-400`, and 500 to 700 are for borders, rules, placeholders and
  * struck-through marks. Nothing enforced that. Nothing under `scripts/` read
  * `src/components` at all, so any new component could reintroduce unreadable
- * body text and every check would stay green, which is how 354 of these got
+ * body text and every check would stay green, which is how 344 of these got
  * here in the first place.
  *
- * This is a ratchet rather than a sweep. Fixing all 354 at once would restyle
+ * This is a ratchet rather than a sweep. Fixing all of them at once would restyle
  * most of the site in a commit nobody could review, and the reasoning in
  * `globals.css` says that is the owner's call rather than a tidy-up. So:
  *
@@ -79,11 +79,13 @@ const MUST_BE_CLEAN = [
 ];
 
 /**
- * Measured 3 September 2026, with the downloads section already clean.
+ * Measured 3 September 2026, with the downloads section and the upload form
+ * already clean. It was 357 before that work and 344 straight after; the extra
+ * one came off with the search page's disambiguator.
  *
  * Lower this when you fix a page. Never raise it.
  */
-const BASELINE = 344;
+const BASELINE = 343;
 
 function walk(dir) {
   const out = [];

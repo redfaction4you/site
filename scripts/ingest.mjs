@@ -71,6 +71,8 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { neon } from "@neondatabase/serverless";
 import { config } from "dotenv";
 
+import { flag, option } from "./cli-flags.mjs";
+
 import { ITEM_KINDS, SECTION_BY_KIND, categoryFromLevels } from "../src/lib/downloads.ts";
 import {
   chooseDownload,
@@ -127,16 +129,21 @@ const { formatBytes, publicUrl } = await import("../src/lib/storage.ts");
  * as `true` and passes `map` on as though it were a path, and nothing can tell
  * that from a folder called map. That spelling is refused by name.
  */
-const fromNpm = process.env.npm_lifecycle_event === "ingest" ? process.env : {};
-
+/*
+ * Read through `cli-flags.mjs` rather than inline, which this did at first.
+ * The rescue was identical and correct, and that was the problem: the guard in
+ * `cli-flags.test.mjs` only sees scripts that use the shared helper, so the one
+ * script written because of this bug was the one script the check could not
+ * cover. A fix its own check cannot see is half a fix.
+ */
 const argv = process.argv.slice(2);
 const targets = [];
 const badOptions = [];
 
-let live = fromNpm.npm_config_go === "true";
-let publish = fromNpm.npm_config_publish === "true";
-let defaultKind = fromNpm.npm_config_kind ?? "map";
-let defaultAuthor = fromNpm.npm_config_author ?? null;
+let live = flag("go");
+let publish = flag("publish");
+let defaultKind = option("kind", "map");
+let defaultAuthor = option("author", null);
 
 for (let index = 0; index < argv.length; index += 1) {
   const arg = argv[index];
