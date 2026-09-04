@@ -21,13 +21,15 @@
  */
 import { neon } from "@neondatabase/serverless";
 import { config } from "dotenv";
+import { flag, positionals } from "./cli-flags.mjs";
 
 config({ path: ".env.local" });
 config();
 
-const args = process.argv.slice(2);
-const go = args.includes("--go");
-const [server, wanted] = args.filter((value) => !value.startsWith("--"));
+// Not `args.includes("--go")`: npm eats the flag on Windows and the removal
+// would report itself as a dry run. See scripts/cli-flags.mjs.
+const go = flag("go");
+const [server, wanted] = positionals();
 
 if (!server || !wanted) {
   console.error("Usage: npm run map:remove -- <server> <filename or title> [--go]");

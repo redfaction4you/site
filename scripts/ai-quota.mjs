@@ -21,11 +21,12 @@
  * that is already exhausted is free to check.
  */
 import { config } from "dotenv";
+import { flag } from "./cli-flags.mjs";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
 
-const probeImages = process.argv.includes("--images");
+const probeImages = flag("images");
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 

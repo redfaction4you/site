@@ -24,11 +24,14 @@ import { config } from "dotenv";
 
 import { SERVERS } from "../src/lib/servers.ts";
 import { asciiForGame } from "../src/lib/map-pack-rules.ts";
+import { flag } from "./cli-flags.mjs";
 
 config({ path: ".env.local" });
 config();
 
-const go = process.argv.includes("--go");
+// Not `process.argv.includes("--go")`: npm eats the flag on Windows and this
+// would then quietly write nothing. See scripts/cli-flags.mjs.
+const go = flag("go");
 
 const url = process.env.DATABASE_URL;
 if (!url) {

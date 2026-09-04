@@ -153,6 +153,25 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   went into diagnosing an image pipeline that was correct and simply had no key.
   `vercel env ls production` is the fast way to see what production actually has,
   and `.env.local` is not it: the two stores are unrelated.
+- **`npm run <script> -- --go` does not pass `--go` to the script on Windows.**
+  npm reads it as one of its own options, warns `Unknown cli config "--go"`, and
+  drops it before the script sees `process.argv`. Every destructive script here
+  is dry-run by default, so the run that was meant to write prints its dry-run
+  report, says nothing was written and exits 0. **It is indistinguishable from a
+  successful no-op**, which is why it went unnoticed: `refs:push`,
+  `apply:welcome`, `map:remove`, `link-maps`, `shuffle-packs` and
+  `drives:recompute` had all been silently refusing to act under PowerShell, and
+  the last of those is documented in this file as the way to rerun drive credit.
+  Read flags through `flag()` in `scripts/cli-flags.mjs`, which also reads the
+  `npm_config_*` variables npm re-exposes, and print the resolved options so a
+  swallowed flag is visible. `scripts/cli-flags.test.mjs` fails if any script
+  goes back to reading a flag off `argv`; it found four of the seven cases on
+  the first run. A value flag must be written `--kind=asset`: with a space, npm
+  records the flag as `true` and passes the value on as a positional, so there
+  is nothing left to recover and callers should refuse that form by name. This
+  is the same cause as the `vet:pages -- --base <url>` bug below, which printed
+  a clean bill of health for a dev server while appearing to check production.
+  **When a check is run wrongly it reports success.**
 - **Never run `npm run build` while `next dev` is running.** The build overwrites
   `.next` underneath the dev server and it starts answering 500 with
   `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or

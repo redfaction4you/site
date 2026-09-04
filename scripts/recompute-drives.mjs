@@ -22,6 +22,7 @@
  */
 import { neon } from "@neondatabase/serverless";
 import { config } from "dotenv";
+import { flag } from "./cli-flags.mjs";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -29,7 +30,7 @@ config({ quiet: true });
 const { reconstructDrives, creditDrives } = await import("../src/lib/matches/drives.ts");
 
 const sql = neon(process.env.DATABASE_URL);
-const live = process.argv.includes("--go");
+const live = flag("go");
 
 const matches = await sql`
   select id, source_match_id, archive_day::text as day, map_name, flag_events

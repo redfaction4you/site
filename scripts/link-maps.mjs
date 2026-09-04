@@ -25,6 +25,7 @@
  */
 import fs from "node:fs";
 import { neon } from "@neondatabase/serverless";
+import { flag } from "./cli-flags.mjs";
 
 const LOOKUP = "https://rfsb.factionfiles.com/api/v2/ff-rfl-lookup";
 const PAGE = (id) => `https://www.factionfiles.com/ff.php?action=file&id=${id}`;
@@ -33,8 +34,8 @@ const PAGE = (id) => `https://www.factionfiles.com/ff.php?action=file&id=${id}`;
 const GAP_MS = 120;
 const TIMEOUT_MS = 15_000;
 
-const go = process.argv.includes("--go");
-const all = process.argv.includes("--all");
+const go = flag("go");
+const all = flag("all");
 
 const url = fs
   .readFileSync(".env.local", "utf8")

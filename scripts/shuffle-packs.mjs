@@ -24,8 +24,9 @@
  */
 import fs from "node:fs";
 import { neon } from "@neondatabase/serverless";
+import { flag } from "./cli-flags.mjs";
 
-const go = process.argv.includes("--go");
+const go = flag("go");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 
 const url = fs

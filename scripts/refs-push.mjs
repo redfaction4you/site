@@ -23,13 +23,17 @@ import { extname, join, relative } from "node:path";
 
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { config } from "dotenv";
+import { flag } from "./cli-flags.mjs";
 
 config({ path: ".env.local", quiet: true });
 
 const ROOT = "assets/refs";
 const MANIFEST = "src/lib/ai/image-refs.ts";
 const PREFIX = "refs/";
-const live = process.argv.includes("--go");
+// Not `process.argv.includes("--go")`: npm eats the flag on Windows and this
+// script then reports "Nothing uploaded" for a run that was meant to push.
+// See scripts/cli-flags.mjs.
+const live = flag("go");
 
 /* --- reading what is there ------------------------------------------------ */
 
