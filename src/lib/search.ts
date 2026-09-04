@@ -17,6 +17,7 @@ import {
 } from "@/lib/matches/queries";
 import { mapSlug } from "@/lib/matches/maps";
 import { BOARDS } from "@/lib/matches/leaderboards";
+import { SECTIONS } from "@/lib/downloads";
 import { VISIBLE_NAV } from "@/lib/nav";
 import { asDay, asScore } from "@/lib/search-query";
 
@@ -191,6 +192,24 @@ export async function search(raw: string): Promise<SearchResults> {
       href: item.href,
       title: item.label,
       kind: "page",
+    })),
+    /*
+     * The four catalogue shelves, from `SECTIONS` rather than from the
+     * navigation, because they are deliberately not in it: they are reached
+     * through `/downloads` and carry the `hidden` flag in `nav.ts`. Drawn only
+     * from `VISIBLE_NAV`, this list could offer a reader who typed "maps" the
+     * match record's maps and the competitive map index and never the shelf of
+     * map files, which is the thing most people mean by the word.
+     *
+     * `detail` is what tells the two Maps apart in the results, since both are
+     * titled the same on purpose and the shelf's longer nav label, "Map
+     * downloads", does not contain the word somebody typed.
+     */
+    ...SECTIONS.map((section) => ({
+      href: section.route,
+      title: section.title,
+      kind: "downloads",
+      detail: "to download",
     })),
     { href: COLUMNIST_HREF, title: COLUMNIST_NAME, kind: "the analyst" },
     { href: "/matches/maps", title: "Competitive CTF maps", kind: "page" },

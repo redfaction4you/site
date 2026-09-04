@@ -19,6 +19,7 @@ import type { AdapterAccountType } from "next-auth/adapters";
 // Type-only import: erased at compile time, so drizzle-kit never has to
 // resolve it. Keeps the client list in one place rather than duplicating it.
 import type { RfClient } from "../rfl/clients.ts";
+import type { ItemKind } from "../downloads.ts";
 import type {
   PublicFlagEvent,
   PublicKill,
@@ -126,18 +127,28 @@ export const verificationTokens = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Phase 2: the catalogue
+// Phase 2: the downloads catalogue
 //
-// One `items` table rather than five. Maps, mods, models, weapons and tools
+// One `items` table rather than one per shelf. Maps, assets, mods and tools
 // differ in almost nothing a database cares about, title, author, files,
 // screenshots, and the one genuine difference, level compatibility, lives in
-// its own table. Five near-identical tables would mean five of every query,
-// five upload paths and five ways to drift apart.
+// its own table. Near-identical tables would mean one of every query per shelf,
+// one upload path per shelf and as many ways to drift apart.
+//
+// `kind` is the shelf and `category` is the facet within it. The split matters:
+// a query filtered to one kind can never return another shelf's rows however
+// careless it is, which is the same reasoning that gave deathmatch its own
+// tables rather than a mode column. A category is only ever meaningful inside
+// its own kind, so "weapon" as an asset and a weapon-themed map never collide.
 // ---------------------------------------------------------------------------
 
-/** The catalogue sections. One per top-level route. */
-export const ITEM_KINDS = ["map", "mod", "model", "weapon", "tool"] as const;
-export type ItemKind = (typeof ITEM_KINDS)[number];
+/**
+ * The shelves, and the vocabulary of facets within each, live in
+ * `@/lib/downloads`, which imports nothing and can therefore be loaded by
+ * `node --test`. This is a type-only import, so it is erased and does not drag
+ * the database into that module's dependency graph.
+ */
+export type { ItemKind };
 
 /**
  * `draft`    , uploaded, not visible to the public.
@@ -145,6 +156,19 @@ export type ItemKind = (typeof ITEM_KINDS)[number];
  * `hidden`   , pulled by an admin. Deliberately not deleted: commitment 2 says
  *               things do not disappear, and a broken or mislabelled upload
  *               should stop being served without the record evaporating.
+ *
+ * **What "pulled" actually means, because it is less than it sounds.** These
+ * three states govern the PAGE. They do not govern the bytes. The R2 bucket has
+ * a public custom domain and `publicUrl()` is a pure function of the storage
+ * key, so a file whose item is hidden or still a draft stays fetchable by
+ * anybody who has ever seen its URL, and every link already pasted into Discord
+ * goes on working. `/api/download/[fileId]` does enforce this, because it reads
+ * the status before redirecting, so the difference between the two ways of
+ * reaching a file is real and worth knowing.
+ *
+ * The consequence to hold on to: hiding an item that is mislabelled is enough,
+ * and hiding one that must genuinely stop being distributed is not. That case
+ * needs the object deleted or re-keyed in R2 as well.
  */
 export const ITEM_STATUSES = ["draft", "published", "hidden"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
@@ -198,6 +222,37 @@ export const items = pgTable(
      */
     releasedOn: date("released_on"),
 
+    /**
+     * The facet within this item's shelf: a map type, an asset type.
+     *
+     * Nullable, and null is a real answer rather than a gap to be filled in.
+     * Red Faction encodes a level's game type in its filename and plenty of
+     * levels carry no prefix at all, so `categoryFromLevels` in
+     * `@/lib/downloads` returns null for them and this column keeps that
+     * honestly. The listing files an uncategorised item under nothing rather
+     * than guessing, which is the same trade `detectionConfidence` makes.
+     *
+     * Validated against the section's own vocabulary at write time, never by a
+     * database constraint: the vocabulary is editorial and changes with the
+     * community's conventions, and a check constraint would turn adding a shelf
+     * facet into a migration.
+     */
+    category: text("category"),
+
+    /**
+     * The author's own version string, shown beside the title: `Dainer a6a`.
+     *
+     * Deliberately NOT called `version`. That word is taken twice over on the
+     * same detail page by the RFL file FORMAT version, which is a property of
+     * the file that decides which clients can load it, and confusing the two
+     * would put "a6a" where a reader is looking for a compatibility answer.
+     *
+     * Free text and never parsed or ordered. Red Faction versioning is whatever
+     * the author wrote: `a5a`, `b12`, `ver1` and `2.0 FINAL` are all real, and
+     * imposing a scheme on that would only ever be wrong about somebody.
+     */
+    releaseVersion: text("release_version"),
+
     /** Free-form tags for filtering: "ctf", "dm", "single-player", "large". */
     tags: text("tags").array().$type<string[]>().default([]).notNull(),
 
@@ -206,6 +261,17 @@ export const items = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+
+    /**
+     * When this item last changed, and the column "Recently updated" sorts on.
+     *
+     * The rule that makes that reading true: **writing an `item_updates` entry
+     * must bump this**. Left to itself the column means "somebody edited the
+     * row", which is a different fact and a much less interesting one, and a
+     * shelf sorted by it would rank a corrected typo above a new release. The
+     * ordering has to happen in SQL over one column, so the alternative of
+     * deriving it from the newest changelog entry at read time is not open.
+     */
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -216,6 +282,71 @@ export const items = pgTable(
     unique("items_kind_slug_key").on(item.kind, item.slug),
     index("items_kind_status_idx").on(item.kind, item.status),
     index("items_uploader_idx").on(item.uploaderId),
+    // Every listing is one shelf, filtered to published, usually narrowed to
+    // one facet. This is that query.
+    index("items_kind_status_category_idx").on(item.kind, item.status, item.category),
+  ],
+);
+
+/**
+ * One entry in an item's changelog.
+ *
+ * A map is not published once. It is published, played, and fixed: the pages
+ * this section is modelled on routinely carry ten or more updates per level,
+ * and "what changed in a6a" is a question a returning player actually asks. The
+ * alternative was an edited description, which answers it by destroying the
+ * answer to every previous version of it.
+ *
+ * Kept deliberately thin. There is no per-update file: an update describes a
+ * change to the item, and the item has one current download. Archiving every
+ * historical build is a different feature with a different storage bill, and
+ * pretending to offer it by hanging a nullable file here would be worse than
+ * not offering it.
+ */
+export const itemUpdates = pgTable(
+  "item_updates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+
+    /**
+     * The version this update produced, as the author wrote it.
+     *
+     * Null is allowed because plenty of real updates are "minor thing, i
+     * forgor" with no version bump at all, and forcing one would mean inventing
+     * version numbers on the author's behalf.
+     */
+    releaseVersion: text("release_version"),
+
+    /** The headline: "new update", "wrong file", "minor thing". */
+    title: text("title").notNull(),
+
+    /** What changed. Plain text; there is no markdown renderer on this site. */
+    body: text("body"),
+
+    /**
+     * When the update was made, which is not necessarily when it was archived.
+     *
+     * Set explicitly rather than defaulted at insert, for the same reason
+     * `items.releasedOn` exists: an archive that cannot tell "changed in 2004"
+     * from "we typed it in last night" is not much of an archive.
+     */
+    releasedAt: timestamp("released_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (update) => [
+    // Newest first, per item. The only way this is ever read.
+    index("item_updates_item_released_idx").on(update.itemId, update.releasedAt),
   ],
 );
 
@@ -1137,6 +1268,7 @@ export const matchVideos = pgTable(
 export const itemsRelations = relations(items, ({ one, many }) => ({
   files: many(files),
   screenshots: many(screenshots),
+  updates: many(itemUpdates),
   mapMeta: one(mapMeta, {
     fields: [items.id],
     references: [mapMeta.itemId],
@@ -1346,6 +1478,10 @@ export const filesRelations = relations(files, ({ one }) => ({
 
 export const screenshotsRelations = relations(screenshots, ({ one }) => ({
   item: one(items, { fields: [screenshots.itemId], references: [items.id] }),
+}));
+
+export const itemUpdatesRelations = relations(itemUpdates, ({ one }) => ({
+  item: one(items, { fields: [itemUpdates.itemId], references: [items.id] }),
 }));
 
 export const mapMetaRelations = relations(mapMeta, ({ one }) => ({

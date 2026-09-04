@@ -497,11 +497,71 @@ the one place a label could not follow it.
 
 ---
 
+## The downloads section, built 3 September 2026
+
+The catalogue became the downloads section: a `/downloads` hub, Maps and Assets
+as browsable shelves with type facets, sortable listings, and detail pages with
+a screenshot gallery and a per-version changelog.
+
+What is worth knowing before changing it:
+
+- **`kind` is the shelf and `category` is the facet.** The four kinds are `map`,
+  `asset`, `mod`, `tool`. A query filtered to one kind can never return another
+  shelf's rows however careless it is, which is the same reasoning that gave
+  deathmatch its own tables. `model` and `weapon` stopped being kinds and became
+  asset categories; `/models` and `/weapons` are permanent redirects, because
+  they were live 200s and links to them must keep working.
+- **The rules live in `src/lib/downloads.ts`, which imports nothing**, so
+  `scripts/downloads.test.mjs` loads it directly. Section copy, the two category
+  vocabularies, the sort keys and the filename-to-game-type derivation are all
+  there and all pinned by tests.
+- **A map's game type is derived from its filename using the game's own rule**,
+  taken from `multi_level_name_matches_any_mp_prefix` in Alpine's
+  `game_patch/multi/multi.cpp`. Keeping the two in step matters: a map filed here
+  as CTF that no server would accept as CTF is a listing that lies about the file
+  it offers. `run` deliberately needs a separator, because Alpine resolves run
+  levels from a known list precisely because three letters are ambiguous, and
+  `runway.rfl` is an ordinary deathmatch map. Single player is never derived; it
+  is set by a person or not at all.
+- **`categoryFromLevels` returning `null` and returning `"other"` mean different
+  things**, and the difference is tested. Null is "the parser had no opinion",
+  `other` is "it read a genuine tie or an unshelved type". Only the first is a
+  queue of things for a person to look at.
+- **The download counter never worked before and now needs a route.**
+  `recordDownload` had zero callers because the page linked straight at the
+  public bucket, so `download_count` was 0 on every row and could not move.
+  `/api/download/[fileId]` counts and redirects. It is a 302 and must stay one: a
+  301 is cached by the browser, so every later download of that file would never
+  reach us and each person would be counted once, forever.
+- **The counter measures downloads that went through the site, and nothing
+  more.** The bucket is public, so anyone holding a key can fetch the bytes
+  directly. That is worth saying wherever the number is shown.
+- **`status = 'hidden'` governs the page, not the bytes**, for the same reason.
+  Hiding a mislabelled upload is enough; making one genuinely stop being
+  distributed also needs the R2 object deleted or re-keyed.
+- **Writing an `item_updates` row must bump `items.updated_at`**, because
+  "Recently updated" sorts on that column in SQL and cannot derive it at read
+  time. Left alone the column means "somebody edited the row", which would rank a
+  corrected typo above a new release.
+
 ## The thing that still matters most
 
-The catalogue is empty. Everything above is a very good archive of a server with
-nothing to download attached to it, and the build plan is explicit that launching
-empty and waiting for uploads that never come is the most likely way this project
-dies. Seeding from the Levels4You archive is worth more than any further feature,
-and it is also the only way to test the RFL compatibility parser against a real
-file rather than the synthetic fixtures it currently passes.
+**The catalogue is still empty.** The shelves are built and there is nothing on
+them, which is the same sentence as before with better furniture. The build plan
+is explicit that launching empty and waiting for uploads that never come is the
+most likely way this project dies. Seeding from the Levels4You archive is worth
+more than any further feature, and it is also the only way to test the RFL
+compatibility parser against a real file rather than the synthetic fixtures it
+currently passes.
+
+Two things the downloads build changed about that job:
+
+- **There is still no upload path.** Nothing in `src/` writes to `items`, and
+  `files.storage_key`, `size_bytes` and `sha256` are all `NOT NULL`, so a row
+  cannot be created without really storing a file and hashing it. An admin form
+  or a seeding script is the next piece of work, and the seeding script is the
+  more valuable of the two.
+- **`inspectUpload` discards the filename for a bare `.rfl`**, hardcoding
+  `level.rfl`, so the only game-type signal is lost before anything can read it.
+  Zip and vpp entry names survive. Pass the real filename in when the upload path
+  is built, or every bare level arrives uncategorised.

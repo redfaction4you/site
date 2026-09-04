@@ -93,8 +93,12 @@ export default async function SearchPage({ searchParams }: Props) {
                       <span className="min-w-0 flex-1 truncate text-sm text-steel-200 group-hover:text-rust-300">
                         {hit.title}
                       </span>
+                      {/* `steel-400`. This is the only thing telling two hits
+                          with the same title apart, so it is the last text on
+                          the page that can afford to sit under the 4.5:1
+                          floor, and 500 to 700 are all below it. */}
                       {hit.detail ? (
-                        <span className="shrink-0 font-mono text-[0.625rem] text-steel-600">
+                        <span className="shrink-0 font-mono text-[0.625rem] text-steel-400">
                           {hit.detail}
                         </span>
                       ) : null}

@@ -30,6 +30,7 @@ import { db } from "@/lib/db";
 import {
   accounts,
   files,
+  itemUpdates,
   items,
   mapMeta,
   matchCaptures,
@@ -136,6 +137,10 @@ export async function runBackup(): Promise<BackupResult> {
     ["files", db.select().from(files)],
     ["map_meta", db.select().from(mapMeta)],
     ["screenshots", db.select().from(screenshots)],
+    // After `items`, because it references it. An entry here is the only
+    // record of what changed between one release of a map and the next, and
+    // unlike the file itself it exists nowhere but this database.
+    ["item_updates", db.select().from(itemUpdates)],
     // counts-everything: the archive as it stands, cancelled matches included.
     ["matches", db.select().from(matches)],
     // counts-everything: the scoreboards belonging to those matches.

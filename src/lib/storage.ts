@@ -7,9 +7,15 @@
  * which means the URL must be a function of the stored key and nothing else.
  * No signed URLs, no expiring tokens, no ids that change when a row is edited.
  *
- * R2 is not provisioned yet. Until `NEXT_PUBLIC_R2_PUBLIC_BASE` is set, this
- * reports itself as unconfigured and callers render an honest "not available"
- * state rather than a link to nowhere.
+ * R2 is provisioned. The bucket serves from `files.redfaction4you.com`, and
+ * `NEXT_PUBLIC_R2_PUBLIC_BASE` is set in both `.env.local` and production.
+ *
+ * The guard below still matters, and not only as history: a local run without
+ * that variable, a preview deployment that never had it, and a fresh checkout
+ * all reach this with nothing configured. In those cases it reports itself as
+ * unconfigured and callers render an honest "not available" state rather than a
+ * link to nowhere, which is the same bargain `discordConfigured` makes. It is
+ * also what the download route tests before it redirects.
  */
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE?.replace(/\/+$/, "");

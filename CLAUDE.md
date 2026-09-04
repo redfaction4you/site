@@ -22,10 +22,20 @@ anything. The full reasoning is in `../BUILD-PLAN.md`.
 `main`. `docs/HANDOVER.md` is the authority on what is built and what is next;
 this file is conventions and gotchas.
 
-Navigation: News, Matches, Players, Stats, Servers, Events. The catalogue
-sections (maps, mods, models, weapons, tools, videos, guides) are built, empty,
-and hidden with the `hidden` flag in `src/lib/nav.ts`. Their routes still answer
-so shared links keep working.
+Navigation: News, Downloads, Matches, Maps, Players, Pairings, Stats, Servers,
+Events. That is nine entries and the header row is measured full at nine, so a
+tenth needs the working under `VISIBLE_NAV` in `src/lib/nav.ts` taken again
+rather than trusted.
+
+Downloads is the hub at `/downloads`. The four shelves behind it (`/maps`,
+`/assets`, `/mods`, `/tools`) are real pages that keep the `hidden` flag,
+because they are reached through the hub rather than each spending a slot in the
+row; the sitemap builds itself from the catalogue rather than from `nav.ts`, so
+hiding them costs nothing in findability. `/models` and `/weapons` are no longer
+sections at all: they are facets of Assets and their old routes redirect
+permanently, which is in `next.config.ts`. `/videos` and `/guides` are the other
+kind of hidden, built and empty with nothing pointing at them yet. Every one of
+those routes still answers, so shared links keep working.
 
 Sign-in is removed from the header. Discord auth is still in the code and
 returns on its own if `AUTH_DISCORD_ID` is set, but every page reads without an
@@ -72,7 +82,7 @@ search that quietly stops finding last night.
 
 Next.js 15.5 App Router · TypeScript · Tailwind v4 · Auth.js v5 (beta) with
 Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R2
-(Phase 2).
+(provisioned, serving from `files.redfaction4you.com`).
 
 ## Gotchas, all of which have already bitten once
 
@@ -195,24 +205,67 @@ them. Detection is by content, never by extension.
   tests and in the CLI with no build step. It is the only module written that
   way; the rest of `src/` uses `@/`.
 
-## The catalogue (`src/lib/catalogue.ts`, `src/components/catalogue-page.tsx`)
+## The catalogue (`src/lib/downloads.ts`, `src/lib/catalogue.ts`)
 
-One `items` table and one set of components serve all five sections. The
-per-section differences are editorial, and they live in `KIND_META` — adding a
-sixth section is an entry there plus two three-line route files.
+One `items` table and one set of components serve all four shelves: maps
+(`/maps`), assets (`/assets`), mods (`/mods`) and tools (`/tools`). The
+per-shelf differences are editorial and live in `SECTIONS`, so a fifth shelf is
+an entry there plus two small route files.
 
-- **Filters are links carrying query parameters, not client state.** Every
-  filtered view is a real URL somebody can paste into Discord. That matters
-  more here than a slicker interaction.
+- **`kind` is the shelf and `category` is the facet inside it.** A CTF map and a
+  Damage Control map are both `kind = 'map'`; they sit on the same shelf and a
+  reader narrows down within it, so a new game type is a row in
+  `MAP_CATEGORIES` rather than a fifth section. Uncategorised is a real state
+  and stays visible: `countByCategory` counts those under the key `"none"`,
+  because a map whose filename says nothing about its type must still appear
+  somewhere.
+- **The section metadata and every rule that can be decided without a database
+  live in `src/lib/downloads.ts`, which imports nothing.** Titles, empty-state
+  wording, the category lists, the sort values, `categoryFromLevels` and
+  `displayVersion` are all there, so `scripts/downloads.test.mjs` runs the real
+  code under plain `node`. Each of those rules fails silently if it goes wrong:
+  a map filed under the wrong game type sits on the wrong shelf forever with
+  nothing about the page looking broken, and a `?sort=` value off a stranger's
+  URL that is not handled throws on a page that should simply show the default
+  listing. `parseSort` therefore tolerates anything.
+- **Filters and sorting are links carrying query parameters, not client state.**
+  Every filtered or sorted view is a real URL somebody can paste into Discord.
+  That matters more here than a slicker interaction.
+- **`item_updates` is the changelog, and it records when the author changed
+  something, not when we typed it in.** `released_at` is set explicitly for the
+  same reason `items.released_on` exists: an archive that cannot tell "fixed in
+  2004" from "archived last night" is not much of an archive. `release_version`
+  is nullable because plenty of real updates are "minor thing, no version bump",
+  and requiring one would mean inventing version numbers on the author's
+  behalf. Read newest first, which is the only order a changelog is read in.
+- **The download counter needs `/api/download/[fileId]`, and it counts only what
+  went through the site.** Before that route, `recordDownload` had no callers at
+  all: the detail page linked straight at the R2 URL, so `download_count` was
+  zero on every row and "most downloaded" was an order over a column of zeroes.
+  Three things about it are load-bearing. The count runs in `after()`, so a slow
+  database never delays the file and can never fail it. The redirect is **302
+  and must stay 302**, because a browser caches a permanent one and follows it
+  without asking again, which would count each person once and then never see
+  them again. And the bucket is public, so anyone holding a key can fetch the
+  object directly: the figure undercounts by an unknowable amount and has to be
+  presented as downloads through the site rather than a total.
 - **`author_name` is not `uploader_id`.** Most of the archive was made by people
   who will never have an account here. Never conflate the two in UI or queries.
 - **Storage degrades honestly.** `publicUrl()` returns null when
-  `NEXT_PUBLIC_R2_PUBLIC_BASE` is unset, and the download panel says so rather
-  than rendering a dead link. Same pattern as `discordConfigured`.
-- **Setting `NEXT_PUBLIC_R2_PUBLIC_BASE` is all that is needed for images** —
-  `next.config.ts` derives the `remotePatterns` entry from it.
+  `NEXT_PUBLIC_R2_PUBLIC_BASE` is unset, so the download panel says so rather
+  than rendering a dead link and the download route answers 503 rather than
+  redirecting to an address assembled from a missing base. Same pattern as
+  `discordConfigured`.
+- **R2 is provisioned and serves from `files.redfaction4you.com`.**
+  `NEXT_PUBLIC_R2_PUBLIC_BASE` is set in `.env.local` and in production, and it
+  is all that is needed for images too: `next.config.ts` derives the
+  `remotePatterns` entry from it, so a hostname added by hand is a hostname that
+  will be wrong the day the bucket moves. The unconfigured path above is for a
+  local run or a preview that never had the variable.
 - Listing pages only ever show `status = 'published'`; drafts 404 on their
-  detail route. Verified against a seeded row, not assumed.
+  detail route, and `getDownloadable` checks it too, so a file id that leaked
+  before publication or was kept after a takedown answers exactly like a typo.
+  Verified against a seeded row, not assumed.
 
 ## Match archive (`src/lib/matches/`, `/matches`)
 

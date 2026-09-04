@@ -6,11 +6,22 @@ export type NavItem = {
   /**
    * Kept out of the header and footer, but still a live page.
    *
-   * Used for sections that exist and work but have nothing in them yet.
-   * Advertising an empty shelf invites people to click it and find nothing,
-   * which is a worse first impression than not offering it, but the route
-   * still answers, so any link already shared keeps working. Delete the flag
-   * to put it back; nothing else needs changing.
+   * Used for sections that exist and work but have nothing in them yet, and for
+   * the four downloads shelves, which are reached through `/downloads` rather
+   * than each having a slot of their own. Advertising an empty shelf invites
+   * people to click it and find nothing, which is a worse first impression than
+   * not offering it, but the route still answers, so any link already shared
+   * keeps working.
+   *
+   * **Deleting the flag is not free**, whatever this comment used to say. Two
+   * things have to be checked first. The header row is fitted by measurement
+   * and is full at nine entries, so a tenth needs the measurement under
+   * `VISIBLE_NAV` taken again rather than trusted. And a label has to be unique to a
+   * reader: `/maps` here is the catalogue's maps, which are files to download,
+   * while `/matches/maps` is the match record's maps, which are what has been
+   * played on them. Two header entries both reading Maps would be a menu that
+   * disagrees with itself, which is why the catalogue's carries a longer label
+   * below.
    */
   hidden?: boolean;
 };
@@ -23,21 +34,31 @@ export type NavItem = {
  * things.
  */
 export const NAV: NavItem[] = [
-  // The catalogue sections are built now, so they carry no phase tag. They are
-  // empty, but an empty shelf and an unbuilt shelf are different things and the
-  // pages say which they are.
-  // The catalogue is built but empty. Hidden until there is something on the
-  // shelves; every page still answers, so shared links keep working.
   /*
-   * The catalogue's own Maps, which is the page for downloading a map file
-   * rather than the page for what has been played on it. Hidden, and when it
-   * ships the two will need telling apart in the header: this one is the files.
+   * The four downloads shelves, reached through `/downloads` rather than each
+   * having a slot of its own.
+   *
+   * Maps, assets, mods and tools are one catalogue with four shelves, and
+   * giving each a header entry would spend half the row on a section most
+   * readers arrive at once and then browse within. They stay listed here
+   * because they are real pages with real URLs that get pasted into Discord.
+   * The sitemap builds itself from the catalogue rather than from this list, so
+   * nothing here needs unhiding for them to be found.
    */
-  { href: "/maps", label: "Maps", hidden: true },
+  // The catalogue's own Maps, which is the page for downloading a map file
+  // rather than the page for what has been played on it. Labelled for the day
+  // somebody unhides it: "Maps" is taken, by `/matches/maps` further down.
+  { href: "/maps", label: "Map downloads", hidden: true },
+  { href: "/assets", label: "Assets", hidden: true },
   { href: "/mods", label: "Mods", hidden: true },
-  { href: "/models", label: "Models", hidden: true },
-  { href: "/weapons", label: "Weapons", hidden: true },
   { href: "/tools", label: "Tools", hidden: true },
+  // Models and Weapons are gone as sections. They are facets of Assets now
+  // (`/assets?type=model`, `/assets?type=weapon`) and their old routes redirect
+  // there permanently, which is handled in `next.config.ts`. An entry here
+  // would be this file advertising a URL that only ever answers 308.
+
+  // The other kind of hidden: built, empty, and nothing pointing at them until
+  // there is something to point at.
   { href: "/videos", label: "Videos", hidden: true },
   { href: "/guides", label: "Guides", hidden: true },
 
@@ -53,6 +74,17 @@ export const NAV: NavItem[] = [
   // Each sits beside the page it belongs to: what has been played on a map next
   // to the matches, who plays with whom next to the players.
   { href: "/news", label: "News" },
+  /*
+   * Second, not last and not first.
+   *
+   * The record is five entries that belong beside each other, Matches through
+   * Stats, and dropping Downloads into the middle of them would break a run a
+   * reader can already scan. Behind News rather than in front of it because the
+   * front page is a news page and that is the door most people come through,
+   * and ahead of everything else because a catalogue of files is a section of
+   * this site rather than a footnote to the match archive.
+   */
+  { href: "/downloads", label: "Downloads" },
   { href: "/matches", label: "Matches" },
   { href: "/matches/maps", label: "Maps" },
   { href: "/players", label: "Players" },
@@ -70,6 +102,26 @@ export const NAV: NavItem[] = [
  * NAV stays the full list so the hidden sections are recorded rather than
  * forgotten, and so anything that needs the complete site map, a sitemap,
  * a search index, can still have it.
+ *
+ * **This list has a width budget and Downloads spent the last of it.** The
+ * header switches to the full row at `lg` because that is where the row
+ * measured out, and the working is written up in
+ * `src/components/site-header.tsx` against the eight links there were then.
+ * Downloads is the ninth, so the row was measured again in a browser at 1024
+ * rather than reasoned about: the wordmark is 109, the nine links and their
+ * gaps are 661, of which Downloads alone is 99, the search and the two menus
+ * are 169, and the two gaps between those three groups are 45. That is 984 laid
+ * into the 979 the row has between its own padding.
+ *
+ * Nothing overflows. The five pixels come out of the row's own 15px of right
+ * padding, so there is no horizontal scrollbar at 1024, and none at 820 either,
+ * where the compact scroller takes over as it is meant to. But the slack is
+ * spent. **A tenth entry will not fit**, and neither will renaming one of these
+ * to something longer; either needs the breakpoint moved to `xl`, or the link
+ * padding cut, or something taken out. Measure it in a browser at 1024 and at
+ * 820 rather than trusting the arithmetic, because a row that overflows here
+ * gives every page on the site a horizontal scrollbar, which is the bug the
+ * `md` to `lg` change was fixing.
  */
 export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
 

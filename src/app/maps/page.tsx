@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 import { CataloguePage } from "@/components/catalogue-page";
-import { KIND_META } from "@/lib/catalogue";
+import { SECTION_BY_KIND } from "@/lib/downloads";
 
-const meta = KIND_META.map;
+const section = SECTION_BY_KIND.map;
 
 export const metadata: Metadata = {
-  title: meta.title,
-  description: meta.intro,
+  title: section.title,
+  description: section.intro,
 };
 
 export default async function MapsPage({
@@ -15,5 +15,5 @@ export default async function MapsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  return <CataloguePage meta={meta} searchParams={await searchParams} />;
+  return <CataloguePage section={section} searchParams={await searchParams} />;
 }

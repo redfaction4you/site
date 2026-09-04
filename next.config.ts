@@ -84,6 +84,24 @@ const nextConfig: NextConfig = {
       // The client comparison moved into Guides.
       { source: "/clients", destination: "/guides", permanent: true },
       { source: "/client", destination: "/guides", permanent: true },
+      /*
+        Models and Weapons became facets of Assets rather than shelves.
+
+        Both were live pages answering 200, and this site's whole argument is
+        that a link to it keeps working, so they redirect rather than 404. The
+        index of each lands on its own facet, which is the same set of files
+        under a different URL, and an item keeps its slug across the move: a
+        model's detail page is at `/assets/<slug>` now, so the old address can
+        be forwarded to the new one without knowing anything about the item.
+
+        Permanent, unlike the server shortcuts above. This is not a convenience
+        that might be wanted back; the shelves are gone and the facets are where
+        the files live. A browser that caches this is caching the truth.
+      */
+      { source: "/models", destination: "/assets?type=model", permanent: true },
+      { source: "/models/:slug", destination: "/assets/:slug", permanent: true },
+      { source: "/weapons", destination: "/assets?type=weapon", permanent: true },
+      { source: "/weapons/:slug", destination: "/assets/:slug", permanent: true },
     ];
   },
 };

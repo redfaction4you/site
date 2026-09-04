@@ -38,13 +38,19 @@ export async function SiteHeader() {
         {/*
           `lg`, not `md`, because that is where the row actually fits.
 
-          Measured rather than chosen: the wordmark is 109 pixels, eight links
-          are 551, the search and the two menus are 169, and the two gaps are
-          48. That is 877 before the page's own padding, so the full row needs
-          about 910 and was being switched on at 768. Between those two widths
-          it ran off the side of the screen and gave every page on the site a
-          horizontal scrollbar — 84 pixels of one at 820 wide. The mobile
-          scroller below handles that band instead, which is what it is for.
+          Measured rather than chosen, and measured again when Downloads made
+          the row nine links. At 1024 wide the wordmark is 109 pixels, the nine
+          links and their gaps are 661, the search and the two menus are 169,
+          and the two gaps between those three groups are 45. That is 984 laid
+          into the 979 the row has between its own padding, so the last five
+          pixels come out of the right padding rather than off the side of the
+          screen: no horizontal scrollbar at 1024, and none at 820, where the
+          scroller below takes over.
+
+          There is no slack left, and `nav.ts` says so beside `VISIBLE_NAV`.
+          Before any of this was measured the row was switched on at 768 and ran
+          off the side between the two widths, giving every page on the site 84
+          pixels of horizontal scrollbar at 820.
         */}
         <nav
           aria-label="Main"
@@ -87,9 +93,11 @@ export async function SiteHeader() {
       </div>
 
       {/*
-        Mobile nav. A horizontal scroller beats a hamburger for eight links, and
-        eight is what it carries since Maps and Pairings came up from the strip
-        that used to sit under this one.
+        Mobile nav. A horizontal scroller beats a hamburger for nine links, and
+        nine is what it carries: Maps and Pairings came up from the strip that
+        used to sit under this one, and Downloads was added with the catalogue.
+        The Search link at the end makes ten items in the row, since the box in
+        the header above is hidden below `sm`.
       */}
       <nav
         aria-label="Main, compact"

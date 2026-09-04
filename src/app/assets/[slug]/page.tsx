@@ -5,7 +5,7 @@ import { ItemDetail } from "@/components/item-detail";
 import { getItem } from "@/lib/catalogue";
 import { SECTION_BY_KIND } from "@/lib/downloads";
 
-const section = SECTION_BY_KIND.tool;
+const section = SECTION_BY_KIND.asset;
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: item.title,
     description:
       item.summary ??
-      `${item.title}, a Red Faction editing tool in the RedFaction4You archive.`,
+      `${item.title}, a Red Faction game asset in the RedFaction4You archive.`,
   };
 }
 

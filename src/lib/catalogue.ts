@@ -1,120 +1,52 @@
 /**
- * Reading the catalogue.
+ * Reading the downloads catalogue.
  *
- * All five sections, maps, mods, models, weapons, tools, are the same query
- * with a different `kind`, which is why they are one table. The per-kind
- * differences that matter are editorial (what the page says) rather than
- * structural, so they live in KIND_META here rather than in five page files.
+ * Every shelf, Maps and Assets and Mods and Tools, is the same query with a
+ * different `kind`, which is why they are one table. The differences that
+ * matter are editorial, and they live in `@/lib/downloads` beside the rules
+ * that can be tested without a database.
+ *
+ * Nothing here decides what a section is called or which facets it offers. This
+ * module knows how to fetch rows and nothing else.
  */
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
-import { files, items, mapMeta, screenshots, type ItemKind } from "@/lib/db/schema";
+import { files, items, itemUpdates, mapMeta, screenshots } from "@/lib/db/schema";
+import {
+  DEFAULT_SORT,
+  type ItemKind,
+  type Section,
+  type Sort,
+} from "@/lib/downloads";
 import type { RfClient } from "@/lib/rfl/clients";
-
-export type KindMeta = {
-  kind: ItemKind;
-  /** URL segment. */
-  route: string;
-  /** Page heading. */
-  title: string;
-  /** Singular noun for prose, e.g. "map". */
-  noun: string;
-  eyebrow: string;
-  /** The lead paragraph. Plain and non-promotional, per the house style. */
-  intro: string;
-  /** Shown when nothing is published yet. Honest about why. */
-  emptyHeading: string;
-  emptyBody: string;
-  /** Whether items of this kind can carry level compatibility data. */
-  hasLevels: boolean;
-};
-
-export const KIND_META: Record<ItemKind, KindMeta> = {
-  map: {
-    kind: "map",
-    route: "/maps",
-    title: "Maps",
-    noun: "map",
-    eyebrow: "Catalogue",
-    intro:
-      "Custom Red Faction levels, hosted here permanently. Every map is checked at upload for the client features it needs, so you know what will load it before you download.",
-    emptyHeading: "No maps published yet",
-    emptyBody:
-      "The catalogue is built but empty. It is being seeded from archives of maps scattered across dead forums and expired hosts, which is slower than scraping but means each entry is a file we actually hold.",
-    hasLevels: true,
-  },
-  mod: {
-    kind: "mod",
-    route: "/mods",
-    title: "Mods",
-    noun: "mod",
-    eyebrow: "Catalogue",
-    intro:
-      "Total conversions and gameplay overhauls, from small rule changes to whole new campaigns.",
-    emptyHeading: "No mods published yet",
-    emptyBody:
-      "Nothing here so far. Mods tend to be larger and more scattered than maps, so they take longer to track down and verify.",
-    hasLevels: true,
-  },
-  model: {
-    kind: "model",
-    route: "/models",
-    title: "Models",
-    noun: "model",
-    eyebrow: "Catalogue",
-    intro: "Player models and character skins, with previews of what you actually get.",
-    emptyHeading: "No models published yet",
-    emptyBody:
-      "Nothing here so far. If you made models back in the day and still have the files, they are exactly what this section is for.",
-    hasLevels: false,
-  },
-  weapon: {
-    kind: "weapon",
-    route: "/weapons",
-    title: "Weapons",
-    noun: "weapon",
-    eyebrow: "Catalogue",
-    intro: "Custom weapons and reskins, from single replacements to full arsenals.",
-    emptyHeading: "No weapons published yet",
-    emptyBody: "Nothing here so far.",
-    hasLevels: false,
-  },
-  tool: {
-    kind: "tool",
-    route: "/tools",
-    title: "Tools",
-    noun: "tool",
-    eyebrow: "Catalogue",
-    intro:
-      "The editors and utilities for making things: RED, the Official RF Toolkit, VPP Builder and the rest. Each one with a guide, because a tool nobody can start is not much use.",
-    emptyHeading: "No tools published yet",
-    emptyBody:
-      "Nothing here so far. Tools are the highest priority to archive: they are the oldest downloads and the ones most likely to have vanished already.",
-    hasLevels: false,
-  },
-};
-
-export const ALL_KINDS = Object.values(KIND_META);
 
 export type CatalogueFilters = {
   /** Free-text match against title and author. */
   q?: string;
+  /** The section facet: a map type, an asset type. */
+  category?: string;
   /** Only items playable on this client. Maps and mods only. */
   client?: RfClient;
   /** Single tag match. */
   tag?: string;
+  /** Which order. Defaults to newest first. */
+  sort?: Sort;
 };
 
-/** What a listing card needs. Deliberately not the whole row. */
+/** What one row of a listing needs. Deliberately not the whole record. */
 export type ItemSummary = {
   id: string;
   slug: string;
   title: string;
   summary: string | null;
   authorName: string | null;
+  category: string | null;
+  releaseVersion: string | null;
   releasedOn: string | null;
+  publishedAt: Date | null;
+  updatedAt: Date | null;
   tags: string[];
   downloadCount: number;
   playsOn: RfClient[];
@@ -128,10 +60,63 @@ function publishedWhere(kind: ItemKind) {
 }
 
 /**
- * Lists published items of one kind.
+ * How each sort is expressed, in one place.
  *
- * Left-joins the metadata so a map with no detection row still appears; an item
- * missing its compatibility data should show up unlabelled, not vanish.
+ * Every one of them has a tie-break, and that is not tidiness. Postgres is free
+ * to return equally-ranked rows in any order it likes, and a listing that
+ * reshuffles itself between two identical requests looks broken in a way that
+ * is very hard to report: nothing is wrong on either page. The archive will
+ * also arrive in bulk, so "every map imported on the same day" is the ordinary
+ * case rather than a rare tie.
+ *
+ * `name` sorts case-insensitively, because a shelf where `Ankh` sorts before
+ * `ankh` sorts before `Badlands` is sorted by nothing a reader can see.
+ */
+const ORDER_BY: Record<Sort, ReturnType<typeof desc>[]> = {
+  new: [desc(items.publishedAt), asc(sql`lower(${items.title})`)],
+  updated: [desc(items.updatedAt), asc(sql`lower(${items.title})`)],
+  downloads: [desc(items.downloadCount), asc(sql`lower(${items.title})`)],
+  name: [asc(sql`lower(${items.title})`), desc(items.publishedAt)],
+};
+
+const summaryColumns = {
+  id: items.id,
+  slug: items.slug,
+  title: items.title,
+  summary: items.summary,
+  authorName: items.authorName,
+  category: items.category,
+  releaseVersion: items.releaseVersion,
+  releasedOn: items.releasedOn,
+  publishedAt: items.publishedAt,
+  updatedAt: items.updatedAt,
+  tags: items.tags,
+  downloadCount: items.downloadCount,
+  playsOn: mapMeta.playsOn,
+  rflVersion: mapMeta.rflVersion,
+  detectionConfidence: mapMeta.detectionConfidence,
+  /*
+   * The card image is the first screenshot, and only its key is fetched.
+   * Selecting the whole screenshots relation here would pull every image row
+   * for every item in the listing to render one thumbnail each, which is the
+   * shape of the bug that made a match page 749 kB.
+   */
+  screenshotKey: sql<string | null>`(
+    select ${screenshots.storageKey}
+    from ${screenshots}
+    where ${screenshots.itemId} = ${items.id}
+    order by ${screenshots.position} asc
+    limit 1
+  )`,
+};
+
+/**
+ * Lists published items on one shelf.
+ *
+ * Left-joins the compatibility metadata so an item with no detection row still
+ * appears. A map missing its compatibility data should show up unlabelled
+ * rather than vanish: the listing's job is to be complete, and the badge's job
+ * is to be honest about what it does not know.
  */
 export async function listItems(
   kind: ItemKind,
@@ -146,6 +131,10 @@ export async function listItems(
     );
   }
 
+  if (filters.category) {
+    conditions.push(eq(items.category, filters.category));
+  }
+
   if (filters.tag) {
     conditions.push(sql`${items.tags} @> ARRAY[${filters.tag}]::text[]`);
   }
@@ -157,45 +146,42 @@ export async function listItems(
   }
 
   const rows = await db
-    .select({
-      id: items.id,
-      slug: items.slug,
-      title: items.title,
-      summary: items.summary,
-      authorName: items.authorName,
-      releasedOn: items.releasedOn,
-      tags: items.tags,
-      downloadCount: items.downloadCount,
-      playsOn: mapMeta.playsOn,
-      rflVersion: mapMeta.rflVersion,
-      detectionConfidence: mapMeta.detectionConfidence,
-      screenshotKey: sql<string | null>`(
-        select ${screenshots.storageKey}
-        from ${screenshots}
-        where ${screenshots.itemId} = ${items.id}
-        order by ${screenshots.position} asc
-        limit 1
-      )`,
-    })
+    .select(summaryColumns)
     .from(items)
     .leftJoin(mapMeta, eq(mapMeta.itemId, items.id))
     .where(and(...conditions))
-    // Newest first, but fall back to title so an unpublished-date import is
-    // still in a stable order rather than whatever Postgres feels like.
-    .orderBy(desc(items.publishedAt), asc(items.title));
+    .orderBy(...ORDER_BY[filters.sort ?? DEFAULT_SORT]);
 
-  return rows.map((row) => ({
-    ...row,
-    playsOn: row.playsOn ?? [],
-  }));
+  return rows.map((row) => ({ ...row, playsOn: row.playsOn ?? [] }));
+}
+
+/**
+ * How many published items sit under each facet of one shelf.
+ *
+ * Read in the same pass as the listing so a filter chip can carry its count,
+ * and so a facet nobody has filled can be shown as empty rather than offered as
+ * a link to nothing. Uncategorised items are counted under the null key, which
+ * the caller may show or ignore.
+ */
+export async function countByCategory(
+  kind: ItemKind,
+): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ category: items.category, count: sql<number>`count(*)::int` })
+    .from(items)
+    .where(publishedWhere(kind))
+    .groupBy(items.category);
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.category ?? "none"] = row.count;
+  return counts;
 }
 
 /**
  * Everything a detail page needs, or null if there is no such published item.
  *
- * Wrapped in React's `cache` because every detail route calls it twice, once
- * in generateMetadata and once in the page body, and that should be one query,
- * not two.
+ * Wrapped in React's `cache` because every detail route calls it twice, once in
+ * generateMetadata and once in the page body, and that should be one query.
  */
 export const getItem = cache(async function getItem(kind: ItemKind, slug: string) {
   const item = await db.query.items.findFirst({
@@ -204,6 +190,7 @@ export const getItem = cache(async function getItem(kind: ItemKind, slug: string
       files: true,
       screenshots: true,
       mapMeta: true,
+      updates: true,
     },
   });
 
@@ -215,12 +202,20 @@ export const getItem = cache(async function getItem(kind: ItemKind, slug: string
       (a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.filename.localeCompare(b.filename),
     ),
     screenshots: [...item.screenshots].sort((a, b) => a.position - b.position),
+    /*
+     * Newest first, which is the only order a changelog is ever read in.
+     * Sorted here rather than in SQL because the relation is fetched whole and
+     * an item has a handful of these, not thousands.
+     */
+    updates: [...item.updates].sort(
+      (a, b) => b.releasedAt.getTime() - a.releasedAt.getTime(),
+    ),
   };
 });
 
 export type CatalogueItem = NonNullable<Awaited<ReturnType<typeof getItem>>>;
 
-/** Published slugs for one kind, for generateStaticParams and sitemaps. */
+/** Published slugs for one shelf, for the sitemap. */
 export async function listSlugs(kind: ItemKind): Promise<string[]> {
   const rows = await db
     .select({ slug: items.slug })
@@ -229,9 +224,9 @@ export async function listSlugs(kind: ItemKind): Promise<string[]> {
   return rows.map((row) => row.slug);
 }
 
-/** Tags in use within a kind, most common first. Drives the filter row. */
+/** Tags in use within a shelf, most common first. Drives the tag filter row. */
 export async function listTags(kind: ItemKind): Promise<{ tag: string; count: number }[]> {
-  const rows = await db
+  return db
     .select({
       tag: sql<string>`unnest(${items.tags})`.as("tag"),
       count: sql<number>`count(*)::int`,
@@ -240,33 +235,65 @@ export async function listTags(kind: ItemKind): Promise<{ tag: string; count: nu
     .where(publishedWhere(kind))
     .groupBy(sql`1`)
     .orderBy(sql`2 desc`, sql`1 asc`);
-
-  return rows;
 }
 
-/** Total published items per kind. Used on the home page counts. */
-export async function countByKind(): Promise<Record<ItemKind, number>> {
+/** Total published items per shelf. Drives the counts on the downloads hub. */
+export async function countByKind(): Promise<Record<string, number>> {
   const rows = await db
     .select({ kind: items.kind, count: sql<number>`count(*)::int` })
     .from(items)
     .where(eq(items.status, "published"))
     .groupBy(items.kind);
 
-  const counts = { map: 0, mod: 0, model: 0, weapon: 0, tool: 0 } as Record<
-    ItemKind,
-    number
-  >;
+  const counts: Record<string, number> = {};
   for (const row of rows) counts[row.kind] = row.count;
   return counts;
 }
 
-/** Bumps the counter when someone takes a copy. Fire and forget; never blocks. */
+/**
+ * One file, with the item it belongs to, for the download redirect.
+ *
+ * Selected by file id alone rather than by (kind, slug, file) because that is
+ * what a download URL can carry stably: renaming an item changes its slug and
+ * every link to it, and a download link that rots is the one thing this archive
+ * promises not to produce. Status is checked here so a draft or pulled item
+ * cannot be fetched by anyone holding an old file id.
+ */
+export async function getDownloadable(fileId: string) {
+  const [row] = await db
+    .select({
+      itemId: items.id,
+      kind: items.kind,
+      slug: items.slug,
+      storageKey: files.storageKey,
+      filename: files.filename,
+    })
+    .from(files)
+    .innerJoin(items, eq(items.id, files.itemId))
+    .where(and(eq(files.id, fileId), eq(items.status, "published")))
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
+ * Bumps the counter when somebody takes a copy.
+ *
+ * Never awaited on the request path, and never allowed to fail a download: a
+ * counter is a nice-to-have and the file is the point. The caller runs this
+ * after the response has been handed over.
+ */
 export async function recordDownload(itemId: string): Promise<void> {
-  await db
-    .update(items)
-    .set({ downloadCount: sql`${items.downloadCount} + 1` })
-    .where(eq(items.id, itemId));
+  try {
+    await db
+      .update(items)
+      .set({ downloadCount: sql`${items.downloadCount} + 1` })
+      .where(eq(items.id, itemId));
+  } catch (error) {
+    console.warn("[catalogue] could not record a download:", error);
+  }
 }
 
 /** Re-exported so pages do not each reach into the schema module. */
-export { files, items, mapMeta, screenshots };
+export { files, items, itemUpdates, mapMeta, screenshots };
+export type { Section };

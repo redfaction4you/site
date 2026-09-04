@@ -27,11 +27,12 @@ const EXPECTED = [
   "sessions",
   "users",
   "verificationToken",
-  // Phase 2: the catalogue
+  // Phase 2: the downloads catalogue
   "items",
   "files",
   "map_meta",
   "screenshots",
+  "item_updates",
 ];
 
 try {
