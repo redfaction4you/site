@@ -62,6 +62,10 @@ const MUST_BE_CLEAN = [
   "components/item-detail.tsx",
   "components/item-gallery.tsx",
   "components/item-updates.tsx",
+  // The other half of the upload path, built clean on 3 September 2026. It is a
+  // dense working screen full of quiet metadata, which is exactly the shape that
+  // tempts somebody towards a dimmer grey.
+  "components/catalogue-admin.tsx",
   "app/downloads/page.tsx",
   "app/assets/page.tsx",
   "app/assets/[slug]/page.tsx",

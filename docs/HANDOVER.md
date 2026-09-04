@@ -546,22 +546,28 @@ What is worth knowing before changing it:
 
 ## The thing that still matters most
 
-**The catalogue is still empty.** The shelves are built and there is nothing on
-them, which is the same sentence as before with better furniture. The build plan
-is explicit that launching empty and waiting for uploads that never come is the
-most likely way this project dies. Seeding from the Levels4You archive is worth
-more than any further feature, and it is also the only way to test the RFL
-compatibility parser against a real file rather than the synthetic fixtures it
-currently passes.
+**The catalogue is still empty, and the way to fill it now exists.** The shelves
+are built and there is nothing on them. The build plan is explicit that launching
+empty and waiting for uploads that never come is the most likely way this project
+dies, so seeding from the Levels4You archive is still worth more than any further
+feature. What changed on 3 September 2026 is that the missing half is no longer
+missing:
 
-Two things the downloads build changed about that job:
-
-- **There is still no upload path.** Nothing in `src/` writes to `items`, and
-  `files.storage_key`, `size_bytes` and `sha256` are all `NOT NULL`, so a row
-  cannot be created without really storing a file and hashing it. An admin form
-  or a seeding script is the next piece of work, and the seeding script is the
-  more valuable of the two.
-- **`inspectUpload` discards the filename for a bare `.rfl`**, hardcoding
-  `level.rfl`, so the only game-type signal is lost before anything can read it.
-  Zip and vpp entry names survive. Pass the real filename in when the upload path
-  is built, or every bare level arrives uncategorised.
+- **The upload path is `npm run ingest`**, and `docs/uploading.md` is the
+  operator's guide to it. A folder of files on a disk becomes a draft row with
+  its bytes really stored and really hashed, which is what `files.storage_key`,
+  `size_bytes` and `sha256` being `NOT NULL` has always demanded. The dry run is
+  the default. There is deliberately no browser form: a server action caps at
+  1 MB and the job is hundreds of folders off a local disk.
+- **The other half is the catalogue section on `/admin`**, which publishes,
+  pulls, edits, keeps the changelog and deletes. The CLI creates drafts and never
+  publishes, so without that screen an ingested map has a row, has its object in
+  the bucket, and appears on no page at all.
+- **`inspectUpload` takes the filename now.** A bare `.rfl` used to be recorded
+  as the literal `level.rfl`, throwing away the only game-type signal Red Faction
+  has; zip and vpp entry names always survived. The CLI passes the real name, so
+  renaming a bare level before ingesting it changes what it is filed as.
+- **Three real `.vpp` packfiles have now been read** and all three parsed. That
+  is no longer an outstanding test, but it is three files holding one level each:
+  see the compatibility bullet in `CLAUDE.md` for what it does and does not
+  cover.

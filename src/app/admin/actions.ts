@@ -8,11 +8,16 @@ import { adminState, forgetAdmin, rememberAdmin } from "@/lib/admin-key";
 import { db } from "@/lib/db";
 import {
   featurePieces,
+  files,
+  items,
+  itemUpdates,
   mapPacks,
   matchPlayers,
   playerIdentities,
   type MapPackEntry,
 } from "@/lib/db/schema";
+import { SECTION_BY_KIND, categoryOf } from "@/lib/downloads";
+import { normaliseReleasedOn } from "@/lib/ingest-rules";
 import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { checkDisplayName } from "@/lib/matches/display-name";
 import { isLevelFilename, MAP_PACKS_CACHE_TAG } from "@/lib/map-packs";
@@ -621,6 +626,342 @@ export async function deleteFeature(formData: FormData): Promise<void> {
   if (!slug) redirect("/admin?problem=1");
 
   await db.delete(featurePieces).where(eq(featurePieces.slug, slug));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/*
+ * The downloads catalogue.
+ *
+ * The ingest CLI writes drafts and nothing else, deliberately: it stores bytes,
+ * hashes them and reads what it can out of the file, and every judgement that
+ * needs a person is left for one. These six actions are that person's half of
+ * the upload path. Without them an ingested map has a row, has its object in the
+ * bucket, and is visible on no page anywhere.
+ *
+ * Two facts run through all of them and neither is obvious from the buttons.
+ *
+ * **These actions govern the page, not the bytes.** The R2 bucket is public and
+ * served from a custom domain, and `publicUrl()` is a pure function of the
+ * storage key, so hiding an item or deleting its row leaves the object exactly
+ * as fetchable as it was to anybody holding the URL. `/api/download/[fileId]`
+ * does enforce status, so the two routes to a file genuinely differ, but the
+ * direct one is the one already pasted into Discord. This is written on
+ * `ITEM_STATUSES` in the schema and it is said out loud on the admin page,
+ * because a comment has never stopped anybody believing that Delete deletes.
+ *
+ * **`updatedAt` means the item's content changed.** Editing it bumps the column
+ * and adding a changelog entry bumps it; publishing and unpublishing do not,
+ * because those change who can see the item rather than what it says, and
+ * "Recently updated" is a shelf a reader sorts by expecting new work.
+ */
+
+/**
+ * The tags box, comma separated.
+ *
+ * Lowercased, because the tag filter is a link carrying the tag verbatim: `CTF`
+ * stored beside `ctf` is two chips for one idea, each finding half the shelf,
+ * and nothing on either page would look wrong. Deduplicated, and capped in both
+ * directions for the same reason a slug is capped, since this ends up in a URL.
+ */
+function parseTags(raw: string): string[] {
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const tag = part.trim().toLowerCase().slice(0, 32);
+    if (tag) seen.add(tag);
+  }
+  return [...seen].slice(0, 12);
+}
+
+/**
+ * Publishes an item: a draft nobody has seen, or something previously pulled.
+ *
+ * **It refuses an item with no file.** `files` is where the download comes from,
+ * so publishing without one produces a detail page whose download panel has
+ * nothing to offer, and the shelf counts a map that cannot be had. That is a
+ * broken promise rather than an empty state, and it is the one dead end this can
+ * detect from here.
+ *
+ * It cannot detect the other one. A `files` row records that something was
+ * stored at a key; it is not proof the object is still in the bucket, and
+ * nothing in this file reads R2. The section on the admin page says so, because
+ * a refusal that only covers half the failure invites the belief that it covers
+ * all of it.
+ *
+ * `publishedAt` is stamped once and never restamped. Every listing sorts
+ * "Newest" on that column, so restamping would push a map from 2003 to the top
+ * of the shelf for having been briefly hidden and put back.
+ */
+export async function publishItem(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-missing");
+
+  const [item] = await db
+    .select({ publishedAt: items.publishedAt })
+    .from(items)
+    .where(eq(items.id, id))
+    .limit(1);
+  if (!item) redirect("/admin?problem=item-missing");
+
+  const [counted] = await db
+    .select({ files: sql<number>`count(*)::int` })
+    .from(files)
+    .where(eq(files.itemId, id));
+  if ((counted?.files ?? 0) === 0) redirect("/admin?problem=item-no-file");
+
+  await db
+    .update(items)
+    .set({
+      status: "published",
+      // Only when it has never been live. See the note above.
+      ...(item.publishedAt ? {} : { publishedAt: new Date() }),
+    })
+    .where(eq(items.id, id));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Pulls a published item, to `hidden` and deliberately not back to `draft`.
+ *
+ * The two states are different facts. `draft` means nobody outside has seen it
+ * yet; `hidden` means it was live, was read, and was taken down. Sending a
+ * pulled item back to `draft` would destroy the only record that it was ever
+ * public and would drop it into the work queue at the top of the admin page,
+ * where it looks like something waiting to be checked for the first time.
+ *
+ * **It stops the page and not the file.** The object stays in a public bucket
+ * under a URL that has not changed.
+ */
+export async function unpublishItem(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-missing");
+
+  const [item] = await db
+    .select({ status: items.status })
+    .from(items)
+    .where(eq(items.id, id))
+    .limit(1);
+  if (!item) redirect("/admin?problem=item-missing");
+
+  /*
+   * Refused rather than applied to a draft.
+   *
+   * A stale page is the only way to reach this with something that was never
+   * live, and marking such a row `hidden` would assert that it once was, which
+   * is the one thing the state is for. The button is not offered on a draft.
+   */
+  if (item.status !== "published") redirect("/admin?problem=item-not-published");
+
+  await db.update(items).set({ status: "hidden" }).where(eq(items.id, id));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Edits the fields a person decides, which is most of what the CLI cannot.
+ *
+ * Ingest derives a title from a filename and a category from a level prefix,
+ * and both are placeholders it is honest about: `ctfwlpro` is not a title and a
+ * level with no prefix has no category at all. This is where a person fixes
+ * that.
+ *
+ * **The slug is not editable here, and adding it would be a data-loss bug.** It
+ * is the item's permanent address and half of the `(kind, slug)` unique key, so
+ * editing it breaks every link already pasted and, written as an upsert, would
+ * land on and replace whatever else holds the new slug. That is exactly what
+ * `saveMapPack` above had to be fixed for. Re-ingest under the right name
+ * instead.
+ *
+ * `description` is not edited here either, for a duller reason: this is a row in
+ * a list of hundreds and a markdown body does not belong in one. Nothing posts
+ * that field, and nothing here sets it.
+ */
+export async function editItem(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-missing");
+
+  const [item] = await db
+    .select({ kind: items.kind })
+    .from(items)
+    .where(eq(items.id, id))
+    .limit(1);
+  if (!item) redirect("/admin?problem=item-missing");
+
+  // `title` is not null and it is what every listing, card and link renders. An
+  // empty one would put a nameless row on a shelf.
+  const title = String(formData.get("title") ?? "").trim().slice(0, 200);
+  if (!title) redirect("/admin?problem=item-title");
+
+  /*
+   * The category is checked against its own shelf's vocabulary here, because
+   * there is no database constraint on it: the facets are editorial and change
+   * with the community's conventions, and a check constraint would turn adding
+   * one into a migration. A server action is a public endpoint whatever the form
+   * offered, so the check has to be on this side.
+   *
+   * Mods and tools have no facets at all, so any value at all is refused for
+   * them, which is what an empty `categories` list means.
+   */
+  const category = String(formData.get("category") ?? "").trim();
+  const section = SECTION_BY_KIND[item.kind] ?? null;
+  if (category && (!section || !categoryOf(section, category))) {
+    redirect("/admin?problem=item-category");
+  }
+
+  /*
+   * A release date that will not parse is refused rather than quietly stored as
+   * null. `normaliseReleasedOn` returns null both for "nothing was typed" and
+   * for "that is not a date", and treating the second as the first would clear a
+   * field somebody was in the middle of correcting and then say "Saved".
+   */
+  const releasedOnRaw = String(formData.get("releasedOn") ?? "").trim();
+  const releasedOn = normaliseReleasedOn(releasedOnRaw);
+  if (releasedOnRaw && !releasedOn) redirect("/admin?problem=item-date");
+
+  await db
+    .update(items)
+    .set({
+      title,
+      authorName: String(formData.get("authorName") ?? "").trim().slice(0, 120) || null,
+      summary: String(formData.get("summary") ?? "").trim().slice(0, 300) || null,
+      category: category || null,
+      releaseVersion:
+        String(formData.get("releaseVersion") ?? "").trim().slice(0, 24) || null,
+      releasedOn,
+      tags: parseTags(String(formData.get("tags") ?? "")),
+      // Content changed, so the column that means "content changed" moves.
+      updatedAt: new Date(),
+    })
+    .where(eq(items.id, id));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Adds a changelog entry, and bumps the item in the same write.
+ *
+ * The bump is not bookkeeping. "Recently updated" orders on `items.updated_at`
+ * in SQL and cannot derive that from the newest changelog entry at read time, so
+ * an entry written without it ranks a genuine new release below a corrected
+ * typo, on the one shelf a returning player reads to find new work. The rule is
+ * written on the column in `schema.ts`.
+ *
+ * `db.batch`, not `db.transaction`: `neon-http` cannot hold an interactive
+ * transaction across awaits, the same reason nothing else here uses one.
+ */
+export async function addItemUpdate(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const itemId = String(formData.get("itemId") ?? "").trim();
+  if (!itemId) redirect("/admin?problem=item-missing");
+
+  const [item] = await db
+    .select({ id: items.id })
+    .from(items)
+    .where(eq(items.id, itemId))
+    .limit(1);
+  if (!item) redirect("/admin?problem=item-missing");
+
+  const title = String(formData.get("title") ?? "").trim().slice(0, 200);
+  if (!title) redirect("/admin?problem=item-update-title");
+
+  /*
+   * When the author changed it, which is not when we typed it in.
+   *
+   * Blank falls back to now, and the form says so, because "no date" is not a
+   * state the column can hold. A calendar day is read at noon UTC, the way every
+   * other day on this site is read, so no timezone can tip it into its
+   * neighbour.
+   */
+  const releasedAtRaw = String(formData.get("releasedAt") ?? "").trim();
+  let releasedAt = new Date();
+  if (releasedAtRaw) {
+    const parsed = new Date(
+      /^\d{4}-\d{2}-\d{2}$/.test(releasedAtRaw)
+        ? `${releasedAtRaw}T12:00:00Z`
+        : releasedAtRaw,
+    );
+    if (Number.isNaN(parsed.getTime())) redirect("/admin?problem=item-update-date");
+    releasedAt = parsed;
+  }
+
+  await db.batch([
+    db.insert(itemUpdates).values({
+      itemId,
+      title,
+      body: String(formData.get("body") ?? "").trim().slice(0, 4000) || null,
+      releaseVersion:
+        String(formData.get("releaseVersion") ?? "").trim().slice(0, 24) || null,
+      releasedAt,
+    }),
+    db.update(items).set({ updatedAt: new Date() }).where(eq(items.id, itemId)),
+  ]);
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Removes one changelog entry, for when the wrong thing was typed into it.
+ *
+ * **Deliberately does not touch `updated_at`.** Adding an entry has to bump it;
+ * removing one must not, because the bump would rank the item as freshly updated
+ * on the strength of somebody deleting a mistake, which is precisely the reading
+ * that column exists to avoid. The consequence to accept: an item whose only
+ * entry is removed keeps the timestamp that entry gave it, so it sits a little
+ * higher in "Recently updated" than it has earned. Overstating by one edit beats
+ * promoting every correction.
+ */
+export async function deleteItemUpdate(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-missing");
+
+  await db.delete(itemUpdates).where(eq(itemUpdates.id, id));
+
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=1");
+}
+
+/**
+ * Deletes the whole item.
+ *
+ * **The rows go and the bytes stay.** `files`, `screenshots`, `map_meta` and
+ * `item_updates` all cascade off this row, so the record is genuinely gone from
+ * the database. The objects in R2 are not touched by anything here, and the
+ * bucket is public with a custom domain, so every file this item ever offered
+ * stays fetchable forever by anybody who has the URL, with nothing left in the
+ * database that even records which keys they were.
+ *
+ * That last part is why the admin page says this next to the button rather than
+ * only here. Deleting is the action that makes the object unfindable and
+ * undeletable at the same time: after this, removing the file from the bucket
+ * means going and finding it by hand. For anything that must genuinely stop
+ * being distributed, take the object out of R2 first and delete the row second.
+ *
+ * Hiding is almost always the better answer, and it is the reason `hidden`
+ * exists: the second commitment in the build plan is that things do not
+ * disappear.
+ */
+export async function deleteItem(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-missing");
+
+  await db.delete(items).where(eq(items.id, id));
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");

@@ -16,6 +16,28 @@
  *   - Red Faction Wiki, RF Client Versions (client list and support status)
  *
  * Re-check this when Alpine ships a format bump.
+ *
+ * FIRST REAL FILES, 3 September 2026. Until this date nothing here had ever
+ * seen a Red Faction file that was not a fixture we wrote ourselves. Three
+ * `.vpp` packfiles pulled off the live game server were read with
+ * `npm run rfl`, and all three parsed correctly:
+ *
+ *   "DM-Combat Arena.vpp"  28 KB, level "Combat Arena",   saved 2005-01-06, 17 sections
+ *   "dm_space.vpp"         20 KB, level "Empty Space",    saved 2002-07-17, 15 sections
+ *   "kma Dm s7.vpp"        14 KB, level "KmA & [S7] Map", saved 2013-07-22, 16 sections
+ *
+ * Every one is RFL version 200 and resolved to every client, which is what the
+ * `>= 0xb0` branch below says version 200 should do. It also confirms the
+ * per-file 2048-byte alignment in `vpp.ts`, which that file names as the
+ * assumption most likely to be wrong, at least as far as one entry per pack
+ * goes.
+ *
+ * What that does not cover is most of this table, and three files is not a
+ * corpus. Nothing above version 200 has been read here, so the Alpine branch,
+ * the 201 to 299 gap and the PS2 versions are still sourced rather than seen.
+ * No zip from the wild has been opened. And the three packs hold a single
+ * level each, so a real multi-level pack remains untested. Do not read "tested
+ * against real files" as more than it says.
  */
 
 export const RFL_TABLE_VERIFIED_ON = "2026-07-28";
@@ -60,8 +82,10 @@ export type Compatibility = {
 /**
  * Pure and Dash patch the original engine rather than replacing its level
  * loader, so they are treated as loading exactly what vanilla loads. That is an
- * inference from what those projects are, not a cited claim, and it is the
- * first thing to verify against a real file once we have an archive to test on.
+ * inference from what those projects are, not a cited claim, and reading real
+ * files has not touched it: the three packs of 3 September 2026 are version 200,
+ * where this branch claims every client, and nothing was loaded in an actual
+ * client to see whether it does. Verifying it means launching Pure and Dash.
  */
 export function compatibilityForRflVersion(version: number): Compatibility {
   if (PS2_VERSIONS.has(version)) {

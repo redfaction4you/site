@@ -67,10 +67,20 @@ export function looksLikeVpp(bytes: Uint8Array): boolean {
  * Lists the files in a pack without copying any of their data.
  *
  * NOTE: data offsets assume each file is padded up to the next 2048-byte
- * boundary, which is what Heiko's specification describes. That has not yet
- * been checked against a real pack, because we do not have one on disk. If
- * offsets come out wrong on the first real VPP, this is the assumption to
- * question first.
+ * boundary, which is what Heiko's specification describes.
+ *
+ * Checked against real packs for the first time on 3 September 2026: three
+ * `.vpp` files off the live game server ("DM-Combat Arena.vpp", "dm_space.vpp"
+ * and "kma Dm s7.vpp") all read correctly, level name, save date and RFL
+ * version and all, so the assumption holds where it has been tested.
+ *
+ * It has been tested less far than that sounds. Each of those packs holds
+ * exactly one file, so what is confirmed is the first data offset, 0x1000, and
+ * nothing else. The running alignment from one entry to the next, which is
+ * where a wrong padding rule would actually show up, is still unexercised: it
+ * needs a pack with several files in it, such as the game's own. If offsets
+ * come out wrong on one of those, this is still the assumption to question
+ * first.
  */
 export function listVppEntries(bytes: Uint8Array): VppEntry[] {
   if (bytes.byteLength < BLOCK) {

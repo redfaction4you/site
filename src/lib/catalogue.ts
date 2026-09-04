@@ -10,10 +10,18 @@
  * module knows how to fetch rows and nothing else.
  */
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
-import { files, items, itemUpdates, mapMeta, screenshots } from "@/lib/db/schema";
+import {
+  files,
+  items,
+  itemUpdates,
+  mapMeta,
+  screenshots,
+  type ItemStatus,
+} from "@/lib/db/schema";
 import {
   DEFAULT_SORT,
   type ItemKind,
@@ -79,6 +87,35 @@ const ORDER_BY: Record<Sort, ReturnType<typeof desc>[]> = {
   name: [asc(sql`lower(${items.title})`), desc(items.publishedAt)],
 };
 
+/* --- writing a correlated subquery ---------------------------------------- */
+
+/**
+ * `"items"."id"`, written out, because Drizzle will not write it for you.
+ *
+ * When a select has one table and no joins, Drizzle drops the table prefix from
+ * every column it renders, including the ones inside a raw `sql` chunk. In an
+ * ordinary projection that is harmless. In a correlated subquery it is not: the
+ * outer `${items.id}` comes out as a bare `"id"`, Postgres resolves a bare name
+ * against the innermost FROM it can, and a count of an item's files becomes
+ * `where files.item_id = files.id`. That is never true and it is never an error.
+ * Every count came back zero and every changelog came back empty, on a query
+ * that reads correctly and runs without complaint. It was found in
+ * `listAllItems` below and it was live.
+ *
+ * `screenshotKey` in `summaryColumns` is the same shape and was safe only by
+ * accident: `listItems` left-joins `map_meta`, and one join is enough to make
+ * Drizzle qualify everything, so deleting that join would have broken every card
+ * image exactly this quietly. So every column inside every correlated subquery
+ * in this file goes through here, whether or not its query happens to join
+ * today. The name is taken off the column rather than typed as a string, so a
+ * renamed column moves with it.
+ *
+ * `scripts/catalogue-sql.test.mjs` is what catches the next one.
+ */
+function qualified(column: AnyPgColumn) {
+  return sql`${column.table}.${sql.identifier(column.name)}`;
+}
+
 const summaryColumns = {
   id: items.id,
   slug: items.slug,
@@ -102,10 +139,10 @@ const summaryColumns = {
    * shape of the bug that made a match page 749 kB.
    */
   screenshotKey: sql<string | null>`(
-    select ${screenshots.storageKey}
+    select ${qualified(screenshots.storageKey)}
     from ${screenshots}
-    where ${screenshots.itemId} = ${items.id}
-    order by ${screenshots.position} asc
+    where ${qualified(screenshots.itemId)} = ${qualified(items.id)}
+    order by ${qualified(screenshots.position)} asc
     limit 1
   )`,
 };
@@ -292,6 +329,145 @@ export async function recordDownload(itemId: string): Promise<void> {
   } catch (error) {
     console.warn("[catalogue] could not record a download:", error);
   }
+}
+
+/* --- the admin listing ---------------------------------------------------- */
+
+/**
+ * One changelog entry, as the admin list needs it.
+ *
+ * No body. The admin screen shows the entries so that one of them can be
+ * removed, and a delete control needs an id and enough of a label to be sure it
+ * is the right row. Fetching every body for every item on the page would be the
+ * shape of the bug that made a match page 749 kB.
+ */
+export type AdminItemUpdate = {
+  id: string;
+  title: string;
+  releaseVersion: string | null;
+  /** `YYYY-MM-DD`, read in UTC. The admin row shows a day, not a moment. */
+  releasedAt: string;
+};
+
+export type AdminItem = {
+  id: string;
+  kind: ItemKind;
+  slug: string;
+  title: string;
+  status: ItemStatus;
+  summary: string | null;
+  authorName: string | null;
+  category: string | null;
+  releaseVersion: string | null;
+  releasedOn: string | null;
+  tags: string[];
+  downloadCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  fileCount: number;
+  screenshotCount: number;
+  /** Newest first, and its length is the changelog count the row displays. */
+  updates: AdminItemUpdate[];
+};
+
+/**
+ * Every item, whatever its status, for the one screen that manages them.
+ *
+ * The only read in this module that does not filter to `published`, and it is
+ * deliberately the exception rather than a parameter on the others: a listing
+ * page must never be one wrong argument away from serving a draft, so the query
+ * that can see drafts is a separate function with a name that says so.
+ *
+ * It exists because the ingest CLI writes drafts and nothing else. Without this,
+ * an ingested map has a row, has its bytes in the bucket, and appears on no page
+ * anywhere, including the page that is supposed to publish it.
+ *
+ * Ordered by `createdAt` rather than `publishedAt`, because a draft has no
+ * `publishedAt` and sorting on it would put the whole work queue in an
+ * arbitrary heap at the end. The tie-break is not tidiness: the archive arrives
+ * in bulk, so "every map ingested in the same minute" is the ordinary case, and
+ * a list that reshuffles between two identical requests looks broken in a way
+ * nobody can report.
+ *
+ * `summary`, `releasedOn` and `tags` are fetched although no row displays them,
+ * because the edit form has to carry the current values as defaults. A form
+ * posting a field it never loaded blanks that column on save, which is the
+ * quietest way an admin screen destroys data.
+ */
+export async function listAllItems(): Promise<AdminItem[]> {
+  const rows = await db
+    .select({
+      id: items.id,
+      kind: items.kind,
+      slug: items.slug,
+      title: items.title,
+      status: items.status,
+      summary: items.summary,
+      authorName: items.authorName,
+      category: items.category,
+      releaseVersion: items.releaseVersion,
+      releasedOn: items.releasedOn,
+      tags: items.tags,
+      downloadCount: items.downloadCount,
+      createdAt: items.createdAt,
+      updatedAt: items.updatedAt,
+      publishedAt: items.publishedAt,
+
+      /*
+       * Counted in subqueries rather than joined and grouped. Three joins over
+       * one-to-many relations multiply each other, so the file count would come
+       * back as files times screenshots times updates, which reads as a
+       * plausible number and is wrong. The same reasoning as `screenshotKey`
+       * above.
+       */
+      fileCount: sql<number>`(
+        select count(*)::int
+        from ${files}
+        where ${qualified(files.itemId)} = ${qualified(items.id)}
+      )`,
+      screenshotCount: sql<number>`(
+        select count(*)::int
+        from ${screenshots}
+        where ${qualified(screenshots.itemId)} = ${qualified(items.id)}
+      )`,
+
+      /*
+       * The changelog entries themselves, not a count of them, because the admin
+       * screen offers to delete one and a delete control needs the row's id. The
+       * count the row shows is the length of this. Two columns for one fact is
+       * two columns that can disagree.
+       *
+       * The date is formatted in SQL to a plain calendar day, so it arrives in
+       * the same shape as a `date` column and is read by the same formatter
+       * every other date on the site goes through.
+       */
+      updates: sql<AdminItemUpdate[]>`coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', ${qualified(itemUpdates.id)},
+            'title', ${qualified(itemUpdates.title)},
+            'releaseVersion', ${qualified(itemUpdates.releaseVersion)},
+            'releasedAt', to_char(
+              ${qualified(itemUpdates.releasedAt)} at time zone 'UTC', 'YYYY-MM-DD'
+            )
+          )
+          order by ${qualified(itemUpdates.releasedAt)} desc
+        )
+        from ${itemUpdates}
+        where ${qualified(itemUpdates.itemId)} = ${qualified(items.id)}
+      ), '[]'::jsonb)`,
+    })
+    .from(items)
+    .orderBy(desc(items.createdAt), asc(sql`lower(${items.title})`));
+
+  // `jsonb_agg` of nothing is coalesced above, so this only guards against a
+  // driver that hands the column back unparsed. Cheap, and the alternative is a
+  // whole admin page that throws on `.map`.
+  return rows.map((row) => ({
+    ...row,
+    updates: Array.isArray(row.updates) ? row.updates : [],
+  }));
 }
 
 /** Re-exported so pages do not each reach into the schema module. */

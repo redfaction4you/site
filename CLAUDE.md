@@ -49,6 +49,8 @@ npm run typecheck    # tsc --noEmit — run before every push
 npm run lint
 npm test             # node --test, currently the RFL/VPP/ZIP readers
 npm run rfl -- <file>  # print what the site would record about a download
+npm run ingest -- <folder>       # what an ingest would do. Dry run is the default
+npm run ingest -- <folder> --go  # store the bytes and write the rows, as drafts
 npm run db:generate  # drizzle-kit generate → ./drizzle/*.sql
 npm run db:migrate   # apply to Neon
 npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
@@ -189,11 +191,19 @@ them. Detection is by content, never by extension.
   Versions 201–299 are a documented gap: they report `confidence: "unknown"`
   rather than a guess, because a confidently wrong badge is worse than an
   honest one.
-- **Everything has been tested against synthetic fixtures only.** We do not
-  have a single real Red Faction file on disk. The spec could differ from what
-  RED actually wrote in 2001. `npm run rfl -- <file>` on a genuine map is the
-  outstanding test, and the per-file 2048-byte alignment assumption in `vpp.ts`
-  is the thing most likely to be wrong.
+- **Three real files have now been read, on 3 September 2026, and three is not
+  a corpus.** `DM-Combat Arena.vpp`, `dm_space.vpp` and `kma Dm s7.vpp`, pulled
+  off the live game server, all parsed correctly through `npm run rfl`: version
+  200, every client, level names and save dates intact. That confirms the
+  per-file 2048-byte alignment in `vpp.ts` **as far as one entry per pack goes**
+  and no further, because every one of the three holds exactly one file, so the
+  running alignment from one entry to the next is still unexercised. A
+  multi-level pack such as the game's own `maps.vpp` is the test that would
+  catch a wrong padding rule. Nothing above version 200 has been read, no zip
+  from the wild has been opened, and the Alpine branch, the 201 to 299 gap and
+  the PS2 versions remain sourced rather than seen. The header of `clients.ts`
+  keeps the measurements; do not let "tested against real files" travel further
+  than it says.
 - **`required_features` is deliberately not implemented.** Unlike `rfl_version`
   and `plays_on` it cannot be read from the header — it needs the section list
   parsed and Alpine event types recognised. The version alone answers "will
@@ -266,6 +276,37 @@ an entry there plus two small route files.
   detail route, and `getDownloadable` checks it too, so a file id that leaked
   before publication or was kept after a takedown answers exactly like a typo.
   Verified against a seeded row, not assumed.
+
+### Uploading
+
+The ingest CLI is the only thing that writes to `items`, and everything it
+creates lands as a draft for a person to publish. **`docs/uploading.md` is the
+operator's guide**: the folder layout, the sidecar, the commands and the limits.
+Four things a person editing this code needs to know:
+
+- **Ids come from Drizzle, not from Postgres.** Every id in the catalogue tables
+  is `$defaultFn(crypto.randomUUID)`, which is a client-side default and leaves
+  no `DEFAULT` on the column. **A raw SQL insert must supply the id** or it
+  fails on a not-null violation. This has already bitten once.
+- **`inspectUpload` throws on a container it does not recognise**, which is the
+  right behaviour for a parser and the wrong shape for a bulk run over a folder
+  of textures and tools. Sniff first with `looksLikeRfl`, `looksLikeVpp` or
+  `looksLikeZip`, all exported from `src/lib/rfl`, and treat "not a level" as an
+  ordinary download rather than an error. It also takes the real filename now:
+  a bare `.rfl` is nothing but level bytes, so without it the only game-type
+  signal Red Faction has is gone before anything can read it.
+- **The CLI cannot import `@/lib` anything that touches the database.** It runs
+  under plain `node`, outside Next, so the path alias and the server-only
+  environment are not there. It builds its own Neon and S3 clients the way
+  `scripts/refs-push.mjs` does. What it shares instead is
+  `src/lib/ingest-rules.ts`, which imports nothing and is loaded directly by
+  `node` in `scripts/ingest-rules.test.mjs`: **keep it importing nothing.** The
+  sharing is the point, because a storage key is a promise and two callers
+  disagreeing about how to build one is how an archive ends up with a file it
+  cannot find and a row it cannot replace.
+- **A draft governs the page and never the bytes.** The object is stored and
+  world readable the moment the ingest writes it, so the decision to distribute
+  something happens before `--go`, not at publish time.
 
 ## Match archive (`src/lib/matches/`, `/matches`)
 

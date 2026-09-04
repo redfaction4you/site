@@ -30,6 +30,7 @@
     "weigh": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/page-weight.mjs",
     "drives:recompute": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/recompute-drives.mjs",
     "vet:queries": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/query-guard.mjs",
+    "ingest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ingest.mjs",
     "apply:welcome": "node scripts/apply-welcome.mjs",
     "map:remove": "node scripts/remove-map.mjs"
   },

@@ -20,8 +20,10 @@ import {
 } from "@/lib/matches/queries";
 import { vetNight } from "@/lib/matches/vet";
 import { listMapPacks } from "@/lib/map-packs";
+import { listAllItems } from "@/lib/catalogue";
 import { MapPackAdmin } from "@/components/map-pack-admin";
 import { FeatureAdmin } from "@/components/feature-admin";
+import { CatalogueAdmin } from "@/components/catalogue-admin";
 import { serverLabel } from "@/lib/matches/server-names";
 import {
   lock,
@@ -74,6 +76,22 @@ const PROBLEMS: Record<string, string> = {
     "Nothing was joined: those are the same person. The two boxes are for two identities the server told apart and you know are one.",
   "merge-ring":
     "Nothing was joined: that would make a ring, with each pointing at the other and neither being the answer. Join both into whichever of them is the person you want the site to show.",
+  "item-missing":
+    "Nothing was changed: that item no longer exists. Somebody deleted it, or the page had been open a while. Everything else is untouched.",
+  "item-no-file":
+    "Not published: this item has no file. Its page would list a download panel with nothing in it and its shelf would count a map nobody can have, so publishing is refused rather than half done. Re-run the ingest for it, then publish.",
+  "item-not-published":
+    "Nothing was pulled: that item is not live. Pulling means taking down a page people could read, and a draft has never had one. It has been left as a draft rather than marked as something that was pulled.",
+  "item-title":
+    "Not saved: an item needs a title. It is what every card, shelf listing and link renders, so a blank one would put a nameless row on a shelf.",
+  "item-category":
+    "Not saved: that category is not one of that shelf's facets, so nothing would ever find the item under it. Mods and tools have no facets at all. Pick one from the list, or leave it as none.",
+  "item-date":
+    "Not saved: the release date has to be a full date or a bare year, like 2003-11-04 or 2003. Nothing was written, rather than the date being quietly cleared while the page said it had saved.",
+  "item-update-title":
+    "Nothing was added: a changelog entry needs a line saying what changed. That line is the whole entry on the item's page.",
+  "item-update-date":
+    "Nothing was added: that release date could not be read. Leave it blank to record today, or give a date like 2004-06-12.",
   default: "That was refused, and nothing was changed.",
 };
 
@@ -84,6 +102,8 @@ type Props = {
     problem?: string;
     /** A pack slug to load into the map pack form. */
     pack?: string;
+    /** A catalogue item id to expand for editing. */
+    item?: string;
     /** Filenames a refused pack could not use, and how many were not listed. */
     bad?: string;
     more?: string;
@@ -157,20 +177,35 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [identities, merges, days, totals, lastSync, packs, pings, dm, dmChecks, features, players] =
-    await Promise.all([
-      listIdentities(),
-      listMerges(),
-      listDays(),
-      archiveTotals(),
-      lastSyncAt(),
-      listMapPacks(),
-      listSyncPings(),
-      dmTotals(),
-      dmIntegrity(),
-      listFeatures(),
-      listPlayers(),
-    ]);
+  const [
+    identities,
+    merges,
+    days,
+    totals,
+    lastSync,
+    packs,
+    pings,
+    dm,
+    dmChecks,
+    features,
+    players,
+    catalogue,
+  ] = await Promise.all([
+    listIdentities(),
+    listMerges(),
+    listDays(),
+    archiveTotals(),
+    lastSyncAt(),
+    listMapPacks(),
+    listSyncPings(),
+    dmTotals(),
+    dmIntegrity(),
+    listFeatures(),
+    listPlayers(),
+    // The one read on this page that can see a draft. Everything else in
+    // `catalogue.ts` filters to published, deliberately.
+    listAllItems(),
+  ]);
 
   /*
    * Who actually has a page, so a name here only links where a page exists.
@@ -188,6 +223,13 @@ export default async function AdminPage({ searchParams }: Props) {
   // rather than an error: the only way to get one is a stale link.
   const editingPack = params.pack
     ? (packs.find((pack) => pack.slug === params.pack) ?? null)
+    : null;
+
+  // Same arrangement for the catalogue row `?item=` asked to open. An id that
+  // no longer exists collapses back to the plain list rather than erroring: the
+  // only way to hold one is a page left open while somebody deleted the item.
+  const editingItem = params.item
+    ? (catalogue.find((entry) => entry.id === params.item) ?? null)
     : null;
 
   // People who have played under more than one name. Not "renamed": most of
@@ -541,6 +583,14 @@ export default async function AdminPage({ searchParams }: Props) {
           </p>
         </section>
       ) : null}
+
+      {/*
+        Before the map packs, because this is the section with a work queue in
+        it. An ingest run leaves drafts that are invisible everywhere else on
+        the site, and the point of putting them first is that somebody who came
+        here for something else still sees them waiting.
+      */}
+      <CatalogueAdmin items={catalogue} editing={editingItem} />
 
       <MapPackAdmin packs={packs} editing={editingPack} />
 

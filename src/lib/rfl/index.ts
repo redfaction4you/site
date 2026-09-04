@@ -112,15 +112,26 @@ function collectFromVpp(
  * Throws only when the container itself is unreadable. A level inside a
  * readable container that fails to parse becomes a warning, so that one bad map
  * does not reject a nineteen-map pack.
+ *
+ * `filename` is what the file was called where it came from, and it matters for
+ * exactly one case. A zip or a packfile carries its entries' names inside it, so
+ * a level's path survives; a bare `.rfl` is nothing but level bytes, and this
+ * used to record it as the literal string `level.rfl`. That threw away the only
+ * signal Red Faction has for a level's game type, which lives in the filename
+ * prefix and nowhere else, so every bare level arrived uncategorised and the
+ * loss was invisible. Optional, because the parser genuinely does not need it
+ * and every existing caller predates it.
  */
-export function inspectUpload(bytes: Uint8Array): ArchiveInspection {
+export function inspectUpload(bytes: Uint8Array, filename?: string): ArchiveInspection {
   const levels: InspectedLevel[] = [];
   const warnings: string[] = [];
   let container: ContainerKind;
 
   if (looksLikeRfl(bytes)) {
     container = "rfl";
-    levels.push(inspectOneLevel(bytes, "level.rfl"));
+    // The name as given, when there is one. Never invented: a level whose real
+    // name is unknown is recorded as unknown rather than as a guess.
+    levels.push(inspectOneLevel(bytes, filename?.trim() || "level.rfl"));
   } else if (looksLikeVpp(bytes)) {
     container = "vpp";
     collectFromVpp(bytes, "", levels, warnings);
