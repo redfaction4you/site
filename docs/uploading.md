@@ -5,25 +5,179 @@ the shelves. This is the operator's guide: how a folder of files on a disk
 becomes a row people can download. `CLAUDE.md` covers the conventions a person
 editing the code needs; this covers running it.
 
-The job this was built for is bulk. The archive is being recovered from dead
-forums, expired hosts and the map folders of servers that are still running, so
-the unit of work is a hundred folders on a local disk rather than one file at a
-time in a browser.
+The first job this was built for is bulk. The archive is being recovered from
+dead forums, expired hosts and the map folders of servers that are still
+running, so most of the work is a hundred folders on a local disk. The second
+job is one person with one file, which is what the form on `/admin` is for, and
+the two write the same rows.
 
-## There is deliberately no upload form
+## Two ways in, and which one to use
 
-A Next server action accepts 1 MB of body by default, and Red Faction maps
-routinely exceed that: a map pack is tens of megabytes and a single packfile
-often clears the cap on its own. The limit is raisable, but raising it would
-build a browser form for a job nobody is doing in a browser, and the form would
-still be the slow way to move two hundred folders off a disk.
+This document used to say there was deliberately no upload form, and the
+reasoning was about bulk: the unit of work is a hundred folders, and a browser
+is the slow way to move them. That is still true of a recovery run and it was
+never the whole story. The person this archive is for is a mapper, and the
+reason to host his own work here is that hosting it somewhere else means
+somebody else decides whether he can edit or delete it. That only holds if
+putting a file here is something he can do himself, without a terminal.
 
-**The CLI is the upload path.** The admin screens manage what it creates: they
-publish, hide, edit and delete, and they never create. Nothing else in `src/`
-writes to `items`, and it should stay that way, because a second writer is a
-second opinion about what a storage key looks like.
+So there are two, and they write the same rows through the same rules:
 
-## The folder is the item
+- **The form on `/admin`**, for one thing at a time. Choose a file, say which
+  shelf, and it is in the catalogue as a draft.
+- **The CLI**, for bulk. A folder of two hundred folders is one command and
+  reads every file at the byte level before anything is written.
+
+Both derive the slug, the storage key and the game type from
+`src/lib/ingest-rules.ts` and `src/lib/downloads.ts`, which is the point of
+those two modules importing nothing: **a storage key is a promise**, it becomes
+the permanent public URL, and two writers disagreeing about how to build one is
+how an archive ends up with a file it cannot find and a row it cannot replace.
+Where the form and the CLI disagree about anything, that is a bug in one of
+them rather than a choice.
+
+## The form on /admin
+
+Under **Upload something**, above the catalogue it feeds. It needs the admin key
+like everything else on that page, and all three routes behind it check that key
+themselves, because a route handler is a public endpoint whatever page called
+it.
+
+Fill in what you know. Title and address prefill from the filename and stay
+editable, and the address is shown as you type, along with the storage key the
+file will live at forever, because both are permanent and this is the last
+moment either is cheap to change. If something already lives at that address the
+form says whose it is: uploading then replaces that item's file and edits its
+row rather than making a second one, which is the same upsert on `(kind, slug)`
+the CLI does.
+
+Everything lands as a draft unless you say otherwise, for the reasons under
+[Everything lands as a draft](#everything-lands-as-a-draft) below, and the same
+caveat applies: the draft governs the page, never the bytes.
+
+### The size problem, and the one limit worth knowing
+
+Measured on the 391 custom maps on the live server: mean 14.6 MB, largest
+379 MB, and 195 of the 391 over 4 MB. Against that, **Vercel caps a serverless
+function request body at 4.5 MB** and a Next server action defaults to 1 MB. So
+posting the bytes through our own server works for about half the archive and
+fails for the rest, and no amount of raising a limit in `next.config.ts` moves
+the platform's own.
+
+The form therefore tries two things in order and tells you which one carried the
+file:
+
+1. **Straight from the browser into the bucket**, with a presigned PUT. No size
+   limit worth the name, and it is what makes a 379 MB pack possible.
+2. **Posted through the site**, when the first is not available and the file
+   fits under the cap the server reports. That cap is
+   `SERVER_PATH_LIMIT_BYTES` in `src/lib/ingest.ts` and it is 4 MiB rather than
+   4.5, because the file is not the whole request: the field names, the
+   boundaries and the multipart framing are inside the same body.
+
+Progress is real in both cases, byte by byte, because a form that sits still for
+four minutes on a large map looks exactly like a form that is broken.
+
+### Turning the direct route on, once
+
+The direct PUT needs a CORS policy on the R2 bucket, and **our API token cannot
+set one**: it is an Object Read and Write token, so `GetBucketCors` answers
+`AccessDenied`. It is a one-time job in the Cloudflare dashboard, under R2, the
+bucket, Settings, CORS policy:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://redfaction4you.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["content-type", "cache-control"],
+    "ExposeHeaders": ["etag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+**Both headers are load-bearing.** The signed URL covers `content-type` and
+`cache-control`, so the browser has to send exactly those, and a browser will
+not send either cross-origin unless the bucket has named it. Leaving
+`cache-control` out produces the same failure as having no policy at all, on a
+policy that looks right.
+
+Add `http://localhost:3000` to `AllowedOrigins` to use the form from a dev
+server. Until this is set, a browser refuses the PUT before it gets a reply, so
+the failure arrives with no status and no body at all: that is what the form
+reads as "not enabled yet" and why it falls back rather than reporting an error.
+A real status coming back from R2 is the other case, a signature or a key it
+would not accept, and the form says which of the two happened rather than
+folding them into one message.
+
+**A file over the cap with the direct route not yet enabled is refused in
+words.** It says the size, it says the cap, it prints the policy above with this
+deployment's own origin in it, and it names the CLI as the way through in the
+meantime. Never a bare 413, and never a spinner that stops.
+
+### What the form does not do
+
+- **One file per item**, plus screenshots. A folder with a zip, a readme and a
+  second version in it is a job for the CLI, which refuses the ambiguity rather
+  than guessing which file is the download.
+- **No sidecar, no changelog and no description.** `item.json` carries all
+  three. Changelog entries are added afterwards in the catalogue section
+  directly below the form, and the long prose for a detail page currently comes
+  from a sidecar and the CLI or from nowhere.
+- **No bulk.** Two hundred folders is two hundred trips through a form.
+- **It cannot un-upload.** Same as everywhere else here: the object is in a
+  public bucket from the moment it lands, and deleting the row later leaves it
+  there. See [The honest limits](#the-honest-limits).
+
+### The three routes behind it
+
+`src/components/upload-admin.tsx` is the only client component in the path and
+owns the upload state and nothing else. It talks to three route handlers, each
+of which re-checks the admin key, because a route handler is a public endpoint
+whatever page called it:
+
+- `POST /api/admin/upload/prepare`, once per file, with `kind`, `slug`,
+  `filename`, `sizeBytes`, `role` (`download` or `screenshot`) and a `position`
+  for screenshots. It answers the storage `key`, a presigned PUT `url`, the
+  `headers` that url was signed with, `serverPathLimitBytes` for the fallback,
+  and `existing` when something already lives at that address.
+- `POST /api/admin/upload`, the fallback, multipart, with the same fields and
+  the file itself. It answers the key it derived and a `sha256` of the bytes it
+  received.
+- `POST /api/admin/upload/commit`, once, with the metadata and the keys that
+  landed. It calls `ingestUploaded` in `src/lib/ingest.ts`, which writes the
+  item, the file, the screenshots and `map_meta` exactly as the CLI does,
+  including supplying every id itself, because Drizzle generates ids and
+  Postgres has no default on those columns.
+
+**The key is derived on the server and never taken from the browser.** `prepare`
+and the fallback each build it from the item's own address; `commit` is handed
+the keys that landed, rebuilds every one of them the same way and refuses the
+request if any disagrees. So nothing a caller sends decides where an object goes
+or what a catalogue row is allowed to point at, which is what stops a stray
+request naming something it should not be able to write, the encrypted database
+backups in the same bucket included.
+
+Two things are worth knowing about the hash. `files.sha256` is `NOT NULL` and it
+is what makes a catalogue row a promise about specific bytes. The server path
+hashes what it receives, since the bytes are already in memory. **A direct
+upload never passes through our code at all, so the browser hashes the file
+itself** and sends the digest at commit: the alternative is fetching a 379 MB
+object back out of the bucket inside a serverless function, which is the case
+the direct path exists to avoid.
+
+The bytes are stored before any row points at them, which is the safe direction
+of the two: an object nothing references is a few spare kilobytes, while a row
+referencing an object that is not there is a download button handing somebody a
+404, and the site cannot tell.
+
+## The CLI, and the folder is the item
+
+Everything from here down is the bulk path: `npm run ingest`, run from the repo
+root, reading files off a local disk. It is what a recovery run uses, it reads
+the bytes before it writes anything, and it is also the way through when a file
+is too large for the server path and the direct route is not on yet.
 
 One folder, one catalogue entry:
 

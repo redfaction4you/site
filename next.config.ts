@@ -19,6 +19,31 @@ function r2Pattern() {
 }
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      /*
+        Server actions accept 1 MB of body by default, which is under the size
+        of most of what this archive holds: of the 391 custom maps on the live
+        server the mean is 14.6 MB and 195 of them are over 4 MB.
+
+        4 MB rather than more, because Vercel refuses a serverless function
+        request body over 4.5 MB at the edge, with an HTML error page the
+        function never runs to see. Raising this past that limit would only
+        move where the failure happens, from a message somebody can read to one
+        nobody can. The remaining half megabyte is for the multipart framing,
+        the field names and the boundary, which are part of the same body.
+
+        The upload form does not post file bytes through a server action at all
+        for exactly this reason. It talks straight to R2 where it can, and falls
+        back to `/api/admin/upload`, whose ceiling is the same 4 MB and is named
+        `SERVER_PATH_LIMIT_BYTES` in `src/lib/ingest.ts`. The two are written out
+        separately because importing that module here would pull the database
+        client into the config, where a missing DATABASE_URL would stop the
+        build. Change one and change the other.
+      */
+      bodySizeLimit: "4mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Discord avatars for member profiles.

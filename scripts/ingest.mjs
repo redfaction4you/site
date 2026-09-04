@@ -6,11 +6,22 @@
  *   npm run ingest -- "D:\rf\maps" --go --publish         and make them visible
  *   npm run ingest -- ./red --kind=tool --author="Volition"
  *
- * THIS IS THE UPLOAD PATH, and there is deliberately no browser form beside it.
- * A Next server action caps request bodies at 1 MB by default and Red Faction
- * maps routinely exceed that, while the thing actually being done here is
- * seeding hundreds of files recovered from dead forums off a local disk. A form
- * is the wrong shape for that. The admin screens manage what this creates.
+ * THIS IS THE BULK PATH, and since 3 September 2026 it is no longer the only
+ * one: `/admin` has a browser form, `src/components/upload-admin.tsx`, and it
+ * writes through `src/lib/ingest.ts`, which is this file's twin. Where the two
+ * disagree the archive gets two shapes of row, so every derived rule they share
+ * lives in `src/lib/ingest-rules.ts` and `src/lib/downloads.ts` rather than
+ * being restated in either. The statement lists here and there are written
+ * twice, and a field added to one upsert belongs in the other the same day.
+ *
+ * They are for different jobs. This one seeds hundreds of files recovered from
+ * dead forums off a local disk, in one pass, with a dry run to read first. The
+ * form is for one item at a time, put there by the person who made it, without
+ * a terminal. It also has a ceiling this does not: the browser talks straight to
+ * R2 where a CORS policy on the bucket allows it, and falls back to posting
+ * through a serverless function, which Vercel caps at 4.5 MB. This runs from a
+ * terminal and is capped by nothing, so it stays the answer for a 379 MB pack
+ * while that policy is unset. The admin screens manage what either creates.
  *
  * WHAT --go COSTS, because both halves of it are the live site's.
  *

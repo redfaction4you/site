@@ -298,9 +298,35 @@ an entry there plus two small route files.
 
 ### Uploading
 
-The ingest CLI is the only thing that writes to `items`, and everything it
-creates lands as a draft for a person to publish. **`docs/uploading.md` is the
-operator's guide**: the folder layout, the sidecar, the commands and the limits.
+Two things write to `items`, and everything either of them creates lands as a
+draft for a person to publish. **`docs/uploading.md` is the operator's guide**:
+both paths, the folder layout, the sidecar, the commands and the limits.
+
+- **`scripts/ingest.mjs`** is the bulk path, from a local disk, with a dry run
+  first. Capped by nothing, so it is still the answer for the large end of the
+  archive.
+- **The form on `/admin`** (`src/components/upload-admin.tsx`, the only client
+  component in the path) is one item at a time, put there by whoever made it,
+  without a terminal. It writes through `src/lib/ingest.ts` and the three routes
+  under `src/app/api/admin/upload/`.
+  - **It has two upload paths and degrades honestly between them.** The browser
+    PUTs straight to R2 with a presigned URL, which has no size limit; when that
+    fails it posts through `/api/admin/upload`, which Vercel caps at 4.5 MB, so
+    `SERVER_PATH_LIMIT_BYTES` is 4 MB. **195 of the 391 custom maps on the live
+    server are over that**, mean 14.6 MB and largest 379 MB, so the fallback
+    carries about half the archive and no more.
+  - **The direct path stays dead until a CORS policy is set on the bucket**, by
+    hand, in the Cloudflare dashboard: our R2 token is Object Read and Write and
+    `GetBucketCors` answers AccessDenied. Until then the browser's PUT fails with
+    no status at all, and the form prints the policy to paste and the CLI command
+    rather than a 413 nobody can act on. `AllowedHeaders` needs **both**
+    `content-type` and `cache-control`, because the signature covers both and a
+    policy naming only the first fails identically to having no policy.
+- **`src/lib/ingest.ts` is the CLI's twin and the two must agree.** Every derived
+  rule is shared through `ingest-rules.ts` and `downloads.ts`; the statement
+  lists are written twice and nothing checks that they still match, so a field
+  added to one upsert belongs in the other the same day.
+
 Four things a person editing this code needs to know:
 
 - **Ids come from Drizzle, not from Postgres.** Every id in the catalogue tables

@@ -66,6 +66,11 @@ const MUST_BE_CLEAN = [
   // dense working screen full of quiet metadata, which is exactly the shape that
   // tempts somebody towards a dimmer grey.
   "components/catalogue-admin.tsx",
+  // The browser upload form, same day and the same shape again: file names,
+  // byte counts and progress labels are all small quiet text, and the one thing
+  // on it that must stay readable is the sentence explaining why an upload was
+  // refused.
+  "components/upload-admin.tsx",
   "app/downloads/page.tsx",
   "app/assets/page.tsx",
   "app/assets/[slug]/page.tsx",

@@ -24,6 +24,8 @@ import { listAllItems } from "@/lib/catalogue";
 import { MapPackAdmin } from "@/components/map-pack-admin";
 import { FeatureAdmin } from "@/components/feature-admin";
 import { CatalogueAdmin } from "@/components/catalogue-admin";
+import { UploadAdmin } from "@/components/upload-admin";
+import { canWriteToStorage } from "@/lib/r2";
 import { serverLabel } from "@/lib/matches/server-names";
 import {
   lock,
@@ -470,6 +472,18 @@ export default async function AdminPage({ searchParams }: Props) {
         <section>
           <h2 className="rule-heading">Things you can do</h2>
           <ul className="mt-2 space-y-1.5 text-sm">
+            {/* First, because it is the one thing here that adds to the archive
+                rather than tidying it, and it is far enough down the page to be
+                missed by somebody who came for something else. */}
+            <li>
+              <Link href="#upload" className="text-rust-400 hover:text-rust-300">
+                Upload a file
+              </Link>
+              <span className="text-steel-400">
+                {" "}
+                straight into the catalogue, without a terminal
+              </span>
+            </li>
             <li>
               <Link href="/link" className="text-rust-400 hover:text-rust-300">
                 Add a recording
@@ -583,6 +597,26 @@ export default async function AdminPage({ searchParams }: Props) {
           </p>
         </section>
       ) : null}
+
+      {/*
+        Uploading sits directly above the catalogue because they are two halves
+        of one job: a file arrives here and is published one section down. The
+        addresses already in use are handed over so the form can say what an
+        upload would replace rather than silently upserting onto an existing
+        row, which is the trap the ingest CLI guards against within a run and
+        could not guard against across one.
+
+        `canWriteToStorage` is read on the server, since it depends on the three
+        R2 credentials, none of which is a NEXT_PUBLIC variable and none of which
+        may reach a browser.
+      */}
+      <UploadAdmin
+        storageReady={canWriteToStorage()}
+        taken={catalogue.map((entry) => ({
+          address: `${entry.kind}/${entry.slug}`,
+          title: entry.title,
+        }))}
+      />
 
       {/*
         Before the map packs, because this is the section with a work queue in
