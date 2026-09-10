@@ -690,6 +690,30 @@ function ItemEditor({
             />
           </div>
 
+          <div>
+            <label className={LABEL} htmlFor={`description-${item.id}`}>
+              Description, the prose under the download
+            </label>
+            <textarea
+              id={`description-${item.id}`}
+              name="description"
+              rows={8}
+              defaultValue={item.description ?? ""}
+              className={`${FIELD} resize-y font-sans leading-relaxed`}
+            />
+            {/*
+              Said here because the page renders it with `whitespace-pre-line`
+              and nothing else. A blank line between paragraphs is the only
+              formatting there is, and a reader who types asterisks expecting
+              bold gets asterisks.
+            */}
+            <p className="mt-1 text-xs leading-snug text-steel-400">
+              Plain text, and blank lines are what separate paragraphs. There is
+              no markdown renderer on this site, so asterisks stay asterisks.
+              Leave it empty and the page simply has no About section.
+            </p>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className={LABEL} htmlFor={`category-${item.id}`}>

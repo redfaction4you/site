@@ -856,6 +856,19 @@ export async function editItem(formData: FormData): Promise<void> {
       title,
       authorName: String(formData.get("authorName") ?? "").trim().slice(0, 120) || null,
       summary: String(formData.get("summary") ?? "").trim().slice(0, 300) || null,
+      /*
+       * Line endings normalised, and nothing else touched. A textarea posts
+       * CRLF, the page renders with `whitespace-pre-line`, and a stored
+       * carriage return survives into the markup where it is a character
+       * nobody typed. The cap is generous because this is where a readme goes:
+       * 20,000 is about eight pages, past anything anyone has written about a
+       * map and well short of something that would hurt a row.
+       */
+      description:
+        String(formData.get("description") ?? "")
+          .replace(/\r\n/g, "\n")
+          .trim()
+          .slice(0, 20000) || null,
       category: category || null,
       releaseVersion:
         String(formData.get("releaseVersion") ?? "").trim().slice(0, 24) || null,

@@ -627,6 +627,18 @@ export type AdminItem = {
   title: string;
   status: ItemStatus;
   summary: string | null;
+  /*
+   * The long text under the download, which the editor could not touch until 9
+   * September 2026: the form offered a title, an author, a summary and a
+   * category, and the one field somebody actually writes prose into had no
+   * control at all. Correcting it meant a SQL statement.
+   *
+   * The only field here read whole rather than as a count or a chip, so it is
+   * also the only reason this query is heavier than the screen needs. That is
+   * the trade: the alternative is a second query per opened row, and the admin
+   * screen is one person at a time.
+   */
+  description: string | null;
   authorName: string | null;
   category: string | null;
   releaseVersion: string | null;
@@ -675,6 +687,7 @@ export async function listAllItems(): Promise<AdminItem[]> {
       title: items.title,
       status: items.status,
       summary: items.summary,
+      description: items.description,
       authorName: items.authorName,
       category: items.category,
       releaseVersion: items.releaseVersion,

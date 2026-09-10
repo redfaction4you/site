@@ -353,20 +353,22 @@ export function ItemDetail({
                       />
                     </div>
 
-                    {compat?.rflVersion ? (
-                      <p className="mt-2 text-xs leading-relaxed text-steel-400">
-                        Level format{" "}
-                        <span className="font-mono text-steel-300">
-                          {compat.rflVersion}
-                        </span>
-                        , read from the file rather than entered by hand.
-                      </p>
-                    ) : null}
-
+                    {/*
+                     * No version number under the pills any more. It read
+                     * "Level format 305, read from the file rather than entered
+                     * by hand", which is a sentence about how this page knows
+                     * something rather than about the map. The pills say which
+                     * clients load it, which is the question; the number they
+                     * were derived from is working, and working belongs in the
+                     * file it was done in. It is still read, still stored on
+                     * `map_meta.rfl_version` and still what `plays_on` comes
+                     * from, so nothing was lost but a line to skim past.
+                     */}
                     {unverified ? (
                       <p className="mt-2 text-xs leading-relaxed text-oxide-300">
-                        That version is outside the range we have documentation
-                        for, so the row above is unproven. Try it yourself.
+                        The level format in this file is outside the range we
+                        have documentation for, so the row above is unproven.
+                        Try it yourself.
                       </p>
                     ) : null}
 
@@ -382,6 +384,32 @@ export function ItemDetail({
             ) : null}
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-1">
+              {/*
+               * The level's own name, first in the panel.
+               *
+               * It is not the name of the download and it is the one fact here
+               * a reader cannot work out from anywhere else: this item is
+               * `dm-ArenaIslandB3.vpp` and the level inside it is
+               * `dm-ArenaIslandB3.rfl`, and the second is what appears in a
+               * server's rotation, in the console and in a vote. Somebody
+               * checking whether the map their server just loaded is this one
+               * is reading for that string and nothing else, so it goes above
+               * the facets and the dates rather than below them. The order of
+               * this panel was set by the owner reading his own page on 9
+               * September 2026: level file, type, the dates, then the counts.
+               *
+               * Only for the one-level case. A pack holding several carries
+               * them in the disclosure under the download instead, because five
+               * names in a 16rem column is a table pretending to be a sidebar.
+               */}
+              {onlyLevel ? (
+                <Field label="Level file">
+                  <span className="break-all font-mono text-xs text-steel-200">
+                    {onlyLevel.path}
+                  </span>
+                </Field>
+              ) : null}
+
               {/*
                * "Type", which is the word the shelf uses above its own chip row
                * and the word the owner uses for it out loud. The link is
@@ -408,21 +436,6 @@ export function ItemDetail({
               </Field>
 
               <Field label="Last update">{archiveDate(item.updatedAt) ?? "Not known"}</Field>
-
-              {/*
-               * The level's own name, which is not the name of the download and
-               * is worth having beside it: the first map published here is
-               * `dm-ArenaIslandB3.vpp` and the level inside it is
-               * `dm-ArenaIslandB3.rfl`, and the second is what appears in a
-               * server's rotation and in the console.
-               */}
-              {onlyLevel ? (
-                <Field label="Level file">
-                  <span className="break-all font-mono text-xs text-steel-200">
-                    {onlyLevel.path}
-                  </span>
-                </Field>
-              ) : null}
 
               {/*
                * The date in the level header, which is when it was last saved in
@@ -460,25 +473,23 @@ export function ItemDetail({
               </Field>
 
               {/*
-               * The download number, written out as the path it belongs to.
+               * The download number, and only the number.
                *
                * A short id is only worth having if somebody can find it, and the
                * one place it is otherwise visible is the status bar while the
-               * pointer sits on a button. So it is here, quiet, selectable and
-               * spelled out in full, because the useful thing to paste is the
-               * address rather than the digits on their own. Not in the heading:
-               * this is a filing number, and the map is called Arena Island.
+               * pointer sits on a button. So it is here, quiet and selectable.
+               * The `/api/download/1` line that used to sit under it is gone:
+               * it taught a reader this site's route shape, which is not
+               * something a reader wants, and the digits are what actually gets
+               * read out loud. Not in the heading either: this is a filing
+               * number, and the map is called Arena Island.
                *
-               * The primary file's, matching "File size" above it. An item with
-               * a second file has that one's number beside its own download link
-               * in the panel.
+               * The primary file's. An item with a second file has that one's
+               * number beside its own download link in the panel above.
                */}
               {primary ? (
                 <Field label="Download number">
                   <span className="font-mono">{primary.ref}</span>
-                  <span className="mt-1 block font-mono text-[0.625rem] text-steel-400">
-                    /api/download/{primary.ref}
-                  </span>
                 </Field>
               ) : null}
             </dl>
