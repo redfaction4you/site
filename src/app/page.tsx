@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ColumnImage } from "@/components/column-image";
 import { NewArrivals } from "@/components/new-arrivals";
 import { listArrivals } from "@/lib/catalogue";
+import { arrivalLeadsColumn } from "@/lib/downloads";
 import { ReadingList } from "@/components/reading-list";
 import { listReading } from "@/lib/reading";
 import { MatchOfTheNight } from "@/components/match-of-the-night";
@@ -80,6 +81,28 @@ export default async function HomePage() {
   const online = status.state === "online" ? status : null;
   const busy = online && online.players > 0;
   const column = columns[0] ?? null;
+
+  /*
+   * Which of the two stories in the main column is the newer one.
+   *
+   * The front page is a feed now: the newest thing is at the top and older
+   * things are below it, which is what the owner asked for and how he described
+   * it, "like a blog". A map published this afternoon leads; the morning after a
+   * match night the report leads and the map drops under it.
+   *
+   * The column's date is a calendar day and the arrival's is a moment, so the
+   * day is read at noon UTC before they are compared. That is the same trick
+   * `archiveDate` uses and it is not cosmetic: a day string has no time in it,
+   * and reading it as midnight would make a report published on Tuesday evening
+   * lose to anything filed later that same Tuesday.
+   *
+   * With no column at all the arrivals lead, because the alternative is the
+   * static welcome paragraph and a real new map beats it.
+   */
+  const arrivalsLead = arrivalLeadsColumn(
+    arrivals[0]?.publishedAt,
+    column?.archiveDay,
+  );
 
   // The featured match belongs to the night the column is about, so it is only
   // fetched once there is a column to hang it beside.
@@ -193,6 +216,24 @@ export default async function HomePage() {
           everything beside it.
         */}
         <div className="min-w-0 space-y-8">
+          {/*
+            Newest first, which is why this is ordered rather than placed.
+
+            The owner asked for "any new thing goes at the front top, like a
+            blog, then you scroll down to read past things". A fixed position
+            would have been right today and wrong the morning after a match
+            night, when the report is the new thing and a map published last
+            week would be sitting above it. So the two are compared and the
+            newer one leads.
+
+            The column carries a calendar day and the map carries a moment, so
+            the day is read at noon UTC before they are compared, the same
+            trick `archiveDate` uses: a bare day string has no time in it, and
+            picking midnight would make a column published in the evening lose
+            to anything filed the same day.
+          */}
+          {arrivalsLead ? <NewArrivals items={arrivals} /> : null}
+
           {/* --- The lead story --- */}
           <article className="min-w-0">
             {column ? (
@@ -248,10 +289,8 @@ export default async function HomePage() {
             )}
           </article>
 
-          {/* Under the lead and in the same column, with no heading of its
-              own: its kicker is the heading, in the same red caps and the same
-              position as the article's. */}
-          <NewArrivals items={arrivals} />
+          {/* The other order: a map older than the report sits under it. */}
+          {arrivalsLead ? null : <NewArrivals items={arrivals} />}
         </div>
 
         {/* --- The rail --- */}

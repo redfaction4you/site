@@ -23,6 +23,7 @@ import {
   categoryFromLevels,
   categoryOf,
   ARCHIVE_TIME_ZONE,
+  arrivalLeadsColumn,
   displayVersion,
   levelFact,
   parseSort,
@@ -282,4 +283,38 @@ test("no catalogue surface pins its own timezone", async () => {
       );
     }
   }
+});
+
+/* --- which story leads the front page ------------------------------------- */
+
+test("a map published after the night's report leads it", () => {
+  assert.equal(
+    arrivalLeadsColumn(new Date("2026-09-09T20:00:00Z"), "2026-09-01"),
+    true,
+  );
+});
+
+test("the report leads a map published before it", () => {
+  assert.equal(
+    arrivalLeadsColumn(new Date("2026-08-28T20:00:00Z"), "2026-09-01"),
+    false,
+  );
+});
+
+test("a report filed the same evening still beats that day's map", () => {
+  // The day is read at noon, not midnight. Read as midnight, anything
+  // published during the day would jump ahead of the night it belongs to.
+  assert.equal(
+    arrivalLeadsColumn(new Date("2026-09-01T09:00:00Z"), "2026-09-01"),
+    false,
+  );
+});
+
+test("with nothing published, or nothing to compare, the answer is stable", () => {
+  assert.equal(arrivalLeadsColumn(null, "2026-09-01"), false);
+  assert.equal(arrivalLeadsColumn(undefined, "2026-09-01"), false);
+  // No column means the alternative is the static welcome paragraph.
+  assert.equal(arrivalLeadsColumn(new Date("2026-09-09T20:00:00Z"), null), true);
+  // A day that will not parse must not silently sort as 1970.
+  assert.equal(arrivalLeadsColumn(new Date("2026-09-09T20:00:00Z"), "not a day"), true);
 });
