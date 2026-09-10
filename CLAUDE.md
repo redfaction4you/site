@@ -178,6 +178,31 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   is the same cause as the `vet:pages -- --base <url>` bug below, which printed
   a clean bill of health for a dev server while appearing to check production.
   **When a check is run wrongly it reports success.**
+- **`unstable_cache` returns JSON, so a `Date` comes back a string.** The types
+  keep saying `Date` and nothing checks the boundary, so the first component to
+  call `Intl.DateTimeFormat.format` on it throws `RangeError: Invalid time
+  value`. **The request that fills the cache renders correctly and every request
+  after it is a 500**, which is why it survived a screenshot, a typecheck and a
+  build: the page is fine the first time you look at it. `/maps` did this the
+  hour the catalogue cache was added. `LISTING_DATE_FIELDS` in `catalogue.ts` is
+  the revival list and `scripts/catalogue-cache.test.mjs` fails if a timestamp
+  reaches a listing without being named in it. **Curl a cached page twice**, not
+  once. The same applies to anything else stored this way.
+- **The catalogue listings are cached for an hour under one tag**, because a
+  shelf reads its filters from the URL and is therefore dynamic: without it a
+  crawler walking type by sort by tag holds Neon awake, which is the shape of
+  thing that produced a $52 month once already. Every admin action and the
+  upload commit call `revalidateTag(CATALOGUE_CACHE_TAG)`. **A write that does
+  not go through those is invisible for up to an hour** — a row edited by hand
+  in SQL, or a `scripts/ingest.mjs` run. Nothing is wrong with the data; it is
+  late. Same trap `map_packs` sprang before it.
+- **Vercel bills image optimisation per transformation**, so `next.config.ts`
+  sets `minimumCacheTTL` to thirty-one days and cuts `deviceSizes` and
+  `imageSizes` from eight entries each to four. Every width left in those lists
+  is a variant that may be produced and paid for. A screenshot key carries the
+  item, its position and its filename, so a different picture is a different
+  URL; the one way to serve a stale one is to detach every picture on an item
+  and re-attach the same filenames in the same order. Rename them if you do.
 - **Never run `npm run build` while `next dev` is running.** The build overwrites
   `.next` underneath the dev server and it starts answering 500 with
   `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or
