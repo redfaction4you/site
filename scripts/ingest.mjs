@@ -559,10 +559,27 @@ async function ingest(item) {
   }
   for (const warning of inspection?.warnings ?? []) notes.push(warning);
 
+  /*
+   * The level list in the shape `map_meta.levels` stores, and the twin of
+   * `levelsOf` in src/lib/ingest.ts.
+   *
+   * `savedAt` is the header's own timestamp, which is when somebody last saved
+   * the level in the editor and has nothing to do with when it was uploaded
+   * here. The parser has always read it and both writers threw it away until
+   * now, which cost the one date about a twenty year old map that is actually
+   * about the map.
+   *
+   * ISO, because the column is jsonb and a Date does not survive the round
+   * trip. Absent rather than null where the file carries no plausible stamp:
+   * `JSON.stringify` below drops an undefined key, so an old row and a level
+   * with no date read the same way, and the page has one case to handle
+   * instead of two.
+   */
   const levels = (inspection?.levels ?? []).map((level) => ({
     path: level.path,
     version: level.header.version,
     levelName: level.header.levelName,
+    savedAt: level.header.savedAt?.toISOString(),
   }));
 
   /*

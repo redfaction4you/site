@@ -12,6 +12,7 @@ import {
   parseSort,
   SORT_LABELS,
   SORTS,
+  type Category,
   type Section,
   type Sort,
 } from "@/lib/downloads";
@@ -22,10 +23,28 @@ import { DownloadRow } from "@/components/download-row";
 /**
  * One listing page, shared by all four catalogue sections.
  *
+ * Two columns: the shelf itself, and the filters in an aside beside it. It used
+ * to be one column with eight blocks stacked above the first row, an eyebrow, a
+ * heading, a three line intro, the blurb of whichever facet was in force, and
+ * three rows of chips before the count and the sort. With one map published
+ * that is absurd, and with two hundred it would still be wrong: a person
+ * opening a shelf has come to see what is on it. What explains the shelf rather
+ * than being the shelf now sits to the side of it.
+ *
+ * The intro is dropped rather than shortened. `/downloads` is the door every
+ * reader comes through and it already says, once, that this is free, needs no
+ * account and is hosted here; saying it again above each of four lists is a
+ * paragraph nobody reads a second time. It still writes the page description in
+ * the route file, which is where that sentence does real work. The one line of
+ * it worth keeping was that compatibility is read out of the file itself, and
+ * that is now a note under the filter it explains.
+ *
  * Filters are plain links carrying query parameters rather than client-side
- * state. That keeps every filtered view a real URL somebody can bookmark or
- * paste into Discord, which matters more here than a slicker interaction: this
- * is an archive, and its whole value is that links to it keep working.
+ * state, and putting them in an aside changes nothing about that. A filter
+ * panel is not client state; it is the same links in a better place. That keeps
+ * every filtered view a real URL somebody can bookmark or paste into Discord,
+ * which matters more here than a slicker interaction: this is an archive, and
+ * its whole value is that links to it keep working.
  *
  * Sorting is the same rule for one further reason. "The ten most downloaded CTF
  * maps" is a thing people link each other to, and a sort held in component state
@@ -33,6 +52,11 @@ import { DownloadRow } from "@/components/download-row";
  * `/maps?type=ctf&sort=downloads` is the whole view in one line of text. It also
  * keeps this a server component, so a shelf of two hundred maps ships no
  * JavaScript to sort itself with.
+ *
+ * The count and the sort stay in the main column directly above the rows rather
+ * than joining the panel, because they describe the list instead of narrowing
+ * it. Everything in the aside changes which rows there are; those two describe
+ * the rows there already are.
  *
  * The category parameter is `type`, not `category`, which is what `Category.id`
  * in `@/lib/downloads` documents. `/maps?type=ctf` is the URL somebody types by
@@ -54,6 +78,15 @@ const SORT_MARK: Record<Sort, string> = {
   downloads: "▾",
   name: "▴",
 };
+
+/**
+ * Which parameters the panel owns, and therefore what "clear" clears.
+ *
+ * `sort` is deliberately not one of them. An order is not a filter, and a link
+ * that promises to clear filters should not quietly put the list back into
+ * newest-first as well.
+ */
+const FILTER_KEYS = ["q", "type", "client", "tag"] as const;
 
 function isClient(value: string | undefined): value is RfClient {
   return Boolean(value) && ALL_CLIENTS.includes(value as RfClient);
@@ -113,6 +146,186 @@ function Count({ value }: { value: number }) {
   return <span className="tabular-nums text-steel-400">{value}</span>;
 }
 
+/**
+ * One labelled set of chips inside the panel.
+ *
+ * The label is a caption rather than a heading, because three of these stacked
+ * in a 16rem column at real heading weight would rebuild in the aside the wall
+ * of chrome this page was just rescued from. `note` is for the sentence a group
+ * needs before it can be used at all, and most groups need none.
+ */
+function FilterGroup({
+  label,
+  note,
+  children,
+}: {
+  label: string;
+  note?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="font-display text-[0.625rem] font-semibold uppercase tracking-widest text-steel-400">
+        {label}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>
+      {note ? (
+        <p className="mt-2 text-xs leading-relaxed text-steel-400">{note}</p>
+      ) : null}
+    </div>
+  );
+}
+
+type PanelProps = {
+  section: Section;
+  filters: CatalogueFilters;
+  tags: { tag: string; count: number }[];
+  categoryCounts: Record<string, number>;
+  publishedTotal: number;
+  activeCategory: Category | null;
+  activeCount: number;
+  /** This page's URL with one parameter changed and the rest carried through. */
+  href: (key: string, value: string | undefined) => string;
+  /** The same URL with every filter parameter dropped and the order kept. */
+  clearHref: string;
+};
+
+/**
+ * Every way of narrowing the shelf, in one block.
+ *
+ * Rendered twice on purpose: once in the sticky aside on a wide screen, once
+ * inside a closed `<details>` above the list on a phone. Two copies of a few
+ * dozen chips is markup no reader ever notices, and the alternative is one copy
+ * revealed by CSS, which cannot be done dependably now that a closed `details`
+ * is hidden through `content-visibility` rather than through a rule a
+ * stylesheet can simply override. A closed `details` does still ship its
+ * contents, which is fine for chips and is exactly why nothing carrying an
+ * image may ever go in one.
+ *
+ * The search chip is here even though nothing on this page sets `?q=`, because
+ * something can: the parameter is honoured by `listItems`, so a link carrying
+ * it produces a short list with no visible reason for being short. Showing it
+ * as a filter in force, with the way out attached, is the difference between a
+ * page that looks broken and a page that explains itself.
+ */
+function FilterPanel({
+  section,
+  filters,
+  tags,
+  categoryCounts,
+  publishedTotal,
+  activeCategory,
+  activeCount,
+  href,
+  clearHref,
+}: PanelProps) {
+  return (
+    <div className="space-y-5">
+      {filters.q ? (
+        <FilterGroup label="Search">
+          <FilterLink href={href("q", undefined)} active title="Drop this search">
+            {filters.q}{" "}
+            <span aria-hidden="true" className="text-rust-400">
+              ×
+            </span>
+          </FilterLink>
+        </FilterGroup>
+      ) : null}
+
+      {section.categories.length ? (
+        <FilterGroup
+          label="Type"
+          /* The facet's own line, which is what a category blurb is written
+             for. It used to sit above the list, explaining a filter three
+             blocks further down the page; here it is attached to the chip that
+             turned it on. */
+          note={activeCategory?.blurb}
+        >
+          <FilterLink href={href("type", undefined)} active={!filters.category}>
+            All <Count value={publishedTotal} />
+          </FilterLink>
+          {section.categories.map((category) => {
+            const count = categoryCounts[category.id] ?? 0;
+            const active = filters.category === category.id;
+
+            /*
+             * An empty facet that is the one in force stays a link, because the
+             * panel has to be able to show what is switched on. `/maps?type=ctf`
+             * is a URL somebody can paste before a single CTF map is published,
+             * and it landed on a dashed nought that looked like every other
+             * facet nobody had filled, with nothing marking the filter that had
+             * emptied the page.
+             */
+            return count === 0 && !active ? (
+              <EmptyChip
+                key={category.id}
+                label={category.label}
+                title={`${category.blurb} None published yet.`}
+              />
+            ) : (
+              <FilterLink
+                key={category.id}
+                href={href("type", active ? undefined : category.id)}
+                active={active}
+                title={category.blurb}
+              >
+                {category.label} <Count value={count} />
+              </FilterLink>
+            );
+          })}
+        </FilterGroup>
+      ) : null}
+
+      {section.hasLevels ? (
+        <FilterGroup
+          label="Plays on"
+          /* The one line worth rescuing from the intro, moved to the filter it
+             is about. It also answers the question the mark on every row
+             raises, which is where a claim like that comes from. */
+          note="Read out of the level inside each file rather than entered by hand."
+        >
+          {ALL_CLIENTS.map((client) => (
+            <FilterLink
+              key={client}
+              href={href("client", filters.client === client ? undefined : client)}
+              active={filters.client === client}
+            >
+              {CLIENT_LABELS[client]}
+            </FilterLink>
+          ))}
+        </FilterGroup>
+      ) : null}
+
+      {tags.length ? (
+        <FilterGroup label="Tags">
+          {tags.map(({ tag, count }) => (
+            <FilterLink
+              key={tag}
+              href={href("tag", filters.tag === tag ? undefined : tag)}
+              active={filters.tag === tag}
+            >
+              {tag} <Count value={count} />
+            </FilterLink>
+          ))}
+        </FilterGroup>
+      ) : null}
+
+      {/* One link out of whatever combination somebody has built, offered only
+          once there is something to undo. */}
+      {activeCount > 0 ? (
+        <p>
+          <Link
+            href={clearHref}
+            className="font-display text-xs font-semibold uppercase tracking-wider text-rust-400 hover:text-rust-300"
+          >
+            Clear {activeCount === 1 ? "filter" : "all filters"}
+          </Link>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function EmptyState({ section }: { section: Section }) {
   return (
     <div className="panel mt-10 p-8 text-center">
@@ -134,15 +347,24 @@ function EmptyState({ section }: { section: Section }) {
   );
 }
 
-function NoMatches({ section }: { section: Section }) {
+/**
+ * The other empty state, and deliberately not the same words.
+ *
+ * "Nothing published yet" and "your filters are too narrow" are different
+ * facts, and telling somebody the archive is empty when it is only their filter
+ * that is is the version of this that has to be avoided. The way out clears
+ * every filter parameter rather than pointing at the bare route, so an order
+ * somebody chose survives being widened.
+ */
+function NoMatches({ clearHref }: { clearHref: string }) {
   return (
-    <div className="panel mt-10 p-8 text-center">
+    <div className="panel p-8 text-center">
       <h2 className="font-display text-lg font-bold text-steel-100">
         Nothing matches those filters
       </h2>
       <p className="mt-3 text-sm text-steel-400">
         <Link
-          href={section.route}
+          href={clearHref}
           className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
         >
           Clear them and see everything
@@ -191,10 +413,6 @@ export async function CataloguePage({
     0,
   );
 
-  const filtered = Boolean(
-    filters.q || filters.tag || filters.client || filters.category,
-  );
-
   /*
    * Nothing published and nothing matching are different states and get
    * different copy: one is "we have not filled this in yet", the other is "your
@@ -230,155 +448,160 @@ export async function CataloguePage({
     sort: sort === DEFAULT_SORT ? undefined : sort,
   };
 
-  const withParam = (key: string, value: string | undefined) => {
+  /**
+   * How many of the panel's parameters are in force.
+   *
+   * It labels the collapsed panel on a phone and it decides whether the list
+   * says "matching", so it counts what a reader would count: the things they
+   * turned on, not the order the page is in.
+   */
+  const activeCount = FILTER_KEYS.filter((key) => current[key]).length;
+
+  const build = (patch: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(current)) {
-      if (v && k !== key) params.set(k, String(v));
+    for (const [key, value] of Object.entries({ ...current, ...patch })) {
+      if (value) params.set(key, String(value));
     }
-    if (value) params.set(key, value);
     const query = params.toString();
     return query ? `${section.route}?${query}` : section.route;
   };
 
+  const withParam = (key: string, value: string | undefined) =>
+    build({ [key]: value });
+
+  /*
+   * Everything the panel owns, dropped in one go, built from `FILTER_KEYS`
+   * rather than written out as the bare route. A fifth facet added later then
+   * clears itself instead of quietly surviving a link that claims to clear
+   * everything, and the order somebody chose is kept either way.
+   */
+  const clearHref = build(
+    Object.fromEntries(FILTER_KEYS.map((key) => [key, undefined])),
+  );
+
+  const panel = (
+    <FilterPanel
+      section={section}
+      filters={filters}
+      tags={tags}
+      categoryCounts={categoryCounts}
+      publishedTotal={publishedTotal}
+      activeCategory={activeCategory}
+      activeCount={activeCount}
+      href={withParam}
+      clearHref={clearHref}
+    />
+  );
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16">
-      <p className="eyebrow">Downloads</p>
-      <h1 className="mt-2 font-display text-4xl font-bold text-steel-100">
+    <div className="mx-auto max-w-6xl px-4 pb-16 pt-8">
+      {/*
+        The eyebrow is a way back as well as a label. None of the four shelves
+        has a slot in the header, by design, so the hub is the only route
+        between them, and somebody who arrived on a pasted `/maps?type=ctf`
+        link otherwise has none at all.
+      */}
+      <p className="eyebrow">
+        <Link href="/downloads" className="hover:text-rust-300">
+          Downloads
+        </Link>
+      </p>
+      <h1 className="mt-2 font-display text-3xl font-bold text-steel-100">
         {section.title}
       </h1>
-      <p className="mt-4 max-w-2xl text-lg leading-relaxed text-steel-300">
-        {section.intro}
-      </p>
-      {/* The facet's own line, which is what a category blurb is written for. */}
-      {activeCategory ? (
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-steel-400">
-          {activeCategory.blurb}
-        </p>
-      ) : null}
-
-      {anyPublished ? (
-        <div className="mt-8 space-y-3">
-          {section.categories.length ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 font-display text-xs uppercase tracking-widest text-steel-400">
-                Type
-              </span>
-              <FilterLink
-                href={withParam("type", undefined)}
-                active={!filters.category}
-              >
-                All <Count value={publishedTotal} />
-              </FilterLink>
-              {section.categories.map((category) => {
-                const count = categoryCounts[category.id] ?? 0;
-
-                return count === 0 ? (
-                  <EmptyChip
-                    key={category.id}
-                    label={category.label}
-                    title={`${category.blurb} None published yet.`}
-                  />
-                ) : (
-                  <FilterLink
-                    key={category.id}
-                    href={withParam(
-                      "type",
-                      filters.category === category.id ? undefined : category.id,
-                    )}
-                    active={filters.category === category.id}
-                    title={category.blurb}
-                  >
-                    {category.label} <Count value={count} />
-                  </FilterLink>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {section.hasLevels ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 font-display text-xs uppercase tracking-widest text-steel-400">
-                Plays on
-              </span>
-              {ALL_CLIENTS.map((client) => (
-                <FilterLink
-                  key={client}
-                  href={withParam(
-                    "client",
-                    filters.client === client ? undefined : client,
-                  )}
-                  active={filters.client === client}
-                >
-                  {CLIENT_LABELS[client]}
-                </FilterLink>
-              ))}
-            </div>
-          ) : null}
-
-          {tags.length ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 font-display text-xs uppercase tracking-widest text-steel-400">
-                Tags
-              </span>
-              {tags.map(({ tag, count }) => (
-                <FilterLink
-                  key={tag}
-                  href={withParam("tag", filters.tag === tag ? undefined : tag)}
-                  active={filters.tag === tag}
-                >
-                  {tag} <Count value={count} />
-                </FilterLink>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {!anyPublished ? (
         <EmptyState section={section} />
-      ) : entries.length === 0 ? (
-        <NoMatches section={section} />
       ) : (
-        <>
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-basalt-700 pb-2">
-            <p className="text-sm text-steel-400">
-              {entries.length}{" "}
-              {entries.length === 1 ? section.noun : section.pluralNoun}
-              {filtered ? " matching" : ""}
-            </p>
+        /*
+         * The sticky aside from `/matches/[day]`, at the same 16rem, with the
+         * `minmax(0,1fr)` guard `/matches/map/[map]` puts on its main column so
+         * a long title cannot push the grid wider than the page. Two patterns
+         * already do this and a third would only be a third thing to keep in
+         * step.
+         */
+        <div className="mt-6 grid gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          <div className="min-w-0">
+            {/*
+              The same panel above the list on a phone, closed, so the maps are
+              still the first thing under the heading rather than the third
+              screen of it. The summary carries the count because a shut box
+              hiding two filters in force is the one way this arrangement could
+              lie about what is being shown.
+            */}
+            <details className="panel mb-4 lg:hidden">
+              <summary className="cursor-pointer p-3 font-display text-xs font-semibold uppercase tracking-wider text-steel-200 hover:text-rust-300">
+                Filters{" "}
+                <span className="font-normal normal-case tracking-normal text-steel-400">
+                  ({activeCount === 0 ? "none active" : `${activeCount} active`})
+                </span>
+              </summary>
+              <div className="border-t border-basalt-700 p-3">{panel}</div>
+            </details>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 font-display text-xs uppercase tracking-widest text-steel-400">
-                Sort
-              </span>
-              {SORTS.map((option) => (
-                <FilterLink
-                  key={option}
-                  href={withParam(
-                    "sort",
-                    option === DEFAULT_SORT ? undefined : option,
-                  )}
-                  active={option === sort}
-                >
-                  {SORT_LABELS[option]}
-                  {option === sort ? (
-                    <span aria-hidden="true" className="ml-1">
-                      {SORT_MARK[option]}
+            {entries.length === 0 ? (
+              <NoMatches clearHref={clearHref} />
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-basalt-700 pb-2">
+                  <p className="text-sm text-steel-400">
+                    {entries.length}{" "}
+                    {entries.length === 1 ? section.noun : section.pluralNoun}
+                    {activeCount > 0 ? " matching" : ""}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 font-display text-xs uppercase tracking-widest text-steel-400">
+                      Sort
                     </span>
-                  ) : null}
-                </FilterLink>
-              ))}
-            </div>
+                    {SORTS.map((option) => (
+                      <FilterLink
+                        key={option}
+                        href={withParam(
+                          "sort",
+                          option === DEFAULT_SORT ? undefined : option,
+                        )}
+                        active={option === sort}
+                      >
+                        {SORT_LABELS[option]}
+                        {option === sort ? (
+                          <span aria-hidden="true" className="ml-1">
+                            {SORT_MARK[option]}
+                          </span>
+                        ) : null}
+                      </FilterLink>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clipped, so the last row's hover tint stops at the rounded
+                    corner rather than squaring it off. */}
+                <ul className="panel mt-4 overflow-hidden">
+                  {entries.map((item) => (
+                    <DownloadRow key={item.id} item={item} section={section} />
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
 
-          {/* Clipped, so the last row's hover tint stops at the rounded corner
-              rather than squaring it off. */}
-          <ul className="panel mt-4 overflow-hidden">
-            {entries.map((item) => (
-              <DownloadRow key={item.id} item={item} section={section} />
-            ))}
-          </ul>
-        </>
+          {/*
+            Sticky, so the way out of a filter that is too narrow is still on
+            screen at the bottom of a long shelf, which is where a reader
+            realises they want it. Capped and scrollable because the tag list
+            grows with the archive, and a panel taller than the window is a
+            panel whose last chips can never be reached.
+          */}
+          <aside
+            aria-label={`Filter ${section.pluralNoun}`}
+            className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto"
+          >
+            <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-steel-200">
+              Filters
+            </h2>
+            <div className="mt-3 border-t border-basalt-700 pt-4">{panel}</div>
+          </aside>
+        </div>
       )}
     </div>
   );

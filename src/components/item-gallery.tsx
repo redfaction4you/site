@@ -154,7 +154,16 @@ export function ItemGallery({
               `${title}, screenshot ${index + 1} of ${frames.length}`
             }
             fill
-            sizes="(min-width: 64rem) 62rem, 100vw"
+            /*
+             * 44rem is measured rather than guessed, and it changed on 9
+             * September 2026 when the gallery moved inside the item page's main
+             * column. The container is `max-w-5xl px-4`, so 64rem less 2rem of
+             * padding is 62rem of content; the grid takes 16rem for the sticky
+             * aside and 2rem for `gap-x-8`, leaving 44rem. The old 62rem was
+             * correct while the frame spanned the whole page, and left over it
+             * would fetch a picture half again as wide as anything on screen.
+             */
+            sizes="(min-width: 64rem) 44rem, 100vw"
             /*
              * Only the frame the page opens on is eager. The rest are fetched
              * when they are asked for, which is what keeps a twelve screenshot

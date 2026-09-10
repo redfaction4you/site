@@ -1,14 +1,11 @@
 import Link from "next/link";
 
-import { ALL_CLIENTS, CLIENT_LABELS, type RfClient } from "@/lib/rfl/clients";
-
-/** Short forms for the badge row, where the full names do not fit. */
-const SHORT_LABELS: Record<RfClient, string> = {
-  vanilla: "1.20/1.21",
-  pure: "Pure",
-  dash: "Dash",
-  alpine: "Alpine",
-};
+import {
+  ALL_CLIENTS,
+  CLIENT_LABELS,
+  CLIENT_SHORT_LABELS,
+  type RfClient,
+} from "@/lib/rfl/clients";
 
 type Props = {
   playsOn: RfClient[];
@@ -50,7 +47,7 @@ export function CompatBadge({ playsOn, confidence, verbose, rflVersion }: Props)
                   : "border-basalt-700 bg-basalt-850 text-steel-500 line-through decoration-steel-600")
               }
             >
-              {SHORT_LABELS[client]}
+              {CLIENT_SHORT_LABELS[client]}
             </li>
           );
         })}

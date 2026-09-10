@@ -45,8 +45,19 @@ export function archiveDate(value: Date | string | null): string | null {
   const date = typeof value === "string" ? new Date(`${value}T12:00:00Z`) : value;
   if (Number.isNaN(date.getTime())) return null;
 
+  /*
+   * Pacific, not UTC, which is the rule the match archive already follows and
+   * the one this got wrong. A real timestamp is what `items.updated_at` is, and
+   * an item edited at five in the afternoon is edited on the tenth in UTC: the
+   * first published map read "First release 9 Sept, Last update 10 Sept" on the
+   * evening of the ninth, having been touched once.
+   *
+   * The noon trick above still does its job. A bare `2026-09-09` becomes noon
+   * UTC, which is four in the morning here, and no timezone this site uses can
+   * tip that into either neighbour.
+   */
   return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "UTC",
+    timeZone: "America/Los_Angeles",
     day: "numeric",
     month: "short",
     year: "numeric",

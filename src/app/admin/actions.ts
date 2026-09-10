@@ -1,6 +1,7 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -14,12 +15,14 @@ import {
   mapPacks,
   matchPlayers,
   playerIdentities,
+  screenshots,
   type MapPackEntry,
 } from "@/lib/db/schema";
 import { SECTION_BY_KIND, categoryOf } from "@/lib/downloads";
-import { normaliseReleasedOn } from "@/lib/ingest-rules";
+import { normaliseReleasedOn, screenshotKeyFor } from "@/lib/ingest-rules";
 import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { checkDisplayName } from "@/lib/matches/display-name";
+import { CATALOGUE_CACHE_TAG } from "@/lib/catalogue";
 import { isLevelFilename, MAP_PACKS_CACHE_TAG } from "@/lib/map-packs";
 import {
   buildFeatureFacts,
@@ -120,6 +123,7 @@ export async function setDisplayName(formData: FormData): Promise<void> {
    * scoreboard, every pairing, every match. Revalidating the whole tree is
    * blunt and correct, and this runs a few times a year.
    */
+  revalidateTag(CATALOGUE_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -236,6 +240,8 @@ export async function mergeIdentities(formData: FormData): Promise<void> {
     .set({ mergedInto: end, updatedAt: new Date() })
     .where(eq(playerIdentities.mergedInto, source));
 
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -251,6 +257,8 @@ export async function unmergeIdentity(formData: FormData): Promise<void> {
     .update(playerIdentities)
     .set({ mergedInto: null, updatedAt: new Date() })
     .where(eq(playerIdentities.identityKey, identityKey));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
@@ -376,6 +384,7 @@ export async function saveMapPack(formData: FormData): Promise<void> {
   // The VPS polls a cached read; without this, an edited pack would sit behind
   // the cache for up to an hour instead of landing on the next five-minute poll.
   revalidateTag(MAP_PACKS_CACHE_TAG);
+  revalidateTag(CATALOGUE_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -428,6 +437,7 @@ export async function activateMapPack(formData: FormData): Promise<void> {
   ]);
 
   revalidateTag(MAP_PACKS_CACHE_TAG);
+  revalidateTag(CATALOGUE_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -444,6 +454,7 @@ export async function deactivateMapPacks(): Promise<void> {
   if (!(await allowed())) redirect("/admin");
   await db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true));
   revalidateTag(MAP_PACKS_CACHE_TAG);
+  revalidateTag(CATALOGUE_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -471,6 +482,7 @@ export async function deleteMapPack(formData: FormData): Promise<void> {
 
   await db.delete(mapPacks).where(eq(mapPacks.slug, slug));
   revalidateTag(MAP_PACKS_CACHE_TAG);
+  revalidateTag(CATALOGUE_CACHE_TAG);
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -529,6 +541,8 @@ export async function commissionFeature(formData: FormData): Promise<void> {
   if (!piece) redirect("/admin?problem=feature-unwritten");
 
   await saveFeature(piece, facts, activeModel());
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
 
   revalidatePath("/", "layout");
   redirect(`/analyst/features/${piece.slug}`);
@@ -612,6 +626,8 @@ export async function announceFeatureNow(formData: FormData): Promise<void> {
       .set({ postedAt: new Date() })
       .where(eq(featurePieces.slug, slug));
 
+    revalidateTag(CATALOGUE_CACHE_TAG);
+
     revalidatePath("/", "layout");
     redirect("/admin?saved=posted");
   }
@@ -626,6 +642,8 @@ export async function deleteFeature(formData: FormData): Promise<void> {
   if (!slug) redirect("/admin?problem=1");
 
   await db.delete(featurePieces).where(eq(featurePieces.slug, slug));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
@@ -721,6 +739,8 @@ export async function publishItem(formData: FormData): Promise<void> {
     })
     .where(eq(items.id, id));
 
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -760,6 +780,8 @@ export async function unpublishItem(formData: FormData): Promise<void> {
   if (item.status !== "published") redirect("/admin?problem=item-not-published");
 
   await db.update(items).set({ status: "hidden" }).where(eq(items.id, id));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
@@ -844,6 +866,8 @@ export async function editItem(formData: FormData): Promise<void> {
     })
     .where(eq(items.id, id));
 
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -908,6 +932,8 @@ export async function addItemUpdate(formData: FormData): Promise<void> {
     db.update(items).set({ updatedAt: new Date() }).where(eq(items.id, itemId)),
   ]);
 
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
 }
@@ -930,6 +956,8 @@ export async function deleteItemUpdate(formData: FormData): Promise<void> {
   if (!id) redirect("/admin?problem=item-missing");
 
   await db.delete(itemUpdates).where(eq(itemUpdates.id, id));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
 
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
@@ -963,6 +991,310 @@ export async function deleteItem(formData: FormData): Promise<void> {
 
   await db.delete(items).where(eq(items.id, id));
 
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
   revalidatePath("/", "layout");
   redirect("/admin?saved=1");
+}
+
+/*
+ * Screenshots on an item that already exists.
+ *
+ * The upload form takes screenshots while it is creating an item and there was
+ * no way to add one afterwards, so the first map published here had a page with
+ * no picture and nothing short of re-ingesting it from a terminal would have
+ * given it one. These three actions are the missing half: attach, remove, and
+ * say which order they go in.
+ *
+ * **The bytes arrive before any of this runs.** The browser has already put the
+ * object in the bucket through the same two-path upload the form above uses, so
+ * what these write is the row that points at it. Removing one deletes the row
+ * and leaves the object exactly where it is, world readable at the same URL,
+ * which is the trade `deleteItem` makes and the sentence the section prints.
+ *
+ * **None of them touches `updatedAt`**, and that is the same decision
+ * `deleteItemUpdate` makes. Photographing a twenty year old map is a correction
+ * to our record of it rather than new work by its author, and "Recently updated"
+ * is the shelf a returning player reads to find new work. Adding a screenshot to
+ * a map from 2003 must not put it above something released last week.
+ */
+
+/**
+ * Where to land afterwards, which is the row that was being edited rather than
+ * the top of a page whose filters have just been thrown away.
+ *
+ * Only ever a path on this site, and only `/admin`. A redirect target that
+ * arrives in a form field is an open redirect the moment it is trusted, and a
+ * bare "starts with a slash" test waves through `//elsewhere.example`, which a
+ * browser reads as another host.
+ */
+function backTo(raw: string, itemId: string): string {
+  const wanted = raw.trim();
+  const ours =
+    wanted === "/admin" || wanted.startsWith("/admin?") || wanted.startsWith("/admin#");
+  return ours ? wanted : `/admin?item=${itemId}#item-${itemId}`;
+}
+
+/**
+ * Writing a new order onto rows the database will not let overlap.
+ *
+ * `screenshots` carries UNIQUE(item_id, position), so the obvious write is the
+ * one that fails: putting the second row at 1 while the third still holds 1 is a
+ * duplicate key, and two rows swapping collide whichever of them moves first.
+ * Every row is therefore parked out of the way first, at a negative slot of its
+ * own, and only then put where it belongs. Nothing can collide in either pass:
+ * the parked values are all below zero and distinct, the final values are all
+ * zero or more and distinct, and no row is left holding an old value that a
+ * later statement wants.
+ *
+ * **`ordered` has to be every screenshot on the item**, which both callers read
+ * immediately beforehand. A partial list would leave somebody behind on an old
+ * position, and that is exactly the row a final value lands on.
+ *
+ * One batch rather than a sequence of awaits, because a run that stops halfway
+ * would leave the pictures parked at negative positions, and the gallery reads
+ * them in ascending order: the page would come back with its screenshots
+ * reversed and its card image last. `db.batch`, not `db.transaction`:
+ * `neon-http` cannot hold an interactive transaction across awaits, the same
+ * reason nothing else in this file uses one.
+ */
+function renumbering(ordered: { id: string }[]): [BatchItem<"pg">, ...BatchItem<"pg">[]] {
+  const statements = [
+    ...ordered.map((row, position) =>
+      db
+        .update(screenshots)
+        .set({ position: -1 - position })
+        .where(eq(screenshots.id, row.id)),
+    ),
+    ...ordered.map((row, position) =>
+      db.update(screenshots).set({ position }).where(eq(screenshots.id, row.id)),
+    ),
+  ];
+
+  // `db.batch` wants a non-empty tuple and TypeScript reads two spreads as a
+  // plain array, so it is taken apart and put back as one. Both callers have
+  // already refused an empty list, which is what makes the first element real.
+  const [parked, ...rest] = statements;
+  return [parked, ...rest];
+}
+
+/** What the browser says it stored, once it has stored it. */
+type OfferedShot = {
+  storageKey: string;
+  filename: string;
+  /** The slot it asked `prepare` for, which is baked into the key. */
+  position: number;
+  caption: string | null;
+};
+
+/**
+ * Attaches screenshots the browser has already uploaded.
+ *
+ * **Keys are checked, not accepted.** Every one is rebuilt from this item's own
+ * address with `screenshotKeyFor` and compared against what was sent, exactly as
+ * `/api/admin/upload/commit` does it. Without that, a request could hang a row
+ * off any object in the bucket, and the encrypted database backups live in the
+ * same bucket. The rebuild uses the position the caller asked `prepare` for,
+ * because that number is part of the key; where the row actually lands is
+ * decided here, after the last screenshot already on the item, so two people
+ * adding pictures at once cannot both claim slot three.
+ *
+ * The consequence, said plainly because it looks wrong from the bucket: a
+ * screenshot's key keeps the number it was uploaded under while its position is
+ * a column that moves, so `01-arena.png` can be the fourth picture. Only the
+ * column decides the order, on this screen and on the page.
+ */
+export async function addScreenshots(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const itemId = String(formData.get("itemId") ?? "").trim();
+  if (!itemId) redirect("/admin?problem=item-missing");
+
+  const back = backTo(String(formData.get("back") ?? ""), itemId);
+
+  const [item] = await db
+    .select({ kind: items.kind, slug: items.slug })
+    .from(items)
+    .where(eq(items.id, itemId))
+    .limit(1);
+  if (!item) redirect("/admin?problem=item-missing");
+
+  let offered: unknown;
+  try {
+    offered = JSON.parse(String(formData.get("shots") ?? ""));
+  } catch {
+    redirect("/admin?problem=item-shot-unreadable");
+  }
+  if (!Array.isArray(offered) || offered.length === 0) {
+    redirect("/admin?problem=item-shot-none");
+  }
+
+  /*
+   * What is already there, read for two answers at once: where the new ones go,
+   * and whether one of them is a key the item already holds. `storage_key` is
+   * unique across the whole table, so an insert repeating one fails on a
+   * constraint nobody could act on, and the honest reading of that failure is
+   * that this picture is already attached.
+   */
+  const existing = await db
+    .select({ storageKey: screenshots.storageKey, position: screenshots.position })
+    .from(screenshots)
+    .where(eq(screenshots.itemId, itemId));
+
+  const held = new Set(existing.map((row) => row.storageKey));
+  const after = existing.reduce(
+    (highest, row) => Math.max(highest, row.position + 1),
+    0,
+  );
+
+  const rows: {
+    itemId: string;
+    storageKey: string;
+    caption: string | null;
+    position: number;
+  }[] = [];
+
+  for (const [index, entry] of offered.entries()) {
+    const shot = (entry ?? {}) as Partial<OfferedShot>;
+    const filename = String(shot.filename ?? "").trim();
+    const claimed = Number(shot.position);
+    if (!filename || !Number.isInteger(claimed) || claimed < 0) {
+      redirect("/admin?problem=item-shot-unreadable");
+    }
+
+    const expected = screenshotKeyFor(item.kind, item.slug, claimed, filename);
+    if (String(shot.storageKey ?? "").trim() !== expected) {
+      redirect("/admin?problem=item-shot-key");
+    }
+    if (held.has(expected)) redirect("/admin?problem=item-shot-exists");
+    held.add(expected);
+
+    rows.push({
+      itemId,
+      storageKey: expected,
+      caption: String(shot.caption ?? "").trim().slice(0, 300) || null,
+      position: after + index,
+    });
+  }
+
+  await db.insert(screenshots).values(rows);
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
+  revalidatePath("/", "layout");
+  redirect(back);
+}
+
+/**
+ * Detaches one screenshot, and leaves the object where it is.
+ *
+ * The row goes and the bytes stay, which is what every other delete on this page
+ * does and is worth knowing here for a duller reason than usual: a picture
+ * removed for being of the wrong map is still fetchable at its key, and one
+ * removed because it should never have been published needs deleting from R2 by
+ * hand as well.
+ *
+ * The survivors are closed up afterwards so the numbering has no holes. That is
+ * not tidiness: the next upload lands after the highest position on the item, so
+ * a hole left in the middle would be skipped forever while the numbers climbed.
+ */
+export async function removeScreenshot(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-shot-missing");
+
+  const [shot] = await db
+    .select({ itemId: screenshots.itemId })
+    .from(screenshots)
+    .where(eq(screenshots.id, id))
+    .limit(1);
+  if (!shot) redirect("/admin?problem=item-shot-missing");
+
+  const back = backTo(String(formData.get("back") ?? ""), shot.itemId);
+
+  await db.delete(screenshots).where(eq(screenshots.id, id));
+
+  /*
+   * Deliberately a second write rather than part of the first. A failure between
+   * the two leaves a hole in the numbering, which changes nothing a reader can
+   * see; holding the delete back so that it could be batched with the
+   * renumbering would risk the picture staying attached instead.
+   */
+  const rest = await db
+    .select({ id: screenshots.id })
+    .from(screenshots)
+    .where(eq(screenshots.itemId, shot.itemId))
+    .orderBy(asc(screenshots.position));
+  if (rest.length > 0) await db.batch(renumbering(rest));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
+  revalidatePath("/", "layout");
+  redirect(back);
+}
+
+/**
+ * Moves one screenshot to a slot, and shuffles the rest along.
+ *
+ * The first screenshot is the card image on every shelf and the opening frame of
+ * the gallery, so this is the control that decides which picture the archive
+ * leads with. That is the reason it exists at all, rather than the order being
+ * whatever the upload happened to be.
+ *
+ * The target is clamped rather than refused. The buttons are rendered from a
+ * list that may have moved under a page left open, and landing at the end is a
+ * better answer to a stale number than a refusal explaining that nothing
+ * happened.
+ */
+export async function moveScreenshot(formData: FormData): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin?problem=item-shot-missing");
+
+  const [shot] = await db
+    .select({ itemId: screenshots.itemId })
+    .from(screenshots)
+    .where(eq(screenshots.id, id))
+    .limit(1);
+  if (!shot) redirect("/admin?problem=item-shot-missing");
+
+  const back = backTo(String(formData.get("back") ?? ""), shot.itemId);
+
+  const rows = await db
+    .select({ id: screenshots.id })
+    .from(screenshots)
+    .where(eq(screenshots.itemId, shot.itemId))
+    .orderBy(asc(screenshots.position));
+
+  const from = rows.findIndex((row) => row.id === id);
+
+  /*
+   * Where it is going, which arrives on the button rather than in a field: the
+   * three moves differ only in that number, and a submit button carries its own
+   * name and value. A submit with no button at all therefore means no move, and
+   * is read as one rather than as slot zero.
+   */
+  const raw = formData.get("to");
+  const asked = raw === null ? from : Number(raw);
+  const to = Math.min(
+    Math.max(Number.isFinite(asked) ? Math.trunc(asked) : from, 0),
+    rows.length - 1,
+  );
+
+  // Nothing to write, and reporting a save over a write that did not happen is
+  // how a screen teaches somebody to distrust it.
+  if (from < 0 || from === to) redirect(back);
+
+  const ordered = [...rows];
+  const [moved] = ordered.splice(from, 1);
+  ordered.splice(to, 0, moved);
+
+  await db.batch(renumbering(ordered));
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
+
+  revalidatePath("/", "layout");
+  redirect(back);
 }

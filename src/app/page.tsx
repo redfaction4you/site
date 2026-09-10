@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
+import { NewDownloads } from "@/components/new-downloads";
+import { listNewest } from "@/lib/catalogue";
 import { ReadingList } from "@/components/reading-list";
 import { listReading } from "@/lib/reading";
 import { MatchOfTheNight } from "@/components/match-of-the-night";
@@ -34,7 +36,18 @@ export const dynamic = "force-dynamic";
  * beside the numbers rather than above them.
  */
 export default async function HomePage() {
-  const [status, totals, latest, players, columns, recent, opinions, records, reading] =
+  const [
+    status,
+    totals,
+    latest,
+    players,
+    columns,
+    recent,
+    opinions,
+    records,
+    reading,
+    downloads,
+  ] =
     await Promise.all([
       getServerStatus(),
       archiveTotals(),
@@ -45,6 +58,12 @@ export default async function HomePage() {
       listOpinions(3),
       getTicker(),
       listReading(),
+      /*
+       * The newest four across all four shelves. Cached under the catalogue
+       * tag, so a force-dynamic front page does not pay Neon for it on every
+       * request, and an admin edit clears it rather than waiting the hour out.
+       */
+      listNewest(4),
     ]);
 
 
@@ -325,6 +344,8 @@ export default async function HomePage() {
               <ReadingList entries={more} initial={3} />
             </section>
           ) : null}
+
+          <NewDownloads items={downloads} />
 
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">

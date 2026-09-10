@@ -45,6 +45,33 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    /*
+      What an optimised image costs, and how to stop it costing much.
+
+      Vercel bills image optimisation by the transformation: one source image at
+      one width is one unit, cached, and billed again when the cache lets it go.
+      Nothing on this site was optimised until the catalogue grew screenshots, so
+      this block is new and the numbers below are chosen rather than defaulted.
+
+      `minimumCacheTTL` is thirty-one days. The defaults are minutes, which for a
+      picture that never changes means paying to produce the same bytes again and
+      again. A screenshot's key carries the item, its position and its filename,
+      so a different picture is almost always a different URL and the cache never
+      has to be told. The one way to serve a stale one is to detach every
+      screenshot on an item and re-attach the same filenames in the same order,
+      which reuses the keys; if that is ever needed, rename the files.
+
+      The two size lists are cut down from eight entries each. A `sizes` hint
+      picks the smallest width at or above what it asked for, so every width left
+      in these lists is a variant that may be produced and paid for. 3840 is a 4K
+      display and no screenshot here is a 4K source; 750, 1200 and 2048 sit close
+      enough to their neighbours that dropping them costs a few kilobytes of
+      overshoot and halves the number of variants. `imageSizes` serves the small
+      fixed frames: the 10rem admin thumbnails, the avatars.
+    */
+    minimumCacheTTL: 2678400,
+    deviceSizes: [640, 828, 1080, 1920],
+    imageSizes: [64, 128, 256, 384],
     remotePatterns: [
       // Discord avatars for member profiles.
       { protocol: "https", hostname: "cdn.discordapp.com" },

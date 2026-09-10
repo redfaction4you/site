@@ -465,9 +465,26 @@ export const mapMeta = pgTable(
       .default([])
       .notNull(),
 
-    /** Every level found, as returned by the parser: path, version, name. */
+    /**
+     * Every level found, as returned by the parser: path, version, name, and
+     * when the editor last saved it.
+     *
+     * `savedAt` is an ISO 8601 string rather than a Date, because a Date does
+     * not survive a jsonb column: it goes in through JSON and comes back a
+     * string, so typing it as a Date would be a lie every reader would then
+     * have to work around.
+     *
+     * It is optional because it was added after the shelf went live, and every
+     * row written before that lacks it. Nothing enforces the shape of a jsonb
+     * value, so there is no migration to run and nothing to backfill either:
+     * re-ingesting the same bytes is what fills it in. A level whose stamp is
+     * missing or implausible reads identically, which is the honest answer in
+     * both cases, so every reader treats the date as optional.
+     */
     levels: jsonb("levels")
-      .$type<{ path: string; version: number; levelName: string }[]>()
+      .$type<
+        { path: string; version: number; levelName: string; savedAt?: string }[]
+      >()
       .default([])
       .notNull(),
 

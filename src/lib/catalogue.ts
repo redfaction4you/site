@@ -11,6 +11,7 @@
  */
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
@@ -30,6 +31,89 @@ import {
   type Sort,
 } from "@/lib/downloads";
 import type { RfClient } from "@/lib/rfl/clients";
+
+/**
+ * What every cached read here is filed under, and what a write has to clear.
+ *
+ * A shelf reads its filters out of the URL, so `/maps?type=ctf&sort=downloads`
+ * is a dynamic page and every visit was two queries against Neon. That is fine
+ * for the handful of people browsing and not fine for a crawler, which will
+ * walk every combination of eight types, four sorts and every tag on four
+ * shelves and hold the compute awake doing it. Neon bills by the compute hour
+ * and a $52 month has already been paid once for exactly this shape of thing:
+ * something harmless per request, run far more often than anybody was picturing.
+ *
+ * So the listings are cached for an hour and tagged, and `revalidateTag` in the
+ * admin actions is what makes an edit appear immediately. **A write that does
+ * not go through those actions is not seen for up to an hour**: a row edited by
+ * hand in SQL, or a `scripts/ingest.mjs` run, both land in the database and
+ * neither clears this. That is the same trap `map_packs` already sprang once.
+ * The listing heals itself on the next revalidate; nothing is wrong with the
+ * data, it is only late.
+ *
+ * Deliberately not cached: `getItem`, because its routes already declare
+ * `revalidate = 3600` and caching underneath that would be a second hour on top
+ * of the first; `getDownloadable`, because it decides whether a file may be
+ * served and a withdrawn item must stop downloading at once; `listAllItems`,
+ * because it is the admin screen and the whole point of it is being current.
+ */
+export const CATALOGUE_CACHE_TAG = "catalogue";
+
+/** An hour, which is also what the detail routes revalidate on. */
+const CATALOGUE_CACHE_SECONDS = 3600;
+
+/**
+ * File one read under the catalogue tag.
+ *
+ * The cached function is built per call rather than once at module load,
+ * because the key has to carry the arguments: two shelves, or two sorts of one
+ * shelf, are different answers and a single cache entry would serve whichever
+ * was asked for first. That is the documented shape for a cache over a function
+ * that takes parameters.
+ */
+function cached<T>(key: string[], read: () => Promise<T>): Promise<T> {
+  return unstable_cache(read, ["catalogue", ...key], {
+    revalidate: CATALOGUE_CACHE_SECONDS,
+    tags: [CATALOGUE_CACHE_TAG],
+  })();
+}
+
+/* --- what a cache does to a Date ------------------------------------------ */
+
+/**
+ * The timestamp columns that come back out of a listing, by name.
+ *
+ * **A cached read does not return what the uncached one returned.**
+ * `unstable_cache` stores its answer as JSON, and JSON has no Date: a column
+ * that was a `Date` going in is an ISO string coming out, and the types keep
+ * saying `Date` because nothing about the boundary is checked. Handing that
+ * string to `Intl.DateTimeFormat.format` throws `RangeError: Invalid time
+ * value`, so the page renders perfectly the first time, populating the cache,
+ * and answers 500 for the next hour. That is exactly what it did: `/maps` was
+ * 200 on the request that filled the cache and 500 on every request after it,
+ * which is the worst shape a bug can have because the first look says it works.
+ *
+ * So every cached read is revived on the way out. The list is here rather than
+ * spelled out at each call site so there is one thing to add to when a listing
+ * gains a timestamp, and `scripts/catalogue-cache.test.mjs` fails if a
+ * timestamp column reaches a listing without being named here.
+ */
+export const LISTING_DATE_FIELDS = ["publishedAt", "updatedAt"] as const;
+
+/** One row, with anything in `LISTING_DATE_FIELDS` back as a Date. */
+function revive<T>(row: T): T {
+  const copy = { ...row } as Record<string, unknown>;
+  for (const field of LISTING_DATE_FIELDS) {
+    const value = copy[field];
+    if (typeof value === "string") copy[field] = new Date(value);
+  }
+  return copy as T;
+}
+
+/** The same, for a listing. */
+function reviveAll<T>(rows: T[]): T[] {
+  return rows.map(revive);
+}
 
 export type CatalogueFilters = {
   /** Free-text match against title and author. */
@@ -160,6 +244,27 @@ export async function listItems(
   kind: ItemKind,
   filters: CatalogueFilters = {},
 ): Promise<ItemSummary[]> {
+  /*
+   * The whole filter object in the key, serialised in a fixed field order
+   * rather than by `JSON.stringify` over whatever the caller built. Two callers
+   * writing the same filters in a different order would otherwise be two cache
+   * entries holding one answer, which is not wrong but is paid for twice.
+   */
+  const key = [
+    kind,
+    filters.q ?? "",
+    filters.category ?? "",
+    filters.tag ?? "",
+    filters.client ?? "",
+    filters.sort ?? DEFAULT_SORT,
+  ];
+  return reviveAll(await cached(["list", ...key], () => listItemsNow(kind, filters)));
+}
+
+async function listItemsNow(
+  kind: ItemKind,
+  filters: CatalogueFilters,
+): Promise<ItemSummary[]> {
   const conditions = [publishedWhere(kind)];
 
   if (filters.q) {
@@ -202,6 +307,12 @@ export async function listItems(
  * the caller may show or ignore.
  */
 export async function countByCategory(
+  kind: ItemKind,
+): Promise<Record<string, number>> {
+  return cached(["categories", kind], () => countByCategoryNow(kind));
+}
+
+async function countByCategoryNow(
   kind: ItemKind,
 ): Promise<Record<string, number>> {
   const rows = await db
@@ -264,6 +375,10 @@ export async function listSlugs(kind: ItemKind): Promise<string[]> {
 
 /** Tags in use within a shelf, most common first. Drives the tag filter row. */
 export async function listTags(kind: ItemKind): Promise<{ tag: string; count: number }[]> {
+  return cached(["tags", kind], () => listTagsNow(kind));
+}
+
+async function listTagsNow(kind: ItemKind): Promise<{ tag: string; count: number }[]> {
   return db
     .select({
       tag: sql<string>`unnest(${items.tags})`.as("tag"),
@@ -277,6 +392,10 @@ export async function listTags(kind: ItemKind): Promise<{ tag: string; count: nu
 
 /** Total published items per shelf. Drives the counts on the downloads hub. */
 export async function countByKind(): Promise<Record<string, number>> {
+  return cached(["kinds"], countByKindNow);
+}
+
+async function countByKindNow(): Promise<Record<string, number>> {
   const rows = await db
     .select({ kind: items.kind, count: sql<number>`count(*)::int` })
     .from(items)
@@ -286,6 +405,135 @@ export async function countByKind(): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const row of rows) counts[row.kind] = row.count;
   return counts;
+}
+
+/* --- the hub -------------------------------------------------------------- */
+
+/**
+ * One row on the downloads hub, which is a smaller thing than a shelf row.
+ *
+ * `ItemSummary` is the shelf's shape: it carries the summary text, the tags and
+ * the whole compatibility reading, because a shelf row shows all of that. A hub
+ * row shows a picture, a name, where the thing sits and one figure, so this
+ * selects that and stops. Two types rather than one with optional fields, for
+ * the reason `summaryColumns` gives above: the cost of a listing is what it
+ * selects, and a type that can carry everything ends up selecting everything.
+ *
+ * `kind` is here and is deliberately absent from `ItemSummary`, and that is the
+ * difference that makes these queries worth having at all. A shelf listing
+ * already knows which shelf it is; a hub row has to say which one it came from.
+ */
+export type CatalogueHighlight = {
+  id: string;
+  kind: ItemKind;
+  slug: string;
+  title: string;
+  authorName: string | null;
+  category: string | null;
+  releaseVersion: string | null;
+  publishedAt: Date | null;
+  downloadCount: number;
+  screenshotKey: string | null;
+};
+
+/**
+ * What a hub row renders, and nothing further.
+ *
+ * The card image is the same subquery as `summaryColumns`, and here it is the
+ * dangerous version of it: these queries read one table and join nothing, which
+ * is exactly the shape `qualified()` was written for. `listItems` is safe partly
+ * by the accident of its `map_meta` join making Drizzle qualify every column it
+ * renders. There is no such accident below, so a bare `${items.id}` in here
+ * would come out as `"id"`, resolve against `screenshots`, and every row would
+ * arrive with no picture and no error.
+ */
+const highlightColumns = {
+  id: items.id,
+  kind: items.kind,
+  slug: items.slug,
+  title: items.title,
+  authorName: items.authorName,
+  category: items.category,
+  releaseVersion: items.releaseVersion,
+  publishedAt: items.publishedAt,
+  downloadCount: items.downloadCount,
+  screenshotKey: sql<string | null>`(
+    select ${qualified(screenshots.storageKey)}
+    from ${screenshots}
+    where ${qualified(screenshots.itemId)} = ${qualified(items.id)}
+    order by ${qualified(screenshots.position)} asc
+    limit 1
+  )`,
+};
+
+/**
+ * The most recently published items, across every shelf.
+ *
+ * This is the one question the hub could not answer before, and it is the one a
+ * returning visitor arrives with. Deliberately not four calls to `listItems`
+ * merged in the page: that reads every published row on the site to show eight
+ * of them, and it cannot order the result properly anyway, because "the newest
+ * eight" is not a property any single shelf holds.
+ *
+ * `nulls last` rather than the plain `desc` the shelf sort uses. Postgres sorts
+ * nulls first on a descending order, so one published row whose `published_at`
+ * was never stamped would pin itself to the top of this list and stay there.
+ * Nothing in the code produces such a row, since every path that publishes also
+ * stamps the date, but this database is edited by hand and shared with
+ * production, and a row like that would look exactly like a page that had
+ * stopped updating.
+ *
+ * The tie-break is the same reasoning as `ORDER_BY`: the archive arrives in
+ * bulk, so a shared publish timestamp is the ordinary case, and a list that
+ * reshuffles between two identical requests looks broken with nothing to point
+ * at.
+ */
+export async function listNewest(limit: number): Promise<CatalogueHighlight[]> {
+  return reviveAll(await cached(["newest", String(limit)], () => listNewestNow(limit)));
+}
+
+async function listNewestNow(limit: number): Promise<CatalogueHighlight[]> {
+  return db
+    .select(highlightColumns)
+    .from(items)
+    .where(eq(items.status, "published"))
+    .orderBy(
+      sql`${items.publishedAt} desc nulls last`,
+      asc(sql`lower(${items.title})`),
+    )
+    .limit(limit);
+}
+
+/**
+ * The most taken items, across every shelf.
+ *
+ * The figure is downloads through this site and the caller has to say so: the
+ * bucket is public, so a key fetched directly never passes the route that
+ * counts. It undercounts by an amount nobody can measure and it is still the
+ * only reading there is.
+ *
+ * Whether this is worth showing at all is the caller's decision rather than
+ * this function's, because it depends on how much there is to rank and on
+ * whether anything has been taken yet, and both of those are things a page
+ * knows and a query should not be guessing at.
+ */
+export async function listMostDownloaded(
+  limit: number,
+): Promise<CatalogueHighlight[]> {
+  return reviveAll(
+    await cached(["popular", String(limit)], () => listMostDownloadedNow(limit)),
+  );
+}
+
+async function listMostDownloadedNow(
+  limit: number,
+): Promise<CatalogueHighlight[]> {
+  return db
+    .select(highlightColumns)
+    .from(items)
+    .where(eq(items.status, "published"))
+    .orderBy(desc(items.downloadCount), asc(sql`lower(${items.title})`))
+    .limit(limit);
 }
 
 /**

@@ -71,6 +71,20 @@ const MUST_BE_CLEAN = [
   // on it that must stay readable is the sentence explaining why an upload was
   // refused.
   "components/upload-admin.tsx",
+  // The screenshot panel on the admin item editor, split out of that form on 9
+  // September 2026. Same shape a third time: file names, byte counts, an
+  // ordinal under every thumbnail and the stored caption, all of it small and
+  // all of it tempting towards a dimmer grey.
+  "components/screenshot-upload.tsx",
+  // The front page strip of newest downloads, 9 September 2026. Its first
+  // draft used steel-500 for the shelf line and steel-600 for the date, copied
+  // off the leaderboard beside it, and this ratchet is what caught them.
+  "components/new-downloads.tsx",
+  // The transfer mechanism both upload screens now share. It renders nothing
+  // itself, so today it can only fail this by accident, which is the point:
+  // the refusal sentences it returns end up as body text on whichever screen
+  // called it, and a class name added here would style them on both.
+  "components/upload-transfer.ts",
   "app/downloads/page.tsx",
   "app/assets/page.tsx",
   "app/assets/[slug]/page.tsx",

@@ -23,9 +23,10 @@
  * out of memory halfway through a commit is not, and it would leave the object
  * in the bucket with nothing pointing at it.
  */
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { adminState } from "@/lib/admin-key";
+import { CATALOGUE_CACHE_TAG } from "@/lib/catalogue";
 import { ITEM_KINDS, type ItemKind } from "@/lib/downloads";
 import {
   extensionOf,
@@ -343,6 +344,10 @@ export async function POST(request: Request) {
      * looks exactly like an upload that failed. Blunt and correct, the same
      * call every action on the admin page makes.
      */
+    // The listings are cached and tagged now, and `revalidatePath` does not
+    // reach an `unstable_cache` entry. A commit that skipped this would store
+    // the file, write the row, and leave the shelf looking unchanged for an hour.
+    revalidateTag(CATALOGUE_CACHE_TAG);
     revalidatePath("/", "layout");
 
     return Response.json({

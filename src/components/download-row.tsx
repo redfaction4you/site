@@ -3,6 +3,12 @@ import Link from "next/link";
 
 import type { ItemSummary } from "@/lib/catalogue";
 import { categoryOf, displayVersion, type Section } from "@/lib/downloads";
+import {
+  ALL_CLIENTS,
+  CLIENT_LABELS,
+  CLIENT_SHORT_LABELS,
+  type RfClient,
+} from "@/lib/rfl/clients";
 import { publicUrl } from "@/lib/storage";
 
 /**
@@ -40,6 +46,98 @@ const DAY_MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
   month: "short",
   year: "numeric",
 });
+
+/**
+ * Whether this will load for you, in one mark.
+ *
+ * The shelf offers a PLAYS ON filter and no row said what it plays on, so
+ * turning the filter on changed the list with nothing on any row explaining
+ * why. `CompatBadge` is the honest answer to that question and it is four pills
+ * wide, which is fine on a detail page and far too much repeated down a
+ * listing. This says the same thing in one phrase, and hands the reader off to
+ * the badge for the detail.
+ *
+ * Three weights, because there are three kinds of answer. Quiet grey is "this
+ * is fine", which is most of the archive and should not shout. A brighter grey
+ * pill is a real restriction: it names what does load, so a reader running
+ * anything else knows the row is not for them. Gold is the same warning colour
+ * `CompatBadge` uses, and it means the download needs a decision rather than a
+ * click.
+ *
+ * Where nothing was ever read out of the file there is no mark at all. Silence
+ * is not a claim, and a row of "unchecked" down a shelf of mods that were never
+ * going to contain a level would be noise standing in for information. The
+ * detail page still explains the absence in full.
+ */
+function RowCompat({
+  playsOn,
+  confidence,
+  rflVersion,
+}: {
+  playsOn: RfClient[];
+  confidence: "known" | "unknown" | null;
+  rflVersion: number | null;
+}) {
+  const pill =
+    "rounded-sm border px-1.5 py-0.5 font-display text-[0.625rem] font-semibold uppercase tracking-wider";
+  const warn = " border-oxide-400/40 bg-oxide-400/10 text-oxide-400";
+
+  /*
+   * A version inside the 201 to 299 gap. The table has no source for it and
+   * will not guess, so neither will this: a confidently wrong badge costs more
+   * than a hundred honest admissions, and that rule does not get relaxed just
+   * because the mark is small.
+   */
+  if (confidence === "unknown") {
+    return (
+      <span
+        title="The level format version in this file is outside the range we have documentation for, so we will not say which clients load it."
+        className={pill + warn}
+      >
+        Unverified
+      </span>
+    );
+  }
+
+  if (playsOn.length === 0) {
+    // No level data at all, rather than level data that loads nowhere. Nothing
+    // was read, so nothing is said.
+    if (rflVersion === null) return null;
+
+    return (
+      <span
+        title={`Level format version ${rflVersion}. No PC client loads it, which usually means a PlayStation 2 level.`}
+        className={pill + warn}
+      >
+        No PC client
+      </span>
+    );
+  }
+
+  const full = playsOn.map((client) => CLIENT_LABELS[client]).join(", ");
+
+  // Tested by membership rather than by counting, so a client added to
+  // `ALL_CLIENTS` later cannot make a shorter list read as the full house.
+  if (ALL_CLIENTS.every((client) => playsOn.includes(client))) {
+    return (
+      <span
+        title={`Loads in every client we label for: ${full}.`}
+        className={pill + " border-basalt-700 bg-basalt-850 text-steel-400"}
+      >
+        Any client
+      </span>
+    );
+  }
+
+  return (
+    <span
+      title={`Loads in ${full}. No other client can.`}
+      className={pill + " border-basalt-600 bg-basalt-800 text-steel-200"}
+    >
+      {playsOn.map((client) => CLIENT_SHORT_LABELS[client]).join(", ")} only
+    </span>
+  );
+}
 
 export function DownloadRow({
   item,
@@ -128,6 +226,24 @@ export function DownloadRow({
                 >
                   {category.label}
                 </span>
+              ) : null}
+
+              {/*
+                Only on a shelf that can carry level data. An asset or a tool
+                has no client compatibility to state, and a blank where a mark
+                would be is not the same as a mark saying nothing.
+
+                On the title line rather than beside the download count,
+                because it is part of what the row is offering rather than a
+                reading of how it has done. It costs the link two words, which
+                is the same trade the category chip beside it already makes.
+              */}
+              {section.hasLevels ? (
+                <RowCompat
+                  playsOn={item.playsOn}
+                  confidence={item.detectionConfidence}
+                  rflVersion={item.rflVersion}
+                />
               ) : null}
             </div>
 

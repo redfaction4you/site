@@ -22,10 +22,13 @@ anything. The full reasoning is in `../BUILD-PLAN.md`.
 `main`. `docs/HANDOVER.md` is the authority on what is built and what is next;
 this file is conventions and gotchas.
 
-Navigation: News, Downloads, Matches, Maps, Players, Pairings, Stats, Servers,
-Events. That is nine entries and the header row is measured full at nine, so a
-tenth needs the working under `VISIBLE_NAV` in `src/lib/nav.ts` taken again
-rather than trusted.
+Navigation: News, Downloads, Matches, Players, Pairings, Stats, Servers,
+Events. That is eight, and `/matches/maps` was the ninth until 9 September 2026:
+the row was measured full at nine and the label read "Maps" beside a Downloads
+menu whose largest shelf is also maps, so it was hidden rather than renamed. The
+row now measures 928 into the 979 it has, and that 51px of slack is one short
+label and not a free slot. A tenth entry, or a ninth back, needs the working
+under `VISIBLE_NAV` in `src/lib/nav.ts` taken again rather than trusted.
 
 Downloads is the hub at `/downloads`. The four shelves behind it (`/maps`,
 `/assets`, `/mods`, `/tools`) are real pages that keep the `hidden` flag,

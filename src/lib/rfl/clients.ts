@@ -54,6 +54,24 @@ export const CLIENT_LABELS: Record<RfClient, string> = {
   alpine: "Alpine Faction",
 };
 
+/**
+ * The same four names cut down for somewhere the full ones do not fit.
+ *
+ * It lives here beside `CLIENT_LABELS` rather than inside a component because
+ * two components now want it: the badge on an item page, which prints all four
+ * as pills, and the one-phrase mark on a shelf row, which joins the ones that
+ * load into "Alpine only" or "Pure, Dash only". Both had their own private copy
+ * on 9 September 2026 and the copies agreed, which is the state a drift starts
+ * from: renaming Alpine's build in one of them would leave a reader looking at
+ * two different words for the same client on the shelf and the page it links to.
+ */
+export const CLIENT_SHORT_LABELS: Record<RfClient, string> = {
+  vanilla: "1.20/1.21",
+  pure: "Pure",
+  dash: "Dash",
+  alpine: "Alpine",
+};
+
 /** Highest version the original engine loads. Everything below is vanilla-era. */
 export const RFL_VERSION_VANILLA_MAX = 0xc8; // 200
 

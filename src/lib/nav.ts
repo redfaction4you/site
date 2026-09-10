@@ -15,13 +15,16 @@ export type NavItem = {
    *
    * **Deleting the flag is not free**, whatever this comment used to say. Two
    * things have to be checked first. The header row is fitted by measurement
-   * and is full at nine entries, so a tenth needs the measurement under
-   * `VISIBLE_NAV` taken again rather than trusted. And a label has to be unique to a
+   * and it fitted nine only by borrowing the last five pixels of its own
+   * padding; it carries eight today with 52 pixels spare, which is one short
+   * label rather than a free slot, so the measurement under `VISIBLE_NAV`
+   * settles this and not the count. And a label has to be unique to a
    * reader: `/maps` here is the catalogue's maps, which are files to download,
    * while `/matches/maps` is the match record's maps, which are what has been
-   * played on them. Two header entries both reading Maps would be a menu that
-   * disagrees with itself, which is why the catalogue's carries a longer label
-   * below.
+   * played on them. Both are hidden as of 9 September 2026, so the clash is
+   * dormant rather than resolved: either can come back, and the catalogue's
+   * keeps the longer label below so that the day one does, the menu does not
+   * disagree with itself.
    */
   hidden?: boolean;
 };
@@ -86,7 +89,19 @@ export const NAV: NavItem[] = [
    */
   { href: "/downloads", label: "Downloads" },
   { href: "/matches", label: "Matches" },
-  { href: "/matches/maps", label: "Maps" },
+  /*
+   * Hidden on 9 September 2026, because the owner asked for it.
+   *
+   * This is the match record's map index, what has been played on each level,
+   * and it is not the downloads shelf. Sitting in the header under one word it
+   * was read as the place to get a map, which is the confusion the catalogue's
+   * own entry carries a longer label to avoid, and the shelves are reached
+   * through `/downloads` rather than the row. Hidden rather than deleted: the
+   * page is live, `/matches` and the map statistics link into it, the sitemap
+   * still lists it, and every link already pasted anywhere keeps working. It
+   * can come back by removing this one flag.
+   */
+  { href: "/matches/maps", label: "Maps", hidden: true },
   { href: "/players", label: "Players" },
   { href: "/players/pairings", label: "Pairings" },
   // Sits next to Players deliberately: that page is who has played, this one is
@@ -103,25 +118,32 @@ export const NAV: NavItem[] = [
  * forgotten, and so anything that needs the complete site map, a sitemap,
  * a search index, can still have it.
  *
- * **This list has a width budget and Downloads spent the last of it.** The
- * header switches to the full row at `lg` because that is where the row
- * measured out, and the working is written up in
- * `src/components/site-header.tsx` against the eight links there were then.
- * Downloads is the ninth, so the row was measured again in a browser at 1024
- * rather than reasoned about: the wordmark is 109, the nine links and their
- * gaps are 661, of which Downloads alone is 99, the search and the two menus
- * are 169, and the two gaps between those three groups are 45. That is 984 laid
- * into the 979 the row has between its own padding.
+ * **This list has a width budget**, and every figure below was read off a
+ * browser at 1024 rather than reasoned about. The header switches to the full
+ * row at `lg` because that is where the row measured out.
  *
- * Nothing overflows. The five pixels come out of the row's own 15px of right
- * padding, so there is no horizontal scrollbar at 1024, and none at 820 either,
- * where the compact scroller takes over as it is meant to. But the slack is
- * spent. **A tenth entry will not fit**, and neither will renaming one of these
- * to something longer; either needs the breakpoint moved to `xl`, or the link
- * padding cut, or something taken out. Measure it in a browser at 1024 and at
- * 820 rather than trusting the arithmetic, because a row that overflows here
- * gives every page on the site a horizontal scrollbar, which is the bug the
- * `md` to `lg` change was fixing.
+ * It ran to nine when Downloads was added, and that was the tight case, worth
+ * keeping on the record: the wordmark 109, the nine links and their gaps 661,
+ * of which Downloads alone is 99, the search and the two menus 169, and the two
+ * gaps between those three groups 45. That is 984 laid into the 979 the row has
+ * between its own padding, the last five pixels coming out of its 15px of right
+ * padding. Nothing overflowed, but nothing was spare either.
+ *
+ * Hiding the match record's Maps on 9 September 2026 took it back to eight and
+ * the row was measured again the same way: wordmark 109, the eight links and
+ * their gaps 605, the right-hand group 169, the two gaps 45, so 928 into 979
+ * and **52 pixels of slack**. No horizontal scrollbar at 1024, and none at 820,
+ * where the compact scroller takes over as it is meant to.
+ *
+ * That slack is one short label, not a free slot. Maps itself measured 54.33
+ * and cost 56.20 with its gap, which is why putting it back lands on 984 again
+ * and borrows the padding again. **A ninth entry any wider than that overflows,
+ * and a tenth will not fit at all**, nor will renaming one of these to
+ * something longer; each of those needs the breakpoint moved to `xl`, or the
+ * link padding cut, or something taken out.
+ * Measure it at 1024 and at 820 rather than trusting the arithmetic, because a
+ * row that overflows here gives every page on the site a horizontal scrollbar,
+ * which is the bug the `md` to `lg` change was fixing.
  */
 export const VISIBLE_NAV: NavItem[] = NAV.filter((item) => !item.hidden);
 

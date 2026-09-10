@@ -94,6 +94,16 @@ const PROBLEMS: Record<string, string> = {
     "Nothing was added: a changelog entry needs a line saying what changed. That line is the whole entry on the item's page.",
   "item-update-date":
     "Nothing was added: that release date could not be read. Leave it blank to record today, or give a date like 2004-06-12.",
+  "item-shot-none":
+    "Nothing was attached: the request named no pictures at all. The files are uploaded first and the row is written second, so if an upload was running it did not finish.",
+  "item-shot-unreadable":
+    "Nothing was attached: the request did not describe a screenshot. Every one needs its filename and the slot it was uploaded under, because that number is part of the key its object is stored at.",
+  "item-shot-key":
+    "Nothing was attached: one of those keys is not this item's. A screenshot's address is built from the item's own address and the slot it was uploaded under, and anything else is refused rather than trusted, because a row can otherwise be hung off any object in the bucket and the database backups live in the same bucket.",
+  "item-shot-exists":
+    "Nothing was attached: that picture is already on this item. Uploading it again would overwrite the object and then fail on the row, so it stopped before either.",
+  "item-shot-missing":
+    "Nothing was changed: that screenshot no longer exists. Somebody removed it, or the page had been open a while. The rest of the gallery is untouched.",
   default: "That was refused, and nothing was changed.",
 };
 
@@ -106,6 +116,16 @@ type Props = {
     pack?: string;
     /** A catalogue item id to expand for editing. */
     item?: string;
+    /*
+     * The catalogue's own view: a search, a shelf, a status and a page. Every
+     * one of them is a link rather than client state, so an admin view is a URL
+     * somebody can bookmark or leave open on a second screen. `catalogue-admin`
+     * parses them and tolerates anything.
+     */
+    q?: string;
+    kind?: string;
+    status?: string;
+    page?: string;
     /** Filenames a refused pack could not use, and how many were not listed. */
     bad?: string;
     more?: string;
@@ -624,7 +644,12 @@ export default async function AdminPage({ searchParams }: Props) {
         the site, and the point of putting them first is that somebody who came
         here for something else still sees them waiting.
       */}
-      <CatalogueAdmin items={catalogue} editing={editingItem} />
+      <CatalogueAdmin
+        items={catalogue}
+        editing={editingItem}
+        params={params}
+        storageReady={canWriteToStorage()}
+      />
 
       <MapPackAdmin packs={packs} editing={editingPack} />
 

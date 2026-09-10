@@ -2,9 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import {
+  SERVER_PATH_HINT,
+  freshMemo,
+  reasonFrom,
+  transferOne,
+  type Refusal,
+  type Stored,
+  type Transfer,
+} from "@/components/upload-transfer";
 import { SECTIONS, SECTION_BY_KIND, type ItemKind } from "@/lib/downloads";
 import {
-  contentTypeFor,
   isImageName,
   normaliseReleasedOn,
   slugFromName,
@@ -22,25 +30,13 @@ import { formatBytes } from "@/lib/storage";
  * that is a site where the author is the one holding the file, which is only
  * true if putting a file here is something you can do without a terminal.
  *
- * THE SIZE PROBLEM IS THE WHOLE DESIGN, and it was measured rather than assumed.
- * The 391 custom maps on the live server average 14.6 MB, the largest is 379 MB,
- * and 195 of them are over 4 MB. Vercel caps a serverless function's request
- * body at 4.5 MB and a Next server action defaults to 1 MB, so posting the bytes
- * through our own server works for roughly half the archive and fails for the
- * rest. Uploading straight from the browser to R2 with a presigned PUT has no
- * such limit and is what this reaches for first.
- *
- * The catch is that a direct PUT needs a CORS policy on the bucket, and our R2
- * API token cannot set one: it is an Object Read and Write token, and
- * GetBucketCors answers AccessDenied. That is a one-time action the owner takes
- * in the Cloudflare dashboard, so until it is done the direct path fails, in the
- * browser, as a bare network error with no status and no body. Hence two paths
- * and a refusal that says which:
- *
- *   1. presigned PUT straight to R2, no size limit,
- *   2. the same bytes posted through our server when that fails and they fit,
- *   3. and when neither is possible, the CORS policy to paste and the CLI
- *      command, rather than a 413 or a spinner that never stops.
+ * **The transfer itself lives in `upload-transfer.ts`** and was the middle of
+ * this file until the catalogue below needed to add screenshots to an item that
+ * already exists. The presigned PUT, the fallback through our own server, the
+ * hash and the CORS policy it prints are all there and are shared, because two
+ * copies of that would fail differently on the same bucket. What is left here is
+ * the form: what a person types, what survives a failure, and what the screen
+ * says while 379 MB is moving.
  *
  * EVERYTHING TYPED SURVIVES A FAILURE. The chosen files live in this component's
  * state rather than being read off the input at submit, so a 200 MB upload that
@@ -53,71 +49,11 @@ import { formatBytes } from "@/lib/storage";
  * that sits still for four minutes on a large map looks broken.
  */
 
-/* --- the contract with the three routes ----------------------------------- */
-
-/**
- * What `POST /api/admin/upload/prepare` answers.
- *
- * `key` is the object key both paths land the bytes at, derived on the server by
- * `storageKeyFor` and never invented here, so that a form upload and an ingest
- * run cannot disagree about where a file lives. `url` is the presigned PUT, and
- * it is nullable because a deployment can be able to read from the bucket and
- * unable to sign for it, in which case `problem` says why.
- *
- * `headers` are signed into that url, so the PUT has to send exactly them.
- * `serverPathLimitBytes` is what the fallback route will accept, reported by the
- * side that knows rather than guessed at here.
- */
-type Prepared = {
-  key: string;
-  url: string | null;
-  headers: Record<string, string>;
-  serverPathLimitBytes: number;
-  /** Why there is no signed url, when there is none. */
-  problem: string | null;
-};
-
-/** What one transfer is doing, so the screen can show it rather than a spinner. */
-type Transfer = {
-  name: string;
-  bytes: number;
-  sent: number;
-  /** Which path carried it. Null until one has been tried. */
-  via: "direct" | "server" | null;
-  state: "waiting" | "reading" | "sending" | "done" | "failed";
-};
-
-type Refusal = {
-  message: string;
-  /**
-   * The policy to paste, set only when the browser was refused before it got a
-   * reply, which is the one failure a CORS policy actually fixes. A signing
-   * failure or a 403 from R2 is a different problem and pasting this would not
-   * touch it.
-   */
-  cors: string | null;
-  /** Whether the CLI is the way through this particular refusal. */
-  cli: boolean;
-};
-
 /* --- constants ------------------------------------------------------------ */
 
 const FIELD =
   "w-full rounded-sm border border-basalt-600 bg-basalt-850 px-2 py-1.5 text-sm text-steel-100 placeholder:text-steel-700 focus:border-rust-500 focus:outline-none";
 const LABEL = "figure-label mb-1 block";
-
-/**
- * What the server path takes, for the sentence printed before anything has been
- * asked.
- *
- * `SERVER_PATH_LIMIT_BYTES` in `@/lib/ingest` is the real one and the only one
- * that decides anything: it comes back from `prepare` on every file and is what
- * a fallback is judged against. This copy exists because that module reaches the
- * database and must not be pulled into a browser bundle to read one number.
- * Being wrong here costs a hint under a file input; being wrong there costs an
- * upload that fails at the last byte.
- */
-const SERVER_PATH_HINT = 4 * 1024 * 1024;
 
 /* --- pure helpers --------------------------------------------------------- */
 
@@ -135,125 +71,6 @@ function normalisedSlug(typed: string, filename: string | null): string {
   const wanted = typed.trim();
   if (wanted) return slugFromName(`${wanted}.slug`);
   return filename ? slugFromName(filename) : "";
-}
-
-/**
- * The bucket policy that turns the direct path on, built from the origin this
- * page is actually being served from so that pasting it works for production
- * and for a dev server alike.
- *
- * **Both headers matter.** The signed PUT carries `content-type` and
- * `cache-control`, because both are covered by the signature, and neither is a
- * header a browser will send cross-origin without the bucket having named it.
- * Leaving `cache-control` out of this list produces exactly the failure this
- * whole section exists to explain, on a bucket whose policy looks correct.
- */
-function corsPolicyFor(origin: string): string {
-  return JSON.stringify(
-    [
-      {
-        AllowedOrigins: [origin],
-        AllowedMethods: ["PUT"],
-        AllowedHeaders: ["content-type", "cache-control"],
-        ExposeHeaders: ["etag"],
-        MaxAgeSeconds: 3600,
-      },
-    ],
-    null,
-    2,
-  );
-}
-
-/**
- * The reason inside a route's refusal, or something honest about the status.
- *
- * The routes answer `{ ok: false, error }`. R2 answers XML, and Vercel's own
- * 413 is an HTML page from an edge that never ran our code, so anything
- * unparseable falls back to the status and a short quotation rather than being
- * swallowed.
- */
-function reasonFrom(status: number, body: string): string {
-  try {
-    const parsed = JSON.parse(body) as { error?: unknown; problem?: unknown };
-    for (const value of [parsed.error, parsed.problem]) {
-      if (typeof value === "string" && value.trim()) return value.trim();
-    }
-  } catch {
-    // Not JSON. A proxy or the platform answered, so the status is the reading.
-  }
-  const snippet = body.trim().slice(0, 200);
-  return snippet ? `${status}: ${snippet}` : `the server answered ${status}`;
-}
-
-/**
- * A SHA-256 of the file, computed here because on the direct path nothing else
- * can.
- *
- * `files.sha256` is `NOT NULL` and it is what makes a catalogue row a promise
- * that these exact bytes are stored. The server path hashes the bytes it
- * receives, but a direct upload never passes through our own code, so the
- * commit would have to fetch the object back to work it out, and that is not
- * possible for the 379 MB end of this archive.
- *
- * Returns null rather than throwing when the browser will not give up an
- * ArrayBuffer that size. Losing the hash costs a column; failing here would cost
- * an upload that has already succeeded.
- */
-async function digestOf(file: File): Promise<string | null> {
-  try {
-    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-    return [...new Uint8Array(digest)]
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-  } catch {
-    return null;
-  }
-}
-
-type Sent = { ok: boolean; status: number; body: string };
-
-/**
- * One upload, with progress, and it never rejects.
- *
- * XMLHttpRequest rather than fetch for the one reason fetch cannot cover:
- * `upload.progress` events. These files average 14 MB and reach 379 MB, so the
- * difference between this and a promise is the difference between a screen that
- * is working and a screen that has hung.
- *
- * A failed request resolves with `status: 0` rather than throwing, because the
- * caller has to tell two failures apart and only one of them is an error: a
- * status of zero means the browser never got a reply at all, which is what a
- * bucket with no CORS policy looks like from in here, and that one is a
- * fallback rather than a refusal.
- */
-function send(
-  method: "PUT" | "POST",
-  url: string,
-  body: XMLHttpRequestBodyInit,
-  headers: Record<string, string>,
-  onProgress: (sent: number) => void,
-): Promise<Sent> {
-  return new Promise((resolve) => {
-    const request = new XMLHttpRequest();
-    request.open(method, url, true);
-    for (const [name, value] of Object.entries(headers)) {
-      request.setRequestHeader(name, value);
-    }
-    request.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) onProgress(event.loaded);
-    });
-    const settle = () =>
-      resolve({
-        ok: request.status >= 200 && request.status < 300,
-        status: request.status,
-        body: request.responseText ?? "",
-      });
-    request.addEventListener("load", settle);
-    request.addEventListener("error", () => resolve({ ok: false, status: 0, body: "" }));
-    request.addEventListener("abort", () => resolve({ ok: false, status: 0, body: "" }));
-    request.addEventListener("timeout", () => resolve({ ok: false, status: 0, body: "" }));
-    request.send(body);
-  });
 }
 
 /* --- the section ---------------------------------------------------------- */
@@ -441,205 +258,45 @@ export function UploadAdmin({
 
     /*
      * What this run has learned about the direct path, so a bucket with no CORS
-     * policy costs one failed PUT rather than one per screenshot. Null until the
-     * first attempt has answered.
-     *
-     * The status is remembered for the whole run alongside it, and not per file,
-     * because only the first file ever tries the direct route: once
-     * `directWorks` is false nothing else attempts it, so a status scoped to one
-     * iteration is null by the time the file that actually gets refused reads
-     * it. That produced a refusal reading "refused with null" and, worse, hid
-     * the CORS policy on the one screen that exists to print it.
+     * policy costs one failed PUT rather than one per screenshot. Carried across
+     * the whole queue rather than per file, because only the first file ever
+     * tries the direct route: a verdict scoped to one iteration is gone by the
+     * time the file that actually gets refused reads it, which once produced a
+     * refusal reading "refused with null" and, worse, hid the CORS policy on the
+     * one screen that exists to print it.
      */
-    let directWorks: boolean | null = null;
-    let directStatus: number | null = null;
-    const stored: {
-      storageKey: string;
-      filename: string;
-      sizeBytes: number;
-      sha256: string | null;
-      contentType: string;
-    }[] = [];
+    const memo = freshMemo();
+    const stored: Stored[] = [];
 
+    /*
+     * The transfer is `transferOne`, shared with the screenshot control in the
+     * catalogue below. What this loop still decides is the screen: which row is
+     * moving, how far it has got, and that a refusal stops the queue where it is
+     * rather than skipping a file and writing a row for the rest.
+     */
     for (const [index, entry] of queue.entries()) {
-      const contentType = contentTypeFor(entry.file.name);
       mark(index, { state: "sending" });
 
-      /* what the server says about where this goes and how big it may be */
+      const outcome = await transferOne(
+        {
+          kind,
+          slug: slugNow,
+          file: entry.file,
+          role: entry.role,
+          position: entry.position,
+        },
+        memo,
+        (state) => mark(index, { state }),
+        (sent, via) => mark(index, { sent, via }),
+      );
 
-      let prepared: Prepared;
-      try {
-        const answer = await fetch("/api/admin/upload/prepare", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            kind,
-            slug: slugNow,
-            filename: entry.file.name,
-            contentType,
-            sizeBytes: entry.file.size,
-            role: entry.role,
-            position: entry.position,
-          }),
-        });
-        const body = await answer.text();
-        if (!answer.ok) {
-          fail(index, `Nothing was stored: ${reasonFrom(answer.status, body)}`);
-          return;
-        }
-        const parsed = JSON.parse(body) as Partial<Prepared>;
-        if (typeof parsed.key !== "string" || !parsed.key) {
-          fail(index, "Nothing was stored: the prepare step did not say where the file should go.");
-          return;
-        }
-        prepared = {
-          key: parsed.key,
-          url: typeof parsed.url === "string" ? parsed.url : null,
-          headers:
-            parsed.headers && typeof parsed.headers === "object"
-              ? parsed.headers
-              : { "content-type": contentType },
-          serverPathLimitBytes:
-            typeof parsed.serverPathLimitBytes === "number"
-              ? parsed.serverPathLimitBytes
-              : SERVER_PATH_HINT,
-          problem: typeof parsed.problem === "string" ? parsed.problem : null,
-        };
-      } catch {
-        fail(
-          index,
-          "Nothing was stored: the site could not be reached to ask where the file should go.",
-        );
+      if (!outcome.ok) {
+        fail(index, outcome.refusal.message, outcome.refusal);
         return;
       }
 
-      const policy = corsPolicyFor(window.location.origin);
-
-      /* the direct path, which is the one with no size limit */
-
-      let landed: { storageKey: string; sha256: string | null } | null = null;
-
-      if (prepared.url && directWorks !== false) {
-        /*
-         * Hashed before the bytes go, because after a direct PUT nothing on our
-         * side has ever seen them. Read as its own state rather than silently:
-         * on a large file this is a couple of seconds during which a progress
-         * bar sitting at zero would look like a stall.
-         */
-        mark(index, { state: "reading" });
-        const sha256 = await digestOf(entry.file);
-
-        mark(index, { state: "sending" });
-        const sent = await send(
-          "PUT",
-          prepared.url,
-          entry.file,
-          prepared.headers,
-          (bytes) => mark(index, { sent: bytes, via: "direct" }),
-        );
-        if (sent.ok) {
-          directWorks = true;
-          landed = { storageKey: prepared.key, sha256 };
-          mark(index, { sent: entry.file.size, via: "direct", state: "done" });
-        } else {
-          /*
-           * Status zero is the CORS case and the only one worth retrying
-           * elsewhere: the browser refused to show us a reply, so nothing is
-           * known about whether R2 would have taken it. A real status is R2
-           * answering, usually a signature that has expired or a key the token
-           * may not write, and it is carried into the refusal so the two are
-           * never confused.
-           */
-          directWorks = false;
-          directStatus = sent.status;
-        }
-      }
-
-      /* the fallback, which works up to the cap the prepare step reported */
-
-      if (!landed) {
-        if (entry.file.size > prepared.serverPathLimitBytes) {
-          fail(
-            index,
-            `${entry.file.name} is ${formatBytes(entry.file.size)}, and the most that can be posted ` +
-              `through the site is ${formatBytes(prepared.serverPathLimitBytes)}, because the request ` +
-              `has to fit inside a serverless function. ` +
-              (prepared.url
-                ? directStatus === 0
-                  ? "Uploading straight to the bucket has no size limit and is what was tried first, but the browser was refused before it got a reply at all, which is what a bucket with no CORS policy looks like from in here."
-                  : `Uploading straight to the bucket was refused with ${directStatus}, so it is the signature or the key that was not accepted rather than the policy.`
-                : `This deployment cannot sign a direct upload${prepared.problem ? `: ${prepared.problem}` : ""}, so there is no path for a file this size.`),
-            { cors: directStatus === 0 ? policy : null, cli: true },
-          );
-          return;
-        }
-
-        /*
-         * Everything the fallback route needs to derive the key itself. It
-         * deliberately does not accept one: nothing a caller sends decides
-         * where an object lands, which is what stops a stray request naming an
-         * object it should not be able to write.
-         */
-        const form = new FormData();
-        form.append("kind", kind);
-        form.append("slug", slugNow);
-        form.append("filename", entry.file.name);
-        form.append("role", entry.role);
-        if (entry.position !== null) form.append("position", String(entry.position));
-        form.append("file", entry.file, entry.file.name);
-
-        // Back to zero, because a direct attempt that got some of the way up
-        // before being refused has left a bar somewhere in the middle, and a
-        // second attempt at the same file starts from the beginning.
-        mark(index, { sent: 0, via: "server" });
-
-        // No content-type header: the browser has to set the multipart boundary
-        // itself, and one written by hand is a body the server cannot parse.
-        const sent = await send("POST", "/api/admin/upload", form, {}, (bytes) =>
-          mark(index, { sent: bytes, via: "server" }),
-        );
-
-        if (!sent.ok) {
-          fail(
-            index,
-            sent.status === 0
-              ? `${entry.file.name} did not reach the site, and the connection dropped without a reply. Nothing after it was sent.`
-              : `${entry.file.name} was refused: ${reasonFrom(sent.status, sent.body)}`,
-            // The direct route being blocked is worth saying even when the
-            // fallback is what actually failed: it is why the file came this
-            // way at all, and it is the thing that stays broken until somebody
-            // acts on it.
-            { cors: directStatus === 0 ? policy : null, cli: directStatus === 0 },
-          );
-          return;
-        }
-
-        // The route hashes what it received and reports the key it derived, and
-        // both are better answers than anything this side could work out.
-        let storageKey = prepared.key;
-        let sha256: string | null = null;
-        try {
-          const answer = JSON.parse(sent.body || "{}") as {
-            key?: unknown;
-            sha256?: unknown;
-          };
-          if (typeof answer.key === "string" && answer.key) storageKey = answer.key;
-          if (typeof answer.sha256 === "string") sha256 = answer.sha256;
-        } catch {
-          // A 2xx that is not JSON is strange and not fatal. Both ends derive
-          // the key from the same rules, so the prepared one is still right.
-        }
-        landed = { storageKey, sha256 };
-        mark(index, { sent: entry.file.size, via: "server", state: "done" });
-      }
-
-      stored.push({
-        storageKey: landed.storageKey,
-        filename: entry.file.name,
-        sizeBytes: entry.file.size,
-        sha256: landed.sha256,
-        contentType,
-      });
+      mark(index, { sent: entry.file.size, via: outcome.via, state: "done" });
+      stored.push(outcome.stored);
     }
 
     /* the row, last, because a row pointing at bytes that are not there is the
