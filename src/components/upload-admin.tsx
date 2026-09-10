@@ -684,9 +684,16 @@ export function UploadAdmin({
               id="upload-tags"
               value={tags}
               onChange={(event) => setTags(event.target.value)}
-              placeholder="ctf, large, remake"
+              placeholder="large, remake, night"
               className={FIELD}
             />
+            {/* Same warning as the item editor, and for the same reason: this
+                is where the wrong tags get typed in the first place. */}
+            <p className="mt-1 text-xs leading-snug text-steel-400">
+              Not the game type, and not which client loads it. Those are the
+              Type above and what the file itself says, so a tag repeating
+              either is a fact said twice that can later disagree with itself.
+            </p>
           </div>
 
           {/* --- screenshots ---------------------------------------------- */}

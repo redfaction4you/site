@@ -2,11 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { ItemSummary } from "@/lib/catalogue";
-import { categoryOf, displayVersion, type Section } from "@/lib/downloads";
 import {
-  ALL_CLIENTS,
-  CLIENT_LABELS,
-  CLIENT_SHORT_LABELS,
+  ARCHIVE_TIME_ZONE,
+  categoryOf,
+  displayVersion,
+  type Section,
+} from "@/lib/downloads";
+import {
+  compatPhrase,
   type RfClient,
 } from "@/lib/rfl/clients";
 import { publicUrl } from "@/lib/storage";
@@ -41,7 +44,7 @@ import { publicUrl } from "@/lib/storage";
  * share no code, and a date format is not the thing to start with.
  */
 const DAY_MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
+  timeZone: ARCHIVE_TIME_ZONE,
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -78,63 +81,36 @@ function RowCompat({
   confidence: "known" | "unknown" | null;
   rflVersion: number | null;
 }) {
+  /*
+   * The words come from `compatPhrase` in `@/lib/rfl/clients`, which the front
+   * page's arrivals block also calls. This function is now only the dressing:
+   * which pill, which colours. That split was made on 9 September 2026, when a
+   * second surface needed to say the same thing and the choice was between
+   * copying four sentences or hoisting them. The same file already carries
+   * `CLIENT_SHORT_LABELS` for exactly this reason, hoisted the same day after
+   * two components had each written their own.
+   */
+  const phrase = compatPhrase(playsOn, confidence, rflVersion);
+  if (!phrase) return null;
+
   const pill =
     "rounded-sm border px-1.5 py-0.5 font-display text-[0.625rem] font-semibold uppercase tracking-wider";
-  const warn = " border-oxide-400/40 bg-oxide-400/10 text-oxide-400";
 
   /*
-   * A version inside the 201 to 299 gap. The table has no source for it and
-   * will not guess, so neither will this: a confidently wrong badge costs more
-   * than a hundred honest admissions, and that rule does not get relaxed just
-   * because the mark is small.
+   * Three styles, not two, and the third is the point. A warning is gold. "Any
+   * client" is the quiet good news and is drawn back, because it is true of
+   * most of the archive and a lit pill on every row lights up nothing. A
+   * shorter list is the one worth noticing, so it gets the brighter text.
    */
-  if (confidence === "unknown") {
-    return (
-      <span
-        title="The level format version in this file is outside the range we have documentation for, so we will not say which clients load it."
-        className={pill + warn}
-      >
-        Unverified
-      </span>
-    );
-  }
-
-  if (playsOn.length === 0) {
-    // No level data at all, rather than level data that loads nowhere. Nothing
-    // was read, so nothing is said.
-    if (rflVersion === null) return null;
-
-    return (
-      <span
-        title={`Level format version ${rflVersion}. No PC client loads it, which usually means a PlayStation 2 level.`}
-        className={pill + warn}
-      >
-        No PC client
-      </span>
-    );
-  }
-
-  const full = playsOn.map((client) => CLIENT_LABELS[client]).join(", ");
-
-  // Tested by membership rather than by counting, so a client added to
-  // `ALL_CLIENTS` later cannot make a shorter list read as the full house.
-  if (ALL_CLIENTS.every((client) => playsOn.includes(client))) {
-    return (
-      <span
-        title={`Loads in every client we label for: ${full}.`}
-        className={pill + " border-basalt-700 bg-basalt-850 text-steel-400"}
-      >
-        Any client
-      </span>
-    );
-  }
+  const style = phrase.warn
+    ? " border-oxide-400/40 bg-oxide-400/10 text-oxide-400"
+    : phrase.text === "Any client"
+      ? " border-basalt-700 bg-basalt-850 text-steel-400"
+      : " border-basalt-600 bg-basalt-800 text-steel-200";
 
   return (
-    <span
-      title={`Loads in ${full}. No other client can.`}
-      className={pill + " border-basalt-600 bg-basalt-800 text-steel-200"}
-    >
-      {playsOn.map((client) => CLIENT_SHORT_LABELS[client]).join(", ")} only
+    <span title={phrase.title} className={pill + style}>
+      {phrase.text}
     </span>
   );
 }

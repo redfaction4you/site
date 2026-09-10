@@ -806,6 +806,40 @@ export async function unpublishItem(formData: FormData): Promise<void> {
  * a list of hundreds and a markdown body does not belong in one. Nothing posts
  * that field, and nothing here sets it.
  */
+/**
+ * Drop every cached page and listing, on whichever deployment you press it.
+ *
+ * The listings are held in `unstable_cache` for an hour, and the only things
+ * that clear them are the actions on this screen. That covers editing, which is
+ * the ordinary case, and leaves three real ones uncovered:
+ *
+ * - a row changed by hand in SQL, which happens whenever something needs fixing
+ *   faster than a form can be built for it;
+ * - a `scripts/ingest.mjs` run, which writes rows from a terminal and knows
+ *   nothing about Next;
+ * - **an edit made from a local dev server**, which is the one that surprised
+ *   me. There is one database, so the row changes for production immediately,
+ *   but `revalidateTag` ran against the local cache and production's own copy
+ *   is untouched. The site then shows the old text for up to an hour while the
+ *   database has the new text, which reads exactly like a failed save.
+ *
+ * So this exists, and it has to be pressed on the deployment you want cleared:
+ * this button on `redfaction4you.com/admin` clears production, the same button
+ * on localhost clears localhost. That is not a limitation to work around, it is
+ * what a per deployment cache means.
+ *
+ * Costs one round of queries the next time each page is asked for, and nothing
+ * else. It is safe to press at any time and safe to press twice.
+ */
+export async function refreshCaches(): Promise<void> {
+  if (!(await allowed())) redirect("/admin");
+
+  revalidateTag(CATALOGUE_CACHE_TAG);
+  revalidateTag(MAP_PACKS_CACHE_TAG);
+  revalidatePath("/", "layout");
+  redirect("/admin?saved=refreshed");
+}
+
 export async function editItem(formData: FormData): Promise<void> {
   if (!(await allowed())) redirect("/admin");
 

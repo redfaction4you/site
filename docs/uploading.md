@@ -241,7 +241,7 @@ in. Most of a bulk run looks like that.
   "category": "ctf",
   "releaseVersion": "b12",
   "releasedOn": "2003",
-  "tags": ["ctf", "tournament", "egyptian"],
+  "tags": ["tournament", "egyptian"],
   "updates": [
     {
       "title": "b12",
@@ -411,6 +411,14 @@ Not derived, ever:
 - **Single player.** There is no filename convention for it, so it is set by
   hand in `item.json` as `"category": "sp"` or it is not set at all.
 - **Which shelf it belongs on.** See `kind` above.
+- **A tag is never the game type and never the client.** `"category": "ctf"`
+  already puts it on the CTF facet, and `plays_on` is read out of the file, so
+  a tag repeating either is a typed copy of a derived fact and the two can
+  disagree. The first map published here was tagged `dm, alpine`, both of which
+  were already on the same screen, and the owner said so. Tag what neither
+  covers: `tournament`, `egyptian`, `large`, `remake`, `night`. The example
+  above used to read `["ctf", "tournament", "egyptian"]` and was teaching the
+  mistake.
 - Author, summary, description, release date, version and tags. Nothing in a
   `.rfl` header knows any of them.
 

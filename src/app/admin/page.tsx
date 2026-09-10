@@ -29,6 +29,7 @@ import { canWriteToStorage } from "@/lib/r2";
 import { serverLabel } from "@/lib/matches/server-names";
 import {
   lock,
+  refreshCaches,
   mergeIdentities,
   setDisplayName,
   unlock,
@@ -358,6 +359,20 @@ export default async function AdminPage({ searchParams }: Props) {
           <Link href="/link" className="hover:text-rust-300">
             Add a recording
           </Link>
+          {/*
+            Pressed on the deployment whose cache you want cleared, which is the
+            whole point of it being here rather than a script. See the doc block
+            on the action.
+          */}
+          <form action={refreshCaches}>
+            <button
+              type="submit"
+              className="hover:text-rust-300"
+              title="Drops the cached listings and pages on this deployment. Press it after editing a row outside this screen, or after an ingest from a terminal."
+            >
+              Refresh the cache
+            </button>
+          </form>
           <form action={lock}>
             <button type="submit" className="hover:text-rust-300">
               Lock this browser
@@ -370,7 +385,9 @@ export default async function AdminPage({ searchParams }: Props) {
         <p className="mt-4 border-l-2 border-signal-green px-3 py-1 text-sm text-steel-200">
           {params.saved === "posted"
             ? "Posted to Discord, and marked as posted so it cannot go twice."
-            : "Saved. It applies everywhere immediately."}
+            : params.saved === "refreshed"
+              ? "Cache dropped on this deployment. The next visit to each page reads the database again. If you edited the row somewhere else, press this on that deployment too."
+              : "Saved. It applies everywhere immediately."}
         </p>
       ) : null}
 

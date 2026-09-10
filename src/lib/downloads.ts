@@ -319,3 +319,79 @@ export function displayVersion(version: string | null | undefined): string | nul
   const trimmed = (version ?? "").trim().slice(0, 24);
   return trimmed.length > 0 ? trimmed : null;
 }
+
+/**
+ * What is inside a download, in the fewest words that are true.
+ *
+ * One level is the ordinary case and the interesting one: the level's own name
+ * is not the name of the file it came in, and it is what appears in a server's
+ * rotation, in the console and in a vote. This item is `dm-ArenaIslandB3.vpp`
+ * and the level inside it is `dm-ArenaIslandB3.rfl`. The owner put that row at
+ * the top of the item page's panel on 9 September 2026, ahead of the type and
+ * the dates, which is his own answer to what information about a map is worth
+ * having.
+ *
+ * **A pack holding several never shows one of their names.** It shows the
+ * count. Printing the first path for a five-level pack would name one map and
+ * silently hide four, and somebody would go looking for a rotation entry that
+ * is only a fifth of what they downloaded. This is the same call `onlyLevel`
+ * makes on the item page and it is the rule this function exists to hold in one
+ * place.
+ *
+ * Null has two causes that read the same and should: `levelCount` null is a
+ * file that was never read, which is anything too large for the upload path to
+ * fetch back and anything that is not a container we can open, and 0 is a file
+ * that was read and held no levels. Neither is worth a row saying so.
+ */
+export function levelFact(
+  levelCount: number | null,
+  levelPath: string | null,
+): string | null {
+  if (levelCount === null || levelCount <= 0) return null;
+  if (levelCount === 1) {
+    /*
+     * The basename, never the stored path. A zip holding a vpp holding a level
+     * is stored as `CTF-Outlawsb1.vpp/CTF-Outlawsb1.rfl`, which is a true
+     * description of where the parser found it and not what anybody wants to
+     * read: the container is already named on the download button beside this,
+     * and the string that matters is the one the server prints in its console
+     * and puts in a rotation. Both separators, because a zip written on Windows
+     * can carry either.
+     */
+    const path = (levelPath ?? "").trim();
+    const base = path.split(/[\\/]/).pop() ?? "";
+    return base.length > 0 ? base : null;
+  }
+  return `${levelCount} levels`;
+}
+
+/**
+ * The timezone every catalogue date is written in.
+ *
+ * **Pacific, not UTC, and this was wrong on three surfaces at once.** The dates
+ * these pages show are real timestamps, not calendar days: `items.published_at`
+ * and `items.updated_at` are moments. Formatted in UTC, a map published at five
+ * in the afternoon here is published tomorrow, and the owner read exactly that
+ * on his own item page on 9 September 2026: "First release 9 Sept, Last update
+ * 10 Sept", on a row he had touched once.
+ *
+ * Fixing the item page alone made it worse rather than better, because the
+ * shelf row and the hub still said UTC, so the same map read "9 Sept" on one
+ * page and "10 Sept 2026" one click away. That is the shape of bug where each
+ * page is internally consistent and the site is not, which is the thing
+ * `vet:pages` was written for and cannot see here.
+ *
+ * It is also the rule the rest of the site already follows and writes down: the
+ * match archive groups its nights by `America/Los_Angeles`, because a match at
+ * 20:00 Pacific belongs to that evening whatever UTC calls it. Timestamps are
+ * stored in UTC and only ever displayed in this.
+ *
+ * A plain `YYYY-MM-DD` day string is a different case and does not come through
+ * here. Those are read at noon UTC so that no timezone can tip them into a
+ * neighbouring day, which is what `archiveDate` does and what the match pages
+ * do. This constant is for moments.
+ *
+ * `scripts/downloads.test.mjs` fails if a catalogue surface builds a formatter
+ * without it.
+ */
+export const ARCHIVE_TIME_ZONE = "America/Los_Angeles";

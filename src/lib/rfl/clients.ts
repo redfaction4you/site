@@ -161,3 +161,76 @@ export function intersectClients(sets: RfClient[][]): RfClient[] {
   if (sets.length === 0) return [];
   return ALL_CLIENTS.filter((client) => sets.every((set) => set.includes(client)));
 }
+
+/**
+ * Which clients load this, as one short phrase.
+ *
+ * Two places say this now, a shelf row and the front page, and they must say it
+ * in the same words. A reader who sees "Any client" on the front page and
+ * "plays in every client" on the page it links to has been given two facts
+ * where there is one, and the second time they will wonder which is right.
+ * `CLIENT_SHORT_LABELS` was hoisted into this file on 9 September 2026 after
+ * two components had each written their own copy of it; this is the same
+ * mistake one level up, caught before it shipped rather than after.
+ *
+ * The four outcomes are deliberately not four booleans a caller combines. They
+ * are one decision with an order to it, and the order is what keeps the honest
+ * failures honest:
+ *
+ * 1. **Unverified** wins over everything. A version in the documented 201 to
+ *    299 gap has no answer, and a confidently wrong badge costs more than a
+ *    hundred honest admissions.
+ * 2. **Nothing at all** for a file that was never read. Silence, not a row of
+ *    crossed-out clients, because that would assert that none of them load it.
+ * 3. **No PC client** for a file that was read and loads nowhere, which is
+ *    almost always a PlayStation 2 level.
+ * 4. Otherwise the list, or "Any client" when it is all of them.
+ *
+ * Membership, never a count: a fifth client added to `ALL_CLIENTS` later must
+ * not let a four-client list keep reading as the full house.
+ *
+ * `warn` is the caller's cue to draw it in `oxide`, which is what both the badge
+ * and the shelf row already do for these two cases.
+ */
+export function compatPhrase(
+  playsOn: RfClient[],
+  confidence: "known" | "unknown" | null,
+  rflVersion: number | null,
+): { text: string; warn: boolean; title: string } | null {
+  if (confidence === "unknown") {
+    return {
+      text: "Unverified",
+      warn: true,
+      title:
+        "The level format version in this file is outside the range we have " +
+        "documentation for, so we will not say which clients load it.",
+    };
+  }
+
+  if (playsOn.length === 0) {
+    if (rflVersion === null) return null;
+    return {
+      text: "No PC client",
+      warn: true,
+      title:
+        `Level format version ${rflVersion}. No PC client loads it, which ` +
+        `usually means a PlayStation 2 level.`,
+    };
+  }
+
+  const full = playsOn.map((client) => CLIENT_LABELS[client]).join(", ");
+
+  if (ALL_CLIENTS.every((client) => playsOn.includes(client))) {
+    return {
+      text: "Any client",
+      warn: false,
+      title: `Loads in every client we label for: ${full}.`,
+    };
+  }
+
+  return {
+    text: `${playsOn.map((client) => CLIENT_SHORT_LABELS[client]).join(", ")} only`,
+    warn: false,
+    title: `Loads in ${full}. No other client can.`,
+  };
+}

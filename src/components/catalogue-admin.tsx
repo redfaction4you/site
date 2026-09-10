@@ -776,13 +776,27 @@ function ItemEditor({
               id={`tags-${item.id}`}
               name="tags"
               defaultValue={item.tags.join(", ")}
-              placeholder="ctf, large, remake"
+              placeholder="large, remake, night"
               className={FIELD}
             />
+            {/*
+              The first sentence is the one that matters and it was learned the
+              hard way. The first map published here was tagged "dm, alpine",
+              and both were already on the screen: DM is the Category two fields
+              up and Alpine is the Plays on row, which is read out of the file
+              rather than typed. The owner read his own page and said we do not
+              need to mention the Alpine requirement all over the place. The
+              placeholder used to read "ctf, large, remake" and was teaching
+              exactly that mistake.
+            */}
             <p className="mt-1 text-xs leading-snug text-steel-400">
-              Lowercased and deduplicated on save, because a tag is a filter link
-              and two spellings of one idea each find half the shelf. Twelve at
-              most.
+              Not the game type, and not which client loads it. Those are the
+              Category above and the Plays on row, both read off the file, and a
+              typed copy of either is a second version of a fact that can
+              disagree with the first. A tag is for what neither covers: large,
+              remake, night, close quarters. Lowercased and deduplicated on
+              save, because a tag is a filter link and two spellings of one idea
+              each find half the shelf. Twelve at most.
             </p>
           </div>
 

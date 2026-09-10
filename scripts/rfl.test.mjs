@@ -18,6 +18,7 @@ import { deflateRawSync } from "node:zlib";
 
 import {
   compatibilityForRflVersion,
+  compatPhrase,
   crc32,
   inspectUpload,
   intersectClients,
@@ -402,4 +403,53 @@ test("an unrecognised upload is refused outright", () => {
     () => inspectUpload(new Uint8Array(Buffer.from("this is a jpeg, honest"))),
     /Unrecognised file/,
   );
+});
+
+/* --- one phrase for "which clients load this" ----------------------------- */
+
+/**
+ * Two surfaces render this now, a shelf row and the front page's arrivals
+ * block, and they render it from here so they cannot drift apart. What is
+ * checked below is the ORDER of the four outcomes, because the order is what
+ * keeps the two honest failures honest.
+ */
+
+test("an unverified version beats everything else, including a full client list", () => {
+  // The 201 to 299 gap. Even handed every client, the answer is that we do not
+  // know, because the table has no source for that version and will not guess.
+  const phrase = compatPhrase(["vanilla", "pure", "dash", "alpine"], "unknown", 250);
+  assert.equal(phrase.text, "Unverified");
+  assert.equal(phrase.warn, true);
+});
+
+test("a file that was never read says nothing at all", () => {
+  // Not a row of crossed-out clients, which would assert that none of them load
+  // it. Nothing was read, so nothing is said.
+  assert.equal(compatPhrase([], "known", null), null);
+  assert.equal(compatPhrase([], null, null), null);
+});
+
+test("a file that was read and loads nowhere says so", () => {
+  const phrase = compatPhrase([], "known", 0xb4);
+  assert.equal(phrase.text, "No PC client");
+  assert.equal(phrase.warn, true);
+  assert.match(phrase.title, /PlayStation 2/);
+});
+
+test("every client is 'Any client', and it is tested by membership", () => {
+  const phrase = compatPhrase(["alpine", "dash", "pure", "vanilla"], "known", 200);
+  assert.equal(phrase.text, "Any client");
+  assert.equal(phrase.warn, false);
+
+  // Order must not matter, and a shorter list must never read as the full house
+  // however many entries it happens to have.
+  const three = compatPhrase(["vanilla", "pure", "dash"], "known", 200);
+  assert.notEqual(three.text, "Any client");
+});
+
+test("a shorter list is named with the short labels and is not a warning", () => {
+  const phrase = compatPhrase(["alpine"], "known", 305);
+  assert.equal(phrase.text, "Alpine only");
+  assert.equal(phrase.warn, false);
+  assert.match(phrase.title, /Alpine Faction/);
 });

@@ -22,7 +22,9 @@ import {
   categoryFromLevelName,
   categoryFromLevels,
   categoryOf,
+  ARCHIVE_TIME_ZONE,
   displayVersion,
+  levelFact,
   parseSort,
   sectionByRoute,
 } from "../src/lib/downloads.ts";
@@ -196,4 +198,88 @@ test("a version is shown as written, and an absent one is absent", () => {
   assert.equal(displayVersion(null), null);
   assert.equal(displayVersion(undefined), null);
   assert.equal(displayVersion("x".repeat(200))?.length, 24);
+});
+
+/* --- what is inside a download -------------------------------------------- */
+
+/**
+ * The rule worth having a test for is the third one. A pack holding several
+ * levels must never be described by one of their names: it would name one map,
+ * silently hide the rest, and send somebody looking for a rotation entry that
+ * is a fifth of what they downloaded.
+ */
+
+test("one level is named, because its name is not the name of the file", () => {
+  assert.equal(levelFact(1, "dm-ArenaIslandB3.rfl"), "dm-ArenaIslandB3.rfl");
+});
+
+test("a pack of several is counted and never named", () => {
+  assert.equal(levelFact(4, "ctf-ankh.rfl"), "4 levels");
+  assert.equal(levelFact(12, "dm-first.rfl"), "12 levels");
+});
+
+test("nothing read and nothing found both say nothing", () => {
+  // Null is a file that was never opened: too large for the upload path to
+  // fetch back, or not a container at all. Zero is a file that was opened and
+  // held no levels. Neither is worth a row.
+  assert.equal(levelFact(null, null), null);
+  assert.equal(levelFact(null, "stale.rfl"), null);
+  assert.equal(levelFact(0, null), null);
+});
+
+test("one level with no usable path says nothing rather than an empty string", () => {
+  assert.equal(levelFact(1, null), null);
+  assert.equal(levelFact(1, "   "), null);
+});
+
+test("a level found inside a container is named by its own filename", () => {
+  // The parser stores where it found the level, which for a zip holding a vpp
+  // holding a level is three names deep. The container is on the download
+  // button beside this; what belongs here is the string the server console and
+  // the rotation use.
+  assert.equal(
+    levelFact(1, "CTF-Outlawsb1.vpp/CTF-Outlawsb1.rfl"),
+    "CTF-Outlawsb1.rfl",
+  );
+  assert.equal(levelFact(1, "maps\\dm-thing.rfl"), "dm-thing.rfl");
+});
+
+/* --- one timezone for every catalogue date -------------------------------- */
+
+/**
+ * Three surfaces formatted `published_at` and `updated_at` in UTC while the
+ * item page formatted them in Pacific, so the same map read "9 Sept" on one
+ * page and "10 Sept 2026" one click away. Each page was internally consistent,
+ * which is why `vet:pages` could never have seen it.
+ *
+ * Read out of the source, because the bug is a literal in a component rather
+ * than anything a rendered page can be asked about.
+ */
+test("no catalogue surface pins its own timezone", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+
+  assert.equal(ARCHIVE_TIME_ZONE, "America/Los_Angeles");
+
+  const surfaces = [
+    "src/components/download-row.tsx",
+    "src/components/new-arrivals.tsx",
+    "src/components/item-updates.tsx",
+    "src/app/downloads/page.tsx",
+    "src/components/item-detail.tsx",
+    "src/components/catalogue-page.tsx",
+  ];
+
+  for (const relative of surfaces) {
+    const source = readFileSync(join(root, ...relative.split("/")), "utf8");
+    for (const match of source.matchAll(/timeZone:s*"([^"]+)"/g)) {
+      assert.fail(
+        `${relative} pins timeZone "${match[1]}" itself. Catalogue dates are ` +
+          `moments and must go through ARCHIVE_TIME_ZONE, or they disagree ` +
+          `with the page next door.`,
+      );
+    }
+  }
 });

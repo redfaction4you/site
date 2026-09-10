@@ -188,6 +188,15 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   the revival list and `scripts/catalogue-cache.test.mjs` fails if a timestamp
   reaches a listing without being named in it. **Curl a cached page twice**, not
   once. The same applies to anything else stored this way.
+- **The cache is per deployment, so a local edit does not clear production's.**
+  There is one database, so a row edited through the admin form on `localhost`
+  changes for everybody immediately, but the `revalidateTag` that edit fired
+  ran against the local cache. Production keeps serving its own copy of the old
+  listing for up to an hour while the database holds the new text, which reads
+  exactly like a save that did not work. **"Refresh the cache" on `/admin`**
+  clears whichever deployment you press it on: press it on
+  `redfaction4you.com/admin` to clear production. Same button for a row edited
+  by hand in SQL, and for a `scripts/ingest.mjs` run.
 - **The catalogue listings are cached for an hour under one tag**, because a
   shelf reads its filters from the URL and is therefore dynamic: without it a
   crawler walking type by sort by tag holds Neon awake, which is the shape of

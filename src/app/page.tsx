@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { ColumnImage } from "@/components/column-image";
-import { NewDownloads } from "@/components/new-downloads";
-import { listNewest } from "@/lib/catalogue";
+import { NewArrivals } from "@/components/new-arrivals";
+import { listArrivals } from "@/lib/catalogue";
 import { ReadingList } from "@/components/reading-list";
 import { listReading } from "@/lib/reading";
 import { MatchOfTheNight } from "@/components/match-of-the-night";
@@ -46,7 +46,7 @@ export default async function HomePage() {
     opinions,
     records,
     reading,
-    downloads,
+    arrivals,
   ] =
     await Promise.all([
       getServerStatus(),
@@ -63,7 +63,7 @@ export default async function HomePage() {
        * tag, so a force-dynamic front page does not pay Neon for it on every
        * request, and an admin edit clears it rather than waiting the hour out.
        */
-      listNewest(4),
+      listArrivals(3),
     ]);
 
 
@@ -184,61 +184,75 @@ export default async function HomePage() {
       <ResultsStrip matches={recent} className="mt-3" />
 
       <div className="grid gap-x-10 gap-y-8 pb-6 pt-5 lg:grid-cols-[1.55fr_1fr]">
-        {/* --- The story, now under the results rather than above them --- */}
-        {/* --- The lead story --- */}
-        <article className="min-w-0">
-          {column ? (
-            <>
-              <p className="eyebrow">Match report · {dayLabel(column.archiveDay)}</p>
-              <h2 className="mt-2 font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
-                <Link href={`/news/${column.archiveDay}`} className="hover:text-rust-400">
-                  {column.headline}
+        {/*
+          The main column: the lead story, then what has just arrived.
+
+          Wrapped in a div rather than being two children of the grid. A third
+          direct child would be placed in row two, column one, underneath the
+          entire rail, leaving a hole under the article the height of
+          everything beside it.
+        */}
+        <div className="min-w-0 space-y-8">
+          {/* --- The lead story --- */}
+          <article className="min-w-0">
+            {column ? (
+              <>
+                <p className="eyebrow">Match report · {dayLabel(column.archiveDay)}</p>
+                <h2 className="mt-2 font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
+                  <Link href={`/news/${column.archiveDay}`} className="hover:text-rust-400">
+                    {column.headline}
+                  </Link>
+                </h2>
+
+                {/*
+                  The illustration belongs to this article rather than to the
+                  moment. This slot used to show whatever map the server happened
+                  to be on, which changed every few minutes, so the picture beside
+                  a fixed piece of writing never stayed still long enough for a
+                  reader to remember it. Now it is generated once from the finished
+                  column and stored with it. Renders nothing when there is no
+                  image, which is common.
+                */}
+                <ColumnImage
+                  imageKey={column.imageKey}
+                  model={column.imageModel}
+                  headline={column.headline}
+                  priority
+                  className="mt-4 max-w-sm"
+                />
+
+                <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
+                  {paragraphs.map((paragraph, i) => (
+                    <p key={i}>{paragraph}</p>
+                  ))}
+                </div>
+
+                <Link
+                  href={`/news/${column.archiveDay}`}
+                  className="mt-3 inline-block font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
+                >
+                  Read the full report
                 </Link>
-              </h2>
+              </>
+            ) : (
+              <>
+                <h2 className="font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
+                  Everything for Red Faction,{" "}
+                  <span className="text-rust-500">in one place that stays up.</span>
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-steel-300">
+                  Match results, player records and the community server. Free, no
+                  account needed. A write-up appears here after each match night.
+                </p>
+              </>
+            )}
+          </article>
 
-              {/*
-                The illustration belongs to this article rather than to the
-                moment. This slot used to show whatever map the server happened
-                to be on, which changed every few minutes, so the picture beside
-                a fixed piece of writing never stayed still long enough for a
-                reader to remember it. Now it is generated once from the finished
-                column and stored with it. Renders nothing when there is no
-                image, which is common.
-              */}
-              <ColumnImage
-                imageKey={column.imageKey}
-                model={column.imageModel}
-                headline={column.headline}
-                priority
-                className="mt-4 max-w-sm"
-              />
-
-              <div className="mt-4 space-y-3 text-sm leading-relaxed text-steel-300">
-                {paragraphs.map((paragraph, i) => (
-                  <p key={i}>{paragraph}</p>
-                ))}
-              </div>
-
-              <Link
-                href={`/news/${column.archiveDay}`}
-                className="mt-3 inline-block font-display text-[0.6875rem] font-semibold uppercase tracking-widest text-rust-400 hover:text-rust-300"
-              >
-                Read the full report
-              </Link>
-            </>
-          ) : (
-            <>
-              <h2 className="font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
-                Everything for Red Faction,{" "}
-                <span className="text-rust-500">in one place that stays up.</span>
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-steel-300">
-                Match results, player records and the community server. Free, no
-                account needed. A write-up appears here after each match night.
-              </p>
-            </>
-          )}
-        </article>
+          {/* Under the lead and in the same column, with no heading of its
+              own: its kicker is the heading, in the same red caps and the same
+              position as the article's. */}
+          <NewArrivals items={arrivals} />
+        </div>
 
         {/* --- The rail --- */}
         <div className="min-w-0 space-y-6">
@@ -344,8 +358,6 @@ export default async function HomePage() {
               <ReadingList entries={more} initial={3} />
             </section>
           ) : null}
-
-          <NewDownloads items={downloads} />
 
           <section>
             <div className="flex items-baseline justify-between border-b border-basalt-800 pb-1.5">

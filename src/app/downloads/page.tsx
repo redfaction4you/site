@@ -9,6 +9,7 @@ import {
   type CatalogueHighlight,
 } from "@/lib/catalogue";
 import {
+  ARCHIVE_TIME_ZONE,
   categoryOf,
   displayVersion,
   SECTION_BY_KIND,
@@ -68,7 +69,7 @@ const RANKING_FLOOR = RANKED_SHOWN * 2;
  * hub to depend on a component it does not render.
  */
 const DAY_MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
+  timeZone: ARCHIVE_TIME_ZONE,
   day: "numeric",
   month: "short",
   year: "numeric",

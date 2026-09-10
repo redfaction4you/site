@@ -79,7 +79,7 @@ test("every timestamp reaching a listing is revived after the cache", () => {
 
   const declared = listedDateFields();
 
-  for (const list of ["summaryColumns", "highlightColumns"]) {
+  for (const list of ["summaryColumns", "highlightColumns", "arrivalColumns"]) {
     for (const [key, column] of selectedItemColumns(list)) {
       if (!stamps.has(column)) continue;
       assert.ok(
