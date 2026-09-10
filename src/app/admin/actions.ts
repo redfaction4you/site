@@ -1,6 +1,6 @@
 "use server";
 
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,6 +24,7 @@ import { IDENTITY_KEY } from "@/lib/matches/identities";
 import { checkDisplayName } from "@/lib/matches/display-name";
 import { CATALOGUE_CACHE_TAG } from "@/lib/catalogue";
 import { isLevelFilename, MAP_PACKS_CACHE_TAG } from "@/lib/map-packs";
+import { SERVERS } from "@/lib/servers";
 import {
   buildFeatureFacts,
   saveFeature,
@@ -365,9 +366,33 @@ export async function saveMapPack(formData: FormData): Promise<void> {
     if (clash) redirect("/admin?problem=pack-exists");
   }
 
+  /*
+   * Which server this pack belongs to, and it was not being written at all.
+   *
+   * The column has a `themed` default and this object never carried the key, so
+   * every pack created on this screen landed on Themed whatever the form said.
+   * The three per-server rows that exist today were written by hand, which is
+   * why nobody had met it: editing an existing pack is safe, because the upsert
+   * sets only these keys and leaves `server` alone. **Creating** one for
+   * Novelty or Halloween silently made a fourth Themed pack.
+   *
+   * Only offered for servers that take a pack. `match` has `packSlug: null` in
+   * `servers.ts` because the match rotation is curated by hand and nothing
+   * applies a pack to it, so a pack aimed there would be a row nothing reads.
+   *
+   * Checked here rather than trusted from the form, because a server action is
+   * a public endpoint whatever the page offered.
+   */
+  const server = String(formData.get("server") ?? "").trim() || "themed";
+  const takesPacks = SERVERS.filter((entry) => entry.packSlug !== null).map(
+    (entry) => entry.slug,
+  );
+  if (!takesPacks.includes(server)) redirect("/admin?problem=pack-server");
+
   const values = {
     slug,
     name,
+    server,
     blurb: String(formData.get("blurb") ?? "").trim().slice(0, 600) || null,
     serverName: String(formData.get("serverName") ?? "").trim().slice(0, 80) || null,
     welcomeMessage:
@@ -409,12 +434,15 @@ export async function activateMapPack(formData: FormData): Promise<void> {
    * row, and reports "Saved": switching a pack on would have switched the
    * current one off instead, which is the least expected outcome on the page.
    */
-  const [exists] = await db
-    .select({ slug: mapPacks.slug })
+  const [existing] = await db
+    // `server` as well as the slug, because the clear below is scoped to it.
+    // Read here rather than in a second query: the row is already being fetched
+    // to prove it exists.
+    .select({ slug: mapPacks.slug, server: mapPacks.server })
     .from(mapPacks)
     .where(eq(mapPacks.slug, slug))
     .limit(1);
-  if (!exists) redirect("/admin?problem=pack-missing");
+  if (!existing) redirect("/admin?problem=pack-missing");
 
   /*
    * One batch, which this said it was and was not.
@@ -429,7 +457,20 @@ export async function activateMapPack(formData: FormData): Promise<void> {
    * transaction across awaits, the same reason `matches/ingest.ts` uses it.
    */
   await db.batch([
-    db.update(mapPacks).set({ active: false }).where(eq(mapPacks.active, true)),
+    /*
+     * Scoped to this pack's own server, which it was not.
+     *
+     * Unscoped, this cleared the active flag on every row, so switching Novelty
+     * on switched Themed and Halloween off and `activeMapPackForServer` then
+     * answered null for both. All three are active right now, which is only
+     * true because this button has not been pressed since the day a pack
+     * stopped meaning "the one active pack anywhere". The unique index is on
+     * (server, active) for the same reason: each server has exactly one.
+     */
+    db
+      .update(mapPacks)
+      .set({ active: false })
+      .where(and(eq(mapPacks.active, true), eq(mapPacks.server, existing.server))),
     db
       .update(mapPacks)
       .set({ active: true, activatedAt: new Date(), updatedAt: new Date() })

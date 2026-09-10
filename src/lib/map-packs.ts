@@ -37,6 +37,15 @@ export type MapPack = {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Which server runs this pack, by its slug in `servers.ts`.
+   *
+   * Selected since 9 September 2026. It was on the row and in nothing that read
+   * it, so the admin screen could not show which server a pack belonged to and
+   * the edit form could not prefill it, which is half of why `saveMapPack`
+   * never writing the column went unnoticed for as long as it did.
+   */
+  server: string;
   blurb: string | null;
   serverName: string | null;
   welcomeMessage: string | null;
@@ -94,6 +103,7 @@ const columns = {
   id: mapPacks.id,
   slug: mapPacks.slug,
   name: mapPacks.name,
+  server: mapPacks.server,
   blurb: mapPacks.blurb,
   serverName: mapPacks.serverName,
   welcomeMessage: mapPacks.welcomeMessage,

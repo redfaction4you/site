@@ -45,6 +45,8 @@ export const dynamic = "force-dynamic";
 
 /** What each refusal means, in the words of somebody who has to act on it. */
 const PROBLEMS: Record<string, string> = {
+  "pack-server":
+    "Not saved: that is not a server that takes a map pack. Themed, Novelty and Halloween do. The match server's rotation is curated by hand and nothing applies a pack to it, so a pack aimed there would be a row nothing reads.",
   "feature-input":
     "Nothing was written: the form needs two different names, or a match reference like 2026-08-07/46.",
   "feature-no-record":

@@ -8,6 +8,7 @@ import {
 } from "@/app/admin/actions";
 import type { MapPack } from "@/lib/map-packs";
 import { welcomeFor } from "@/lib/map-packs";
+import { SERVERS } from "@/lib/servers";
 
 /**
  * Map packs, managed.
@@ -232,6 +233,44 @@ export function MapPackAdmin({
               className={FIELD}
             />
           </div>
+        </div>
+
+        {/*
+          Which server the pack is for, and this control did not exist.
+
+          The column has a `themed` default and `saveMapPack` never wrote the
+          key, so every pack made here landed on Themed however it was named.
+          The three per-server rows in the database today were written by hand,
+          which is why it went unnoticed: editing one of those is safe, since
+          the upsert leaves `server` alone. Creating a Novelty pack quietly made
+          a fourth Themed pack.
+
+          A default of `themed` rather than a blank first option, because a pack
+          has to belong to a server and the form should not be able to submit a
+          state the action refuses. Only servers that take a pack are offered:
+          Match's rotation is curated by hand and nothing applies a pack to it.
+        */}
+        <div>
+          <label className={LABEL} htmlFor="pack-server">
+            Server this pack is for
+          </label>
+          <p className="mt-1 text-xs leading-relaxed text-steel-400">
+            Each server has exactly one pack on at a time. Switching this one on
+            switches off whatever that server was running, and leaves the other
+            servers alone.
+          </p>
+          <select
+            id="pack-server"
+            name="server"
+            defaultValue={editing?.server ?? "themed"}
+            className={FIELD}
+          >
+            {SERVERS.filter((server) => server.packSlug !== null).map((server) => (
+              <option key={server.slug} value={server.slug}>
+                {server.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
