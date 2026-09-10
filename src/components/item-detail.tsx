@@ -140,9 +140,14 @@ export function ItemDetail({
                  * No `download` attribute: the route answers with a redirect to
                  * another origin, where a browser ignores it, and an attribute
                  * that only sometimes does what it says is worse than none.
+                 *
+                 * Keyed by `ref`, the short number, not by the row's UUID. The
+                 * link is the thing that gets pasted into Discord and read out
+                 * loud, and `/api/download/12` survives both. The route still
+                 * answers to the UUID, so nothing already shared has broken.
                  */}
                 <a
-                  href={`/api/download/${primary.id}`}
+                  href={`/api/download/${primary.ref}`}
                   className="rounded-sm bg-rust-500 px-6 py-3 font-display text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-rust-400"
                 >
                   Download
@@ -175,11 +180,21 @@ export function ItemDetail({
                     </span>
                     <span className="shrink-0 text-xs text-steel-400">
                       {formatBytes(file.sizeBytes)}
+                      {/*
+                        Its own download number, on the row rather than only in
+                        the link's href, for the same reason the primary file's
+                        is spelled out in the sidebar: a number nobody can see is
+                        a number nobody can quote. Outside the `storageConfigured`
+                        branch on purpose, because the number belongs to the
+                        record and the missing link belongs to the deployment.
+                      */}
+                      {" · no. "}
+                      <span className="font-mono">{file.ref}</span>
                       {storageConfigured ? (
                         <>
                           {" · "}
                           <a
-                            href={`/api/download/${file.id}`}
+                            href={`/api/download/${file.ref}`}
                             className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
                           >
                             download
@@ -288,6 +303,29 @@ export function ItemDetail({
             <Field label="File size">
               {primary ? formatBytes(primary.sizeBytes) : "No file"}
             </Field>
+
+            {/*
+             * The download number, written out as the path it belongs to.
+             *
+             * A short id is only worth having if somebody can find it, and the
+             * one place it is currently visible is the status bar while the
+             * pointer sits on a button. So it is here, quiet, selectable and
+             * spelled out in full, because the useful thing to paste is the
+             * address rather than the digits on their own. Not in the heading:
+             * this is a filing number, and the map is called Arena Island.
+             *
+             * The primary file's, matching "File size" directly above it. An
+             * item with a second file has that one's number beside its own
+             * download link in the panel.
+             */}
+            {primary ? (
+              <Field label="Download number">
+                <span className="font-mono">{primary.ref}</span>
+                <span className="mt-1 block font-mono text-[0.625rem] text-steel-400">
+                  /api/download/{primary.ref}
+                </span>
+              </Field>
+            ) : null}
           </dl>
 
           {item.tags.length ? (

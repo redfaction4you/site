@@ -361,6 +361,30 @@ export const files = pgTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
 
+    /**
+     * The short number a download link is keyed by.
+     *
+     * The id above is a UUID, which is the right thing for a primary key and the
+     * wrong thing to put in front of a person: `/api/download/3f2a...` cannot be
+     * read out over voice chat, typed off a screenshot or pasted without a
+     * scrollbar. FactionFiles has always numbered its pages, Alpine's own
+     * `af://download/<id>` handler takes an integer, and this is the archive
+     * matching a convention Red Faction players already have.
+     *
+     * Allocated by Postgres rather than by us, unlike every other id in these
+     * tables. `$defaultFn(crypto.randomUUID)` can hand out a fresh value from
+     * any process without asking anybody, which is exactly what a short counter
+     * cannot do: two ingests running at once would pick the same next number.
+     * An identity column is the database handing them out one at a time, and
+     * GENERATED ALWAYS means nothing can write one by hand and collide with a
+     * number the sequence has not reached yet. It carries its own NOT NULL, so
+     * there is no state where a file exists without one.
+     *
+     * Adding it backfills the rows already here, which is the other reason it is
+     * an identity column rather than a nullable integer somebody fills in later.
+     */
+    ref: integer("ref").generatedAlwaysAsIdentity().unique(),
+
     itemId: text("item_id")
       .notNull()
       .references(() => items.id, { onDelete: "cascade" }),

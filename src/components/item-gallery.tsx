@@ -31,6 +31,20 @@ import { publicUrl } from "@/lib/storage";
  * be more keystroke-efficient and is one more thing that can be subtly wrong;
  * the browser's own behaviour is already correct here.
  *
+ * The arrows on the frame are the same idea as the strip rather than a
+ * replacement for it. The strip says how many there are and lets somebody jump
+ * to one; the arrows are for reading through in order without aiming at a 6rem
+ * target, which is most of how a set of screenshots actually gets looked at.
+ * They sit on the picture rather than under it so the caption keeps its own
+ * line, and they carry a background of their own because a chevron drawn
+ * straight onto a screenshot is legible against exactly the screenshots that
+ * happen to be dark. Light mode is a real theme here, so that background is a
+ * token and flips with everything else.
+ *
+ * All of it appears only from the second screenshot onwards. One picture is not
+ * a gallery, and arrows, a counter and a strip of one around a still are three
+ * pieces of furniture saying there is more to see when there is not.
+ *
  * Nothing depends on an animation finishing, so reduced motion changes nothing
  * about what this does: choosing a frame swaps it, it does not fade into it.
  */
@@ -86,10 +100,50 @@ export function ItemGallery({
   const index = Math.min(selected, frames.length - 1);
   const current = frames[index];
 
+  /*
+   * Wrapped rather than stopped at the ends. `ScrollRow` hides an edge control
+   * that can do nothing, and the same honesty gives the opposite answer here:
+   * these two can always do something, because a gallery that dead-ends on the
+   * last picture is one somebody decides is broken rather than finished.
+   *
+   * Stepped from the previous value rather than from `index`, so an arrow key
+   * held down cannot move twice off the same render, and clamped on the way in
+   * for the same reason `index` is clamped above.
+   */
+  const step = (direction: -1 | 1) =>
+    setSelected((previous) => {
+      const from = Math.min(previous, frames.length - 1);
+      return (from + direction + frames.length) % frames.length;
+    });
+
+  /*
+   * The arrow keys are bound to the frame and to nothing wider.
+   *
+   * A handler on the document takes the arrow keys off anybody scrolling the
+   * page, which is a bug nobody reports and everybody feels. A handler on the
+   * whole section would be nearly as bad in a smaller way: the strip is a
+   * `ScrollRow`, whose track is deliberately focusable so that arrow keys move
+   * along the row, and swallowing those would trade one navigation for another.
+   * Focus inside the frame means one of the two buttons, which is where Tab
+   * lands first when somebody enters the gallery, so the keys are there as soon
+   * as the controls are.
+   */
+  function onFrameKeys(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (frames.length < 2) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+    // Otherwise the page scrolls sideways under the picture at the same time.
+    event.preventDefault();
+    step(event.key === "ArrowLeft" ? -1 : 1);
+  }
+
   return (
     <section aria-label={`Screenshots of ${title}`}>
       <figure>
-        <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-basalt-700 bg-basalt-900">
+        <div
+          onKeyDown={onFrameKeys}
+          className="relative aspect-video w-full overflow-hidden rounded-sm border border-basalt-700 bg-basalt-900"
+        >
           <Image
             // Remounts on a change of frame, so the browser never shows the
             // previous screenshot under the new one's caption.
@@ -120,18 +174,39 @@ export function ItemGallery({
              */
             className="object-contain"
           />
+
+          {/* After the image in the source, so the two positioned elements
+              stack the way they are read and neither needs a z-index. */}
+          {frames.length > 1 ? (
+            <>
+              <Step direction={-1} onClick={() => step(-1)} />
+              <Step direction={1} onClick={() => step(1)} />
+            </>
+          ) : null}
         </div>
 
         {/* Nothing at all under a single uncaptioned shot, rather than a row of
             empty space where a caption would have been. */}
         {current.caption || frames.length > 1 ? (
-          <figcaption className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <figcaption
+            /*
+             * Changing the picture changes nothing a screen reader would
+             * otherwise mention: the new alt text is only read on the way past,
+             * and by then the arrow key has been pressed several times. Polite
+             * rather than assertive, because every change here follows a press
+             * or a click somebody just made and none of it interrupts anything.
+             */
+            aria-live="polite"
+            className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+          >
             <span className="text-xs leading-relaxed text-steel-400">
               {current.caption}
             </span>
             {frames.length > 1 ? (
+              /* "3 of 7" rather than "3 / 7": it is the same count, and this
+                 one survives being read out loud. */
               <span className="shrink-0 font-display text-[0.625rem] uppercase tracking-widest text-steel-400">
-                {index + 1} / {frames.length}
+                {index + 1} of {frames.length}
               </span>
             ) : null}
           </figcaption>
@@ -176,5 +251,64 @@ export function ItemGallery({
         </ScrollRow>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * One of the two arrows on the frame.
+ *
+ * Quiet enough to leave the screenshot the picture: a small chip at the edge,
+ * where a 4:3 shot letterboxed into a 16:9 frame has bars anyway, rather than a
+ * bar across the middle of it.
+ *
+ * The chip is `basalt-900` at four fifths rather than a black wash, so it is
+ * the site's own surface in both themes rather than a colour that only suits
+ * one of them. That matters more than it looks: the thing underneath is a
+ * photograph and can be any brightness at all, so the worst case is the whole
+ * measurement. Composited over pure white and over pure black, `steel-200` on
+ * this chip lands at 6.9:1 and 12.5:1 in dark, 13.0:1 and 7.9:1 in light,
+ * against the 4.5:1 floor `globals.css` records. A chevron drawn straight onto
+ * the picture with no chip has no such floor.
+ *
+ * No `disabled` state and no fading out at the ends, because there are no ends.
+ *
+ * The chevrons are `ScrollRow`'s, deliberately: they mean the same thing a few
+ * lines below on the same page, and two drawings of "further this way" would be
+ * a difference a reader has to resolve for no reason.
+ */
+function Step({
+  direction,
+  onClick,
+}: {
+  direction: -1 | 1;
+  onClick: () => void;
+}) {
+  const back = direction === -1;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={back ? "Previous screenshot" : "Next screenshot"}
+      className={
+        "absolute top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center " +
+        "rounded-sm border border-basalt-700 bg-basalt-900/80 text-steel-200 " +
+        "transition-colors hover:bg-basalt-900 hover:text-rust-300 " +
+        (back ? "left-2" : "right-2")
+      }
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-4 w-4"
+      >
+        <path d={back ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} />
+      </svg>
+    </button>
   );
 }

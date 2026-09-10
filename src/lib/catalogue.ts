@@ -14,6 +14,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { cache } from "react";
 
 import { db } from "@/lib/db";
+import { readDownloadRef } from "@/lib/download-ref";
 import {
   files,
   items,
@@ -290,13 +291,30 @@ export async function countByKind(): Promise<Record<string, number>> {
 /**
  * One file, with the item it belongs to, for the download redirect.
  *
- * Selected by file id alone rather than by (kind, slug, file) because that is
- * what a download URL can carry stably: renaming an item changes its slug and
- * every link to it, and a download link that rots is the one thing this archive
+ * Selected by the file rather than by (kind, slug, file) because that is what a
+ * download URL can carry stably: renaming an item changes its slug and every
+ * link to it, and a download link that rots is the one thing this archive
  * promises not to produce. Status is checked here so a draft or pulled item
  * cannot be fetched by anyone holding an old file id.
+ *
+ * **Two forms reach this, and both must keep working forever.** `ref` is the
+ * short number the links are built from now, because a UUID cannot be read out
+ * over voice chat or pasted into a message without a scrollbar. The UUID is what
+ * the links were built from before that, and there is exactly one published map
+ * so far whose page has been shared with those links in it. That is not the
+ * reason to keep them. The reason is the promise the whole site is built on:
+ * a link that already works keeps working, which is why `/models` and
+ * `/weapons` are permanent redirects rather than 404s, and it does not stop
+ * applying because the old shape is ugly. **Neither branch below is ever
+ * removed**, however few rows the old one still serves.
+ *
+ * `readDownloadRef` is the whole of the decision and it is pure, so
+ * `scripts/download-ref.test.mjs` can hold it to the awkward cases: a leading
+ * zero, a number too large for the column, digits mixed with letters.
  */
 export async function getDownloadable(fileId: string) {
+  const ref = readDownloadRef(fileId);
+
   const [row] = await db
     .select({
       itemId: items.id,
@@ -307,7 +325,12 @@ export async function getDownloadable(fileId: string) {
     })
     .from(files)
     .innerJoin(items, eq(items.id, files.itemId))
-    .where(and(eq(files.id, fileId), eq(items.status, "published")))
+    .where(
+      and(
+        ref === null ? eq(files.id, fileId) : eq(files.ref, ref),
+        eq(items.status, "published"),
+      ),
+    )
     .limit(1);
 
   return row ?? null;

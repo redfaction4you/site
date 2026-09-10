@@ -25,6 +25,29 @@ import { publicUrl } from "@/lib/storage";
  *
  * `robots.ts` already disallows `/api/`, so no crawler walks these and inflates
  * the count on the archive's behalf.
+ *
+ * **The last segment comes in two forms and both are permanent.**
+ *
+ *   /api/download/12                                    the file's `ref`
+ *   /api/download/7c9f2b40-1d6e-4a55-b0c8-3e51a2d4f8aa  the file's id
+ *
+ * Every link the site builds today uses the number. It is what the owner asked
+ * for and it matches what Red Faction players already have: FactionFiles
+ * numbers its pages, and Alpine's own `af://download/<id>` handler takes an
+ * integer. A UUID is none of those things. It cannot be read out over voice
+ * chat, typed off a screenshot or pasted into a message without a scrollbar.
+ *
+ * The UUID form stays anyway, and not as a deprecation with a date on it. Links
+ * built before the numbers existed are already out there on the one published
+ * map, and this site's founding promise is that a link that works keeps
+ * working. That promise is why `/models` and `/weapons` are permanent
+ * redirects rather than 404s, and it does not lapse because the older shape is
+ * ugly. `getDownloadable` takes either and says so in its own comment; the
+ * rule that tells them apart is `readDownloadRef`, which is pure and tested.
+ *
+ * Nothing else about this route changes with the shape of the segment. The
+ * redirect, the counting and the 404 are the same either way, which is the
+ * point: two spellings of one address, not two behaviours.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,12 +68,13 @@ export async function GET(_request: Request, { params }: Props) {
   const { fileId } = await params;
 
   /*
-   * One 404 for three cases, on purpose: an id that never existed, an item
-   * still in draft, and an item that has been pulled. `getDownloadable` filters
-   * on published status itself, so a link that leaked before publication or was
-   * kept after a takedown answers exactly like a typo. Distinguishing them
-   * would tell a stranger holding an old id that the row is still there, which
-   * is the one thing a pulled item must not say.
+   * One 404 for four cases, on purpose: a segment that is neither form, a
+   * number or an id that never existed, an item still in draft, and an item
+   * that has been pulled. `getDownloadable` filters on published status
+   * itself, so a link that leaked before publication or was kept after a
+   * takedown answers exactly like a typo. Distinguishing them would tell a
+   * stranger holding an old link that the row is still there, which is the one
+   * thing a pulled item must not say.
    */
   const file = await getDownloadable(fileId);
   if (!file) return plain("No such file.", 404);
