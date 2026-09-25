@@ -294,7 +294,7 @@ export function MapPackAdmin({
             name="serverName"
             maxLength={80}
             defaultValue={editing?.serverName ?? ""}
-            placeholder="RedFaction4You.com (Halloween)"
+            placeholder="RF4U - Halloween"
             className={FIELD}
           />
         </div>

@@ -25,11 +25,11 @@ import { renamedServers, serverLabel } from "../src/lib/matches/server-names.ts"
 /* --- the rename that was asked for ---------------------------------------- */
 
 test("the match server reads under the site's own branding", () => {
-  assert.equal(serverLabel("RF4U Competitive [Match]"), "RedFaction4You.com (Match)");
+  assert.equal(serverLabel("RF4U Competitive [Match]"), "RF4U - Match");
 });
 
 test("the deathmatch server reads under whatever it is called now", () => {
-  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RedFaction4You.com (Themed)");
+  assert.equal(serverLabel("RedFaction4You.com [DM]"), "RF4U - Themed");
 });
 
 test("the dm: routing prefix is stripped before the lookup, not after", () => {
@@ -38,7 +38,7 @@ test("the dm: routing prefix is stripped before the lookup, not after", () => {
   // value never matches its own entry in the map.
   assert.equal(
     serverLabel("dm:RedFaction4You.com [DM]"),
-    "RedFaction4You.com (Themed)",
+    "RF4U - Themed",
   );
 });
 
@@ -60,8 +60,8 @@ test("a server nobody has renamed keeps its own name", () => {
 });
 
 test("the lookup does not care about case", () => {
-  assert.equal(serverLabel("rf4u competitive [match]"), "RedFaction4You.com (Match)");
-  assert.equal(serverLabel("RF4U COMPETITIVE [MATCH]"), "RedFaction4You.com (Match)");
+  assert.equal(serverLabel("rf4u competitive [match]"), "RF4U - Match");
+  assert.equal(serverLabel("RF4U COMPETITIVE [MATCH]"), "RF4U - Match");
 });
 
 test("an empty identity does not become a label", () => {
@@ -76,8 +76,8 @@ test("every rename in force can be listed", () => {
 
   assert.equal(renames.length, 2);
   assert.deepEqual(labels, [
-    "RedFaction4You.com (Match)",
-    "RedFaction4You.com (Themed)",
+    "RF4U - Match",
+    "RF4U - Themed",
   ]);
 });
 

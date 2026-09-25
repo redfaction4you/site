@@ -39,8 +39,8 @@
  * two are kept looking the same without touching it.
  */
 const LABELS: Record<string, string> = {
-  "rf4u competitive [match]": "RedFaction4You.com (Match)",
-  "redfaction4you.com [dm]": "RedFaction4You.com (Themed)",
+  "rf4u competitive [match]": "RF4U - Match",
+  "redfaction4you.com [dm]": "RF4U - Themed",
 };
 
 /**

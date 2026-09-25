@@ -56,6 +56,26 @@ export type GameServer = {
    */
   packSlug: string | null;
   /**
+   * The server's config file on the VPS, by name, inside the game directory.
+   *
+   * **Written out per server and never derived.** The slug is `themed` and the
+   * file is `rf4u-dm.toml`, because that server was the deathmatch server
+   * before it was the themed one and the file kept its name.
+   * `scripts/remove-map.mjs` builds `rf4u-${server}.toml` by rule and is wrong
+   * for exactly that one, which is the trap this field exists to close.
+   */
+  configFile: string;
+  /**
+   * The Windows scheduled task that supervises this server's process.
+   *
+   * Each is a watchdog loop, not the game itself: it starts the game through
+   * the Alpine launcher, and relaunches within about five seconds of the UDP
+   * port going free. So restarting a server means ending the game process and
+   * letting the watchdog notice, which is the same path it uses for a hang.
+   * Stopping the task alone does not stop the game.
+   */
+  restartTask: string;
+  /**
    * The message printed in chat when somebody joins.
    *
    * One line, plain ASCII, and it reaches a 2001 bitmap font, so `asciiForGame`
@@ -104,7 +124,7 @@ export type ServerTheme = "default" | "novelty" | "halloween";
 export const SERVERS: GameServer[] = [
   {
     slug: "match",
-    name: "RedFaction4You.com (Match)",
+    name: "RF4U - Match",
     blurb:
       "Organised capture the flag. Matches are started deliberately and every " +
       "one of them is recorded here.",
@@ -112,6 +132,8 @@ export const SERVERS: GameServer[] = [
     port: 17755,
     identity: "RF4U Competitive [Match]",
     packSlug: null,
+    configFile: "rf4u-match.toml",
+    restartTask: "RF4U Dedicated Server",
     /*
      * The one that points somewhere other than its own page.
      *
@@ -126,7 +148,7 @@ export const SERVERS: GameServer[] = [
   },
   {
     slug: "themed",
-    name: "RedFaction4You.com (Themed)",
+    name: "RF4U - Themed",
     blurb:
       "Films, real places, and levels rebuilt from other games. One idea per " +
       "map, carried all the way through it.",
@@ -143,6 +165,8 @@ export const SERVERS: GameServer[] = [
      */
     identity: "RedFaction4You.com [DM]",
     packSlug: "themed",
+    configFile: "rf4u-dm.toml",
+    restartTask: "RF4U DM Server",
     welcome:
       "Themed maps: films, real places, and levels rebuilt from other games. " +
       "All play here is recorded and ranked on time played. " +
@@ -151,7 +175,7 @@ export const SERVERS: GameServer[] = [
   },
   {
     slug: "novelty",
-    name: "RedFaction4You.com (Novelty)",
+    name: "RF4U - Novelty",
     blurb:
       "Liminal spaces, oddities and minigames. Maps too strange or too rare to " +
       "turn up anywhere else.",
@@ -159,6 +183,8 @@ export const SERVERS: GameServer[] = [
     port: 17757,
     identity: null,
     packSlug: "novelty",
+    configFile: "rf4u-novelty.toml",
+    restartTask: "RF4U Novelty Server",
     welcome:
       "Novelty maps: liminal spaces, oddities, minigames, and maps too rare " +
       "to find anywhere else. Every map on this server: " +
@@ -167,7 +193,7 @@ export const SERVERS: GameServer[] = [
   },
   {
     slug: "halloween",
-    name: "RedFaction4You.com (Halloween)",
+    name: "RF4U - Halloween",
     blurb:
       "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
       "map picked for Halloween.",
@@ -175,6 +201,8 @@ export const SERVERS: GameServer[] = [
     port: 17758,
     identity: null,
     packSlug: "halloween",
+    configFile: "rf4u-halloween.toml",
+    restartTask: "RF4U Halloween Server",
     welcome:
       "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
       "map picked for Halloween. The whole haunted rotation: " +
