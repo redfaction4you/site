@@ -205,6 +205,16 @@ async function getLiveGame(host: string, port: string): Promise<LiveGame | null>
         ? p.flags.filter((flag): flag is string => typeof flag === "string")
         : [];
 
+      /*
+       * Bots are not people, so they are not listed: the same rule the
+       * headline count already follows by reading `num_humans`.
+       *
+       * Observed live on 25 September 2026: the browser returns every bot in
+       * this list, each carrying `bot` in `flags`. Without this, a server
+       * running only bots read "nobody on" with their names underneath.
+       */
+      if (flags.includes("bot")) return null;
+
       const team: "red" | "blue" | null = flags.includes("blue_team")
         ? "blue"
         : flags.includes("red_team")
