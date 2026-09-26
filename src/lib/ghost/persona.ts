@@ -168,9 +168,6 @@ const HALLOWEEN: Persona = {
     ];
     if (playingNote?.about) lines.push(`  About it: ${playingNote.about}`);
     if (context.next) lines.push(`- Next up: ${describe(context.next)}.`);
-    for (const [author, titles] of mappersMentioned(context)) {
-      lines.push(`- They mean the mapper ${author}, whose maps on this server are: ${titles.join(", ")}.`);
-    }
     if (wantsMapList(context)) {
       lines.push(
         "- Every map here, with who made it:",
@@ -217,5 +214,11 @@ export function promptFor(context: GhostContext): string {
     nudge: `${context.subject} is the only one here and has been quiet for a while. Check in with them casually, like a friend would, in a few words.`,
   };
 
-  return `${who}\n${notes}${recent}\n${task[context.event]}`;
+  // Right beside the task: tucked into the long system prompt, the model
+  // read past it and still said it had no maps by Acer.
+  const mappers = [...mappersMentioned(context)]
+    .map(([author, titles]) => `They are talking about the mapper ${author}, who made ${titles.join(" and ")} on this server.`)
+    .join(" ");
+
+  return `${who}\n${notes}${recent}\n${mappers ? `${mappers}\n` : ""}${task[context.event]}`;
 }

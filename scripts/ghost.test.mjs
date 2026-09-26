@@ -211,10 +211,10 @@ test("notes from earlier chats reach the model", () => {
 
 // Live, 26 September: "do you like acers maps?" got "dont think we have acer maps here".
 test("a mapper named by a nickname or possessive is pointed out to the model", () => {
-  const system = personaFor("halloween").system({
+  const prompt = promptFor({
     event: "chat", subject: "Sam", humans: ["Sam"], bots: [], playing: null, next: null,
     maps: [{ title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" }],
     transcript: [{ name: "Sam", text: "do you like acers maps?" }],
   });
-  assert.match(system, /They mean the mapper MysticaL-AceR, whose maps on this server are: Nowhere Bagge Farm/);
+  assert.match(prompt, /talking about the mapper MysticaL-AceR, who made Nowhere Bagge Farm/);
 });
