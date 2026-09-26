@@ -17,7 +17,8 @@
  *   "experiencing high demand", so it is the last resort, not the first.
  *
  * Null means none of them produced a usable line. The ghost then says one of
- * its own scripted lines, so a quota running out is never silence.
+ * its own lines where one fits: "hows it going?" in answer to a reply to its
+ * hello, a canned line to a lone player (see ghost-rules.mjs on the VPS).
  */
 
 const TIMEOUT_MS = 12_000;
@@ -41,17 +42,54 @@ export function asciiLine(text: string): string {
     .trim();
 }
 
+/** The first non-empty line of a reply, in plain ASCII, so every later step sees straight quotes. */
+function firstLine(raw: string): string {
+  return asciiLine(raw.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "");
+}
+
+/**
+ * "Wisp:", "You:", "**Wisp:**", "__You__:" at the start of a reply. Only a
+ * doubled marker pairs with the name: a single asterisk after the colon opens
+ * a stage direction, which is stripped whole, not in half.
+ */
+function namePrefix(speaker: string): RegExp {
+  const name = speaker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^[\\s"'\`]*(\\*\\*|__)?(?:${name}|you)(?:\\1)?\\s*:\\s*(?:\\1)?[\\s\`]*`, "i");
+}
+
 /**
  * What models add around a chat line and a player should never see: quotes
- * around the whole reply, a "Ghost Curator:" prefix, stage directions.
+ * or bold, a "Wisp:" or "You:" prefix, a stage direction like *drifts over*.
  */
-function cleanReply(raw: string, speaker: string): string {
-  let text = raw.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
-  const prefix = new RegExp(`^(${speaker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|ghost|curator)\\s*:\\s*`, "i");
-  text = text.replace(prefix, "");
-  text = text.replace(/^\*[^*]{0,60}\*\s*/, "");
+export function cleanReply(raw: string, speaker: string): string {
+  let text = firstLine(raw);
+  text = text.replace(/^__(.*)__$/, "$1");
+  text = text.replace(namePrefix(speaker), "");
+  text = text.replace(/\*\*/g, "");
+  text = text.replace(/^\*[^*]{1,60}\*\s*/, "");
   text = text.replace(/^["']+|["']+$/g, "");
   return asciiLine(text);
+}
+
+/**
+ * Whether the model chose to say nothing. Models dress it up ("**SKIP**",
+ * "SKIP (for Alex)", "*stays quiet* SKIP"), so any SKIP in capitals standing
+ * as a word counts. Lowercase counts only as the whole line, so a reply such as
+ * "skip that map lol" still reaches the chat.
+ */
+export function isSkip(raw: string, speaker: string): boolean {
+  const body = firstLine(raw).replace(namePrefix(speaker), "");
+  return (
+    /(^|[^A-Za-z])SKIP([^A-Za-z]|$)/.test(body) ||
+    /^[\s*_`"'[(]*(skip|silence)[\s*_`"'\])!.]*$/i.test(body)
+  );
+}
+
+/** A model's reply, decided: skip it, or say this line (empty means unusable). */
+export function decide(raw: string, speaker: string): { skip: boolean; line: string } {
+  const line = cleanReply(raw, speaker);
+  if (isSkip(raw, speaker) || (line !== "" && isSkip(line, speaker))) return { skip: true, line: "" };
+  return { skip: false, line };
 }
 
 type Attempt =
@@ -163,10 +201,10 @@ export async function speak(
           ? await callCloudflare(system, prompt, attempt.model)
           : await callGemini(system, prompt, attempt.model, attempt.key);
       if (!raw) continue;
-      const line = cleanReply(raw, speaker);
-      if (!line) continue;
-      if (/^(skip|silence|\(silence\))\.?$/i.test(line)) return { line: "", provider: attempt.model };
-      return { line: clamp(line, maxLength), provider: attempt.model };
+      const decided = decide(raw, speaker);
+      if (decided.skip) return { line: "", provider: attempt.model };
+      if (!decided.line) continue;
+      return { line: clamp(decided.line, maxLength), provider: attempt.model };
     } catch (error) {
       console.warn(`[ghost] ${attempt.model} failed: ${error instanceof Error ? error.name : "error"}`);
     }

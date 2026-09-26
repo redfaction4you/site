@@ -21,7 +21,7 @@ import { serverBySlug } from "@/lib/servers";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EVENTS: GhostEvent[] = ["greet_alone", "greet", "chat", "nudge"];
+const EVENTS: GhostEvent[] = ["chat", "nudge"];
 
 function authorized(request: Request): boolean {
   const expected = process.env.RF4U_ARCHIVE_SYNC_SECRET ?? "";
@@ -74,6 +74,7 @@ export async function POST(request: Request) {
   const context = {
     event,
     subject: text(body.subject, 32) || null,
+    firstAnswer: body.firstAnswer === true,
     humans: names(body.humans),
     bots: names(body.bots),
     transcript,

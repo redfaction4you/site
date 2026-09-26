@@ -343,9 +343,14 @@ column each night. `docs/HANDOVER.md` has the full story and what replaced it.
 
 ## The server ghost (`src/lib/ghost/`, `/api/ghost`)
 
-Asked for on 25 September 2026: a friendly character in the Halloween server's
-chat, the Ghost Curator, who greets anybody who joins alone, chats with them and
-answers questions about the server. It is a Node process on the VPS
+Asked for on 25 September 2026: a friendly ghost in the Halloween server's
+chat, called **Wisp**. Not "ghost", because a player on the server has that
+name. The owner's brief: "if someone joins, it should reach out to that user
+'hey playername'. if they reply, continue. 'hows it going'. be chill. relaxed.
+be a friend." So every person who joins gets "hey <name>" (the process's own
+line, no model), and whoever it is talking with gets answers for three minutes
+after it last spoke to them. It also answers its name, questions about the
+server, and everything a lone player says. It is a Node process on the VPS
 (`C:\RFMatchBroadcast\ghost\ghost.mjs`, task "RF4U Halloween Ghost") that joins
 the game as a server-browser client and asks this site what to say.
 
@@ -363,6 +368,11 @@ the game as a server-browser client and asks this site what to say.
   within a second of joining, before it is flagged (the first version answered
   two that way). The rule and its tests are `ghost-rules.mjs` and
   `ghost-rules.test.mjs` next to `ghost.mjs` on the VPS.
+- **Deploy the two halves together.** The in-game name (`NAME` in ghost.mjs) and
+  the persona here must match, and ghost.mjs and ghost-rules.mjs are copied as a
+  pair. Order: create `C:\RFMatchBroadcast\data\ghost-halloween.off`, push the
+  site and wait for Vercel to show Ready, copy both files and restart the task,
+  check its log, delete the off file. The same steps head ghost.mjs.
 - **The persona is per server** (`persona.ts`). Only Halloween has one; another
   server gets a ghost by adding its persona and running a copy of the process.
 - **Do not rebuild any of it without the owner asking.**

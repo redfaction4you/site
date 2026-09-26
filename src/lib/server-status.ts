@@ -230,7 +230,7 @@ async function getLiveGame(host: string, port: string): Promise<LiveGame | null>
        *
        * Browsers are not players either. The Halloween ghost joins as one, so
        * it can read and write chat without taking part, and the list returned
-       * it as "Ghost Curator" with `browser` in `flags`.
+       * it (then named "Ghost Curator", now "Wisp") with `browser` in `flags`.
        */
       if (flags.includes("bot") || flags.includes("browser")) return null;
 
