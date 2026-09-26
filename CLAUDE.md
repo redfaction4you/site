@@ -368,6 +368,12 @@ the game as a server-browser client and asks this site what to say.
   within a second of joining, before it is flagged (the first version answered
   two that way). The rule and its tests are `ghost-rules.mjs` and
   `ghost-rules.test.mjs` next to `ghost.mjs` on the VPS.
+- **Its records are never deleted**, by the owner's instruction (26 September:
+  "keep records, don't delete them"). The notebook on the VPS
+  (`data/ghost-halloween-friends.json`) keeps every line, every fact players
+  shared (NOTE) and everything learned about the game (LORE, with who said it);
+  only the recent part is sent with a reply. The chat log is archived at 5 MB,
+  never trimmed. An unreadable notebook is set aside, never overwritten.
 - **Deploy the two halves together.** The in-game name (`NAME` in ghost.mjs) and
   the persona here must match, and ghost.mjs and ghost-rules.mjs are copied as a
   pair. Order: create `C:\RFMatchBroadcast\data\ghost-halloween.off`, push the

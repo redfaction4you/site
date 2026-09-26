@@ -47,7 +47,8 @@ function memoryOf(value: unknown): Memory | null {
         return { name: text(line.name, 32), text: text(line.text, 160), ghost: line.ghost === true };
       }).filter((line) => line.name && line.text)
     : [];
-  return { visits, lastSeen: text(memory.lastSeen, 20) || null, lines };
+  const facts = Array.isArray(memory.facts) ? memory.facts.slice(-20).map((fact) => text(fact, 160)).filter(Boolean) : [];
+  return { visits, lastSeen: text(memory.lastSeen, 20) || null, lines, facts };
 }
 
 export async function POST(request: Request) {
@@ -98,11 +99,18 @@ export async function POST(request: Request) {
     next: entryOf(nextAfter(at, maps)),
     maps: maps.map((entry) => ({ title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename })),
     memory: memoryOf(body.memory),
+    lore: Array.isArray(body.lore) ? body.lore.slice(-25).map((fact) => text(fact, 200)).filter(Boolean) : [],
   };
 
   const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength);
   return Response.json(
-    { line: spoken ? spoken.line || null : null, skipped: spoken?.line === "", provider: spoken?.provider ?? null },
+    {
+      line: spoken ? spoken.line || null : null,
+      skipped: spoken?.line === "",
+      provider: spoken?.provider ?? null,
+      notes: spoken?.notes ?? [],
+      lore: spoken?.lore ?? [],
+    },
     { headers: { "cache-control": "no-store" } },
   );
 }

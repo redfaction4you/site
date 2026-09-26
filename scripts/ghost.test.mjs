@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { asciiLine, cleanReply, decide } from "../src/lib/ghost/speak.ts";
+import { asciiLine, cleanReply, decide, takeNotes } from "../src/lib/ghost/speak.ts";
 import { mapsMentioned, personaFor, promptFor } from "../src/lib/ghost/persona.ts";
 
 test("curly quotes, em dashes, ellipses and emoji come out as plain ASCII", () => {
@@ -281,4 +281,27 @@ test("saying halloween is not naming the map called Halloween", () => {
   assert.deepEqual(at("got any halloween plans?"), []);
   assert.deepEqual(at("happy halloween!"), []);
   assert.deepEqual(at("love the pumpkins"), ["Halloween Pumpkins 1.1"]);
+});
+
+// Owner, 26 September: "if users share info, keep it so you can reference it later".
+test("notes ride on the reply and never reach the chat", () => {
+  const taken = takeNotes("oh nice, gambler4 sounds fun\nNOTE: runs a test server called gambler4\nLORE: the Backrooms map is based on the films\nNOTE: none");
+  assert.equal(taken.rest, "oh nice, gambler4 sounds fun");
+  assert.deepEqual(taken.notes, ["runs a test server called gambler4"]);
+  assert.deepEqual(taken.lore, ["the Backrooms map is based on the films"]);
+  assert.deepEqual(decide(taken.rest, "Wisp"), { skip: false, line: "oh nice, gambler4 sounds fun" });
+  // A note with no chat line is silence, with the note kept.
+  const quiet = takeNotes("SKIP\n**NOTE:** likes rails");
+  assert.deepEqual(quiet.notes, ["likes rails"]);
+  assert.equal(decide(quiet.rest, "Wisp").skip, true);
+});
+
+test("what it knows about someone, and what it has learned, reach the model", () => {
+  const prompt = promptFor({
+    event: "chat", subject: "Willson", humans: ["Willson"], bots: [], transcript: [], playing: null, next: null, maps: [],
+    memory: { visits: 2, lastSeen: "25 Sep", lines: [], facts: ["runs a test server called gambler4"] },
+    lore: ["the Backrooms map is based on the films (told by poosydoodles)"],
+  });
+  assert.match(prompt, /What you know about Willson from your notes: runs a test server called gambler4/);
+  assert.match(prompt, /Things players have told you \(they could be wrong\): the Backrooms map/);
 });

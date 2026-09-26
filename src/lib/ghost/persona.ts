@@ -30,7 +30,7 @@ export type GhostEvent =
 export type ChatLine = { name: string; text: string; ghost?: boolean };
 
 /** What the ghost remembers of somebody from earlier visits. */
-export type Memory = { visits: number; lastSeen: string | null; lines: ChatLine[] };
+export type Memory = { visits: number; lastSeen: string | null; lines: ChatLine[]; facts?: string[] };
 
 export type MapEntry = { title: string; filename: string };
 
@@ -50,6 +50,8 @@ export type GhostContext = {
   maps: MapEntry[];
   /** The ghost's notes on the subject, from earlier visits. */
   memory?: Memory | null;
+  /** What the ghost has learned about the maps, the game and the community, with who said it. */
+  lore?: string[];
 };
 
 export type Persona = {
@@ -246,6 +248,16 @@ const HALLOWEEN: Persona = {
       "  never talk to them as if they were players.",
       "- If nothing needs saying, reply with exactly: SKIP",
       "",
+      "Keeping notes, like a friend remembers things:",
+      "- After your chat line you may add lines that start NOTE: or LORE:. Nobody sees them.",
+      "- NOTE: something the person you are talking to told you about themselves that a friend",
+      "  would remember: their favourite map, their server or clan, what they are playing, their",
+      "  costume or Halloween plans. Write it about them, e.g. NOTE: runs a test server called gambler4",
+      "- LORE: something they told you about the maps, the mappers, Red Faction or the community.",
+      "- Only what they actually said, short, one per line, and only when it is new to you. Most",
+      "  replies have no notes. Never note real names, ages, where someone lives, contact details",
+      "  or anything mean.",
+      "",
       ...RF_BACKGROUND,
       "",
       "This server right now:",
@@ -288,6 +300,13 @@ export function promptFor(context: GhostContext): string {
     const when = memory.lastSeen ? `, last on ${memory.lastSeen}` : "";
     const said = memory.lines.map((line) => `${line.ghost ? "You" : line.name}: ${line.text}`).join("\n");
     notes = `${seen}${when}.` + (said ? ` Your chat with ${context.subject} so far, earlier visits included, oldest first:\n${said}\n` : "\n");
+  }
+  const facts = memory?.facts ?? [];
+  if (facts.length && context.subject) {
+    notes += `What you know about ${context.subject} from your notes: ${facts.join("; ")}.\n`;
+  }
+  if (context.lore?.length) {
+    notes += `Things players have told you (they could be wrong): ${context.lore.join("; ")}.\n`;
   }
   if (context.askedHow && context.subject) {
     notes += `You already asked ${context.subject} how it's going this visit. Do not ask again.\n`;

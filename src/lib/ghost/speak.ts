@@ -207,7 +207,7 @@ async function callCloudflare(system: string, prompt: string, model: string): Pr
           { role: "system", content: system },
           { role: "user", content: prompt },
         ],
-        max_tokens: 90,
+        max_tokens: 160,
         temperature: 0.7,
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -248,7 +248,29 @@ async function callGemini(system: string, prompt: string, model: string, key: st
   return body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? null;
 }
 
-export type Spoken = { line: string; provider: string } | null;
+export type Spoken = { line: string; provider: string; notes: string[]; lore: string[] } | null;
+
+/**
+ * The notes a reply carries after its chat line: "NOTE: ..." about the person,
+ * "LORE: ..." about the maps, the game or the community. Taken out before the
+ * reply is decided, so a note can never reach the chat. Asked for on 26
+ * September 2026: "if users share info, keep it so you can reference it later
+ * like a friend would". It rides on the reply's own call, so it costs nothing
+ * extra.
+ */
+export function takeNotes(raw: string): { rest: string; notes: string[]; lore: string[] } {
+  const notes: string[] = [];
+  const lore: string[] = [];
+  const rest: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const match = asciiLine(line).match(/^[\s*_`"'[(-]*(note|lore)[\s*_]*:[\s*_`"']*(.+?)[\s*_`"')\]]*$/i);
+    if (!match) { rest.push(line); continue; }
+    const text = match[2].trim().slice(0, 160);
+    if (text.length < 4 || /^(none|n\/a|nothing|-)\.?$/i.test(text)) continue;
+    (match[1].toLowerCase() === "note" ? notes : lore).push(text);
+  }
+  return { rest: rest.join("\n"), notes: notes.slice(0, 3), lore: lore.slice(0, 3) };
+}
 
 /**
  * A line of at most `maxLength` characters, or null.
@@ -270,10 +292,11 @@ export async function speak(
           ? await callCloudflare(system, prompt, attempt.model)
           : await callGemini(system, prompt, attempt.model, attempt.key);
       if (!raw) continue;
-      const decided = decide(raw, speaker);
-      if (decided.skip) return { line: "", provider: attempt.model };
+      const { rest, notes, lore } = takeNotes(raw);
+      const decided = decide(rest, speaker);
+      if (decided.skip) return { line: "", provider: attempt.model, notes, lore };
       if (!decided.line) continue;
-      return { line: clamp(decided.line, maxLength), provider: attempt.model };
+      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore };
     } catch (error) {
       console.warn(`[ghost] ${attempt.model} failed: ${error instanceof Error ? error.name : "error"}`);
     }
