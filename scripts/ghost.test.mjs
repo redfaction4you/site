@@ -216,5 +216,8 @@ test("a mapper named by a nickname or possessive is pointed out to the model", (
     maps: [{ title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" }],
     transcript: [{ name: "Sam", text: "do you like acers maps?" }],
   });
-  assert.match(prompt, /talking about the mapper MysticaL-AceR, who made Nowhere Bagge Farm/);
+  assert.match(prompt, /They mean the mapper MysticaL-AceR, whom players call "acer"/);
+  // Live: given only the name, it said "acer is mystical, nice maps". It needs something to talk about.
+  assert.ok(prompt.includes("Nowhere Bagge Farm (CTCD) (The Bagge Farm from Nowhere, Kansas"));
+  assert.match(prompt, /say something specific about one of those maps/);
 });

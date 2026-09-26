@@ -97,16 +97,22 @@ export function wantsMapList(context: GhostContext): boolean {
  * Handed to the model outright, because the list alone did not make the link
  * ("dont think we have acer maps here", live on 26 September).
  */
-export function mappersMentioned(context: GhostContext): Map<string, string[]> {
+export type MapperMention = { called: string; maps: { title: string; about: string }[] };
+
+export function mappersMentioned(context: GhostContext): Map<string, MapperMention> {
   const said = words(lastLineOf(context));
-  const found = new Map<string, string[]>();
+  const found = new Map<string, MapperMention>();
   for (const entry of context.maps) {
-    const author = noteFor(entry)?.author ?? "";
-    const hit = author
+    const note = noteFor(entry);
+    if (!note?.author) continue;
+    const called = note.author
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .some((part) => part.length >= 3 && [part, `${part}s`, `${part}es`].some((form) => said.includes(` ${form} `)));
-    if (hit) found.set(author, [...(found.get(author) ?? []), entry.title]);
+      .find((part) => part.length >= 3 && [part, `${part}s`, `${part}es`].some((form) => said.includes(` ${form} `)));
+    if (!called) continue;
+    const mention = found.get(note.author) ?? { called, maps: [] };
+    mention.maps.push({ title: entry.title, about: note.about });
+    found.set(note.author, mention);
   }
   return found;
 }
@@ -217,7 +223,10 @@ export function promptFor(context: GhostContext): string {
   // Right beside the task: tucked into the long system prompt, the model
   // read past it and still said it had no maps by Acer.
   const mappers = [...mappersMentioned(context)]
-    .map(([author, titles]) => `They are talking about the mapper ${author}, who made ${titles.join(" and ")} on this server.`)
+    .map(([author, { called, maps }]) =>
+      `They mean the mapper ${author}, whom players call "${called}". Their maps on this server: ` +
+      maps.map((map) => (map.about ? `${map.title} (${map.about})` : map.title)).join("; ") +
+      `. Call them ${called}, and say something specific about one of those maps.`)
     .join(" ");
 
   return `${who}\n${notes}${recent}\n${mappers ? `${mappers}\n` : ""}${task[context.event]}`;
