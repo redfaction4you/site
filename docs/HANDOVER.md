@@ -32,8 +32,9 @@ What went, and where it went:
   `next.config.ts`): the record to `/servers`, the writing to `/`.
 - **Stanley Mesh and all generated writing.** `src/lib/ai/` is gone, with the
   news pages, the analyst page, the illustrations and the Discord announcer.
-  The only trigger was the archive ingest route, which is deleted, so nothing
-  can call a model any more.
+  The only trigger was the archive ingest route, which is deleted. The same
+  day the owner asked for one new AI use, the Halloween server ghost, on free
+  services only: see "The server ghost" in `CLAUDE.md`.
 - **The Match server (17755).** Removed from `servers.ts`; the owner expects it
   back later as a different kind of server, probably DM. Switching it off on the
   VPS is the package in `C:\RF4U\Transfers\stop-stats`.

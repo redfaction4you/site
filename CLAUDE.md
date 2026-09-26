@@ -335,9 +335,31 @@ column each night. `docs/HANDOVER.md` has the full story and what replaced it.
   proposes dropping it. **Only four of the thirteen are in the nightly backup**
   (`matches`, `match_players`, `match_captures`, `night_columns`), so take a
   full export before dropping anything.
-- **Nothing calls a model any more.** The only trigger was the archive ingest
-  route, which is deleted. The AI keys in Vercel are unused and should be
-  revoked at each provider.
+- **The analyst's generation is gone; one small AI use came back.** The only
+  trigger for the analyst was the archive ingest route, which is deleted. The
+  OpenAI and Anthropic keys in Vercel are unused and can be revoked. **Keep
+  `CLOUDFLARE_AI_TOKEN` and the `GEMINI_API_KEY*` keys**: the server ghost uses
+  them (next section).
+
+## The server ghost (`src/lib/ghost/`, `/api/ghost`)
+
+Asked for on 25 September 2026: a friendly character in the Halloween server's
+chat, the Ghost Curator, who greets anybody who joins alone, chats with them and
+answers questions about the server. It is a Node process on the VPS
+(`C:\RFMatchBroadcast\ghost\ghost.mjs`, task "RF4U Halloween Ghost") that joins
+the game as a server-browser client and asks this site what to say.
+
+- **Free services only, by the owner's instruction.** `speak.ts` tries
+  Cloudflare Workers AI (Llama 3.3 70B, then 3.1 8B) and then Gemini flash lite
+  across every numbered key. No paid provider is called. When none answers, the
+  ghost says one of its own scripted lines.
+- **Keys stay in Vercel.** The VPS authenticates with `RF4U_ARCHIVE_SYNC_SECRET`
+  and never holds a model key.
+- **Everything it says is plain ASCII with no em dashes**, because it reaches a
+  2001 bitmap font. `asciiLine` enforces it and `scripts/ghost.test.mjs` checks
+  it.
+- **The persona is per server** (`persona.ts`). Only Halloween has one; another
+  server gets a ghost by adding its persona and running a copy of the process.
 - **Do not rebuild any of it without the owner asking.**
 
 ## Weight, measured rather than guessed
