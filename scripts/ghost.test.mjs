@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { asciiLine, cleanReply, decide } from "../src/lib/ghost/speak.ts";
-import { personaFor, promptFor } from "../src/lib/ghost/persona.ts";
+import { mapsMentioned, personaFor, promptFor } from "../src/lib/ghost/persona.ts";
 
 test("curly quotes, em dashes, ellipses and emoji come out as plain ASCII", () => {
   assert.equal(
@@ -267,4 +267,18 @@ test("Wisp brings the Halloween spirit and asks about the map", () => {
   assert.match(system, /costumes, candy, horror movies/);
   assert.match(system, /what they think of the map being played/);
   assert.doesNotMatch(system, /—/);
+});
+
+// Live, 26 September: "got any halloween plans?" was taken as naming the maps
+// called Halloween, and the answer was about maps instead of plans.
+test("saying halloween is not naming the map called Halloween", () => {
+  const maps = [
+    { title: "HALLOWEEN", filename: "dm-halloween.rfl" },
+    { title: "RFU2 - Halloween", filename: "DM-RFU2-Halloween.rfl" },
+    { title: "Halloween Pumpkins 1.1", filename: "dm-halloweenpumpkins1.1.rfl" },
+  ];
+  const at = (text) => mapsMentioned({ subject: "S", maps, transcript: [{ name: "S", text }] }).map((m) => m.title);
+  assert.deepEqual(at("got any halloween plans?"), []);
+  assert.deepEqual(at("happy halloween!"), []);
+  assert.deepEqual(at("love the pumpkins"), ["Halloween Pumpkins 1.1"]);
 });

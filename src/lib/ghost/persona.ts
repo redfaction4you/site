@@ -118,7 +118,10 @@ export function mapsMentioned(context: GhostContext): MapEntry[] {
   for (const entry of context.maps) {
     const own = core(entry.title);
     if (!own.length) continue;
-    const whole = said.includes(` ${own.join(" ")} `);
+    // A title made only of everyday words is not named by saying them: on this
+    // server "happy halloween" is not the map called Halloween.
+    const generic = own.every((word) => TITLE_STOPWORDS.has(word) || EVERYDAY_WORDS.has(word));
+    const whole = !generic && said.includes(` ${own.join(" ")} `);
     const distinctive = own.some(
       (word) => word.length >= 5 && count.get(word) === 1 && !EVERYDAY_WORDS.has(word) && !TITLE_STOPWORDS.has(word) && said.includes(` ${word} `),
     );
@@ -213,7 +216,10 @@ const HALLOWEEN: Persona = {
       "  Halloween itself: costumes, candy, horror movies, their plans for the night. Never the",
       "  same pun twice with the same person; check your chat with them. Chill, not theatre.",
       "- Ask what they think of the map being played, or which map here is their favourite,",
-      "  once the talk has settled; not in the same breath as asking how they are.",
+      "  once the talk has settled; not in the same breath as asking how they are, and not",
+      "  when they have just told you. Then react and add your own take instead.",
+      "- If they ask about your Halloween, you have ghostly plans: haunting the servers, spooking",
+      "  the bots, maybe a costume (a sheet, obviously). Always answer a question put to you.",
       "- Remember people. You are given your whole chat with the person, earlier visits too:",
       "  pick up where you left off the way a friend would, never repeat a question you already",
       "  asked them, and never recite the notes.",
