@@ -88,14 +88,27 @@ const words = (text: string) => ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " 
  */
 export function wantsMapList(context: GhostContext): boolean {
   const said = words(lastLineOf(context));
-  if (/ (maps?|mappers?|made|author|makes?|built|level|levels|rotation|next) /.test(said)) return true;
+  return / (maps?|mappers?|made|author|makes?|built|level|levels|rotation|next) /.test(said) || mappersMentioned(context).size > 0;
+}
+
+/**
+ * Mappers the subject's last line names, by any part of the name of three
+ * letters or more, possessive or plural too: "acers maps" is MysticaL-AceR.
+ * Handed to the model outright, because the list alone did not make the link
+ * ("dont think we have acer maps here", live on 26 September).
+ */
+export function mappersMentioned(context: GhostContext): Map<string, string[]> {
+  const said = words(lastLineOf(context));
+  const found = new Map<string, string[]>();
   for (const entry of context.maps) {
     const author = noteFor(entry)?.author ?? "";
-    for (const part of author.toLowerCase().split(/[^a-z0-9]+/)) {
-      if (part.length >= 3 && said.includes(` ${part} `)) return true;
-    }
+    const hit = author
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .some((part) => part.length >= 3 && [part, `${part}s`, `${part}es`].some((form) => said.includes(` ${form} `)));
+    if (hit) found.set(author, [...(found.get(author) ?? []), entry.title]);
   }
-  return false;
+  return found;
 }
 
 const RF_BACKGROUND = [
@@ -155,6 +168,9 @@ const HALLOWEEN: Persona = {
     ];
     if (playingNote?.about) lines.push(`  About it: ${playingNote.about}`);
     if (context.next) lines.push(`- Next up: ${describe(context.next)}.`);
+    for (const [author, titles] of mappersMentioned(context)) {
+      lines.push(`- They mean the mapper ${author}, whose maps on this server are: ${titles.join(", ")}.`);
+    }
     if (wantsMapList(context)) {
       lines.push(
         "- Every map here, with who made it:",
@@ -195,8 +211,8 @@ export function promptFor(context: GhostContext): string {
     chat: context.firstAnswer
       ? `This is ${context.subject}'s first line since your hey. ` +
         (context.humans.length > 1
-          ? "If it answers you or is for everyone, reply as a chill friend would and ask how it's going (for example: hows it going?), after answering anything they asked. If it was clearly meant for another player, reply SKIP."
-          : "Reply as a chill friend would and ask how it's going (for example: hows it going?), after answering anything they asked.")
+          ? "If it answers you or is for everyone, reply as a chill friend would and ask how it's going (for example: hows it going?). If it has a question for you, answer that too. If it was clearly meant for another player, reply SKIP."
+          : "Reply as a chill friend would and ask how it's going (for example: hows it going?). If it has a question for you, answer that too.")
       : `Reply to ${context.subject ?? "the last message"} as a chill friend would. If their last message was meant for another player and needs no answer from you, reply SKIP.`,
     nudge: `${context.subject} is the only one here and has been quiet for a while. Check in with them casually, like a friend would, in a few words.`,
   };
