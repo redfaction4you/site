@@ -358,6 +358,11 @@ the game as a server-browser client and asks this site what to say.
 - **Everything it says is plain ASCII with no em dashes**, because it reaches a
   2001 bitmap font. `asciiLine` enforces it and `scripts/ghost.test.mjs` checks
   it.
+- **It never talks to the bots**, by the owner's instruction. It answers only a
+  speaker the Alpine players snapshot confirms is a person, because a bot talks
+  within a second of joining, before it is flagged (the first version answered
+  two that way). The rule and its tests are `ghost-rules.mjs` and
+  `ghost-rules.test.mjs` next to `ghost.mjs` on the VPS.
 - **The persona is per server** (`persona.ts`). Only Halloween has one; another
   server gets a ghost by adding its persona and running a copy of the process.
 - **Do not rebuild any of it without the owner asking.**
