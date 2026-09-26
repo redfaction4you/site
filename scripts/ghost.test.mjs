@@ -242,3 +242,17 @@ test("the model is told when it has already asked how it's going", () => {
   });
   assert.match(prompt, /already asked Willson how it's going this visit. Do not ask again/);
 });
+
+// Live, 26 September: "red death is a fun one" was read as the mapper RED JUSTICE
+// ("red's cyborg map is so detailed"). An everyday word is not a mapper.
+test("an everyday word is not taken for a mapper's name", () => {
+  const maps = [
+    { title: "Red Death", filename: "DM-RedDeath.rfl" },
+    { title: "Cyborg", filename: "dm-cyborg.rfl" },
+    { title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" },
+  ];
+  const at = (text) => promptFor({ event: "chat", subject: "S", humans: ["S"], bots: [], playing: null, next: null, maps, transcript: [{ name: "S", text }] });
+  assert.doesNotMatch(at("red death is a fun one"), /RED JUSTICE/);
+  assert.match(at("red death is a fun one"), /They mention the map Red Death by RF Grim Reaper/);
+  assert.match(at("do you like acers maps?"), /MysticaL-AceR/);
+});

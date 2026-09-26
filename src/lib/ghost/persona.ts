@@ -129,6 +129,10 @@ export function mapsMentioned(context: GhostContext): MapEntry[] {
 }
 
 const TITLE_PREFIXES = new Set(["dm", "ctf", "wmp", "rfu", "tdm", "koth", "af"]);
+/** Three-letter words too common to be a mapper ("lsd" in Mr LSD is fine, "red" is not). */
+const SHORT_WORDS = new Set(["red", "the", "and", "sir", "mrs", "our", "you", "big", "bad", "old", "new", "one", "two", "top", "pro", "god", "his", "her", "man", "boy", "war", "fun", "sky", "sea", "sun", "ice", "dog", "cat", "rat", "bat", "pig", "fox", "air", "hot", "low", "lol", "gun", "oz"]);
+/** Words that turn up in players' names and in ordinary talk alike. */
+const NAME_WORDS = new Set(["justice", "wolf", "lone", "blue", "dead", "your", "parents", "lord", "king", "reaper", "grim", "mystical", "calvary"]);
 /** Words people say anyway: "this carpet is weird" is not about Weird Cafe. */
 const EVERYDAY_WORDS = new Set([
   "weird", "night", "blood", "death", "ghost", "party", "crazy", "black", "happy", "scary", "spooky", "creepy",
@@ -140,6 +144,12 @@ export type MapperMention = { called: string; maps: { title: string; about: stri
 
 export function mappersMentioned(context: GhostContext): Map<string, MapperMention> {
   const said = words(lastLineOf(context));
+  /*
+   * Live, "red death is a fun one" read "red" as the mapper RED JUSTICE, and
+   * the model duly praised "red's cyborg map". So a nickname is four letters
+   * or more, not an everyday word, and not a word of a map the line names.
+   */
+  const taken = new Set(mapsMentioned(context).flatMap((entry) => entry.title.toLowerCase().split(/[^a-z0-9]+/)));
   const found = new Map<string, MapperMention>();
   for (const entry of context.maps) {
     const note = noteFor(entry);
@@ -147,11 +157,20 @@ export function mappersMentioned(context: GhostContext): Map<string, MapperMenti
     const called = note.author
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .find((part) => part.length >= 3 && [part, `${part}s`, `${part}es`].some((form) => said.includes(` ${form} `)));
+      .find(
+        (part) =>
+          (part.length >= 4 || (part.length === 3 && !SHORT_WORDS.has(part))) &&
+          !EVERYDAY_WORDS.has(part) &&
+          !NAME_WORDS.has(part) &&
+          !taken.has(part) &&
+          [part, `${part}s`, `${part}es`].some((form) => said.includes(` ${form} `)),
+      );
     if (!called) continue;
-    const mention = found.get(note.author) ?? { called, maps: [] };
+    // One mapper however FactionFiles capitalised them (Blunderbust, BLUNDERBUST).
+    const key = [...found.keys()].find((name) => name.toLowerCase() === note.author.toLowerCase()) ?? note.author;
+    const mention = found.get(key) ?? { called, maps: [] };
     mention.maps.push({ title: entry.title, about: note.about });
-    found.set(note.author, mention);
+    found.set(key, mention);
   }
   return found;
 }
