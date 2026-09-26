@@ -339,5 +339,12 @@ export function promptFor(context: GhostContext): string {
     .join(" ");
   const hints = [mappers, named].filter(Boolean).join(" ");
 
-  return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}`;
+  // Beside the task, because left in the system prompt the model never wrote a
+  // note (live, 26 September: "i run a little server called ghosttown" went unnoted).
+  const keep =
+    context.event === "chat"
+      ? `\nAfter your line: if ${context.subject ?? "they"} just told you something worth remembering, add a line starting NOTE: (about them) or LORE: (about maps, mappers or the game), e.g. NOTE: runs a server called ghosttown. Otherwise add nothing.`
+      : "";
+
+  return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}${keep}`;
 }
