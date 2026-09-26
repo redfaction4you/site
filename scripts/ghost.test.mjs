@@ -265,7 +265,7 @@ test("Wisp brings the Halloween spirit and asks about the map", () => {
   });
   assert.match(system, /Halloween pun/);
   assert.match(system, /costumes, candy, horror movies/);
-  assert.match(system, /what they think of the map being played/);
+  assert.match(system, /ask what they think of one/);
   assert.doesNotMatch(system, /—/);
 });
 
@@ -325,4 +325,15 @@ test("the mapper's own words about the map being played reach the model", () => 
     maps: [{ title: "Sleepy Hollow", filename: "dm-sleepy hollow.rfl" }],
   });
   assert.match(system, /What its mapper wrote about it: An old map of mine inspired by the 1999 film Sleepy Hollow/);
+});
+
+// Live, 26 September: "youll fake more people out if you chill out", "youre repeating
+// yourself", and "hey wisp, how's it going" answered with "hows it going?".
+test("Wisp is told to say less, never repeat, and answer what it is asked", () => {
+  const system = personaFor("halloween").system({ event: "chat", subject: "S", humans: ["S"], bots: [], transcript: [], playing: null, next: null, maps: [] });
+  assert.match(system, /Say less/);
+  assert.match(system, /Never repeat yourself/);
+  assert.match(system, /never bounce the same question back unanswered/);
+  const prompt = promptFor({ event: "chat", subject: "S", firstAnswer: true, humans: ["S"], bots: [], transcript: [{ name: "S", text: "hey wisp, how's it going" }], playing: null, next: null, maps: [] });
+  assert.match(prompt, /If they asked how you are, answer that first/);
 });
