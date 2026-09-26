@@ -39,7 +39,12 @@ What went, and where it went:
   back later as a different kind of server, probably DM. Switching it off on the
   VPS is the package in `C:\RF4U\Transfers\stop-stats`.
 - **The two maps on the front page.** Outlaws b1 was also unpublished, because
-  it is a Match (CTF) map. Arena Island B3 stays, in the Themed rotation.
+  it is a Match (CTF) map. Arena Island B3 was hidden too, on 26 September 2026:
+  the owner will put different things on the downloads page later. It is still
+  in the Themed rotation, and players still get it on joining, because
+  FactionFiles serves it for autodownload and the site passes through to them
+  for anything it does not hold. Both rows are `hidden`, not deleted; the admin
+  page can publish either again.
 
 **The data was not deleted, deliberately.** Every stats and AI table is still
 defined in `schema.ts` so that drizzle-kit never generates a `DROP`, and the
