@@ -221,3 +221,24 @@ test("a mapper named by a nickname or possessive is pointed out to the model", (
   assert.ok(prompt.includes("Nowhere Bagge Farm (CTCD) (The Bagge Farm from Nowhere, Kansas"));
   assert.match(prompt, /say something specific about one of those maps/);
 });
+
+// Live, 26 September: "rocky horroor is also a good map" and "and 3 Barn Band"
+// were answered without the map's notes when the line did not say "map".
+test("a map named without the word map gets its notes", () => {
+  const prompt = promptFor({
+    event: "chat", subject: "Willson", humans: ["Willson"], bots: [], playing: null, next: null,
+    maps: [{ title: "Rocky Horror", filename: "dm-wmp-rocky horror.rfl" }, { title: "Red Death", filename: "DM-RedDeath.rfl" }],
+    transcript: [{ name: "Willson", text: "rocky horroor is also good" }],
+  });
+  assert.match(prompt, /They mention the map Rocky Horror by Sir Lots-A-Pot/);
+  assert.doesNotMatch(prompt, /Red Death/);
+});
+
+// Live, 26 September: Willson was asked "hows it going?" three times in one visit.
+test("the model is told when it has already asked how it's going", () => {
+  const prompt = promptFor({
+    event: "chat", subject: "Willson", askedHow: true, humans: ["Willson"], bots: [], playing: null, next: null, maps: [],
+    transcript: [{ name: "Willson", text: "yeah" }],
+  });
+  assert.match(prompt, /already asked Willson how it's going this visit. Do not ask again/);
+});

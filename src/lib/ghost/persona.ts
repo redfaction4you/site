@@ -40,6 +40,8 @@ export type GhostContext = {
   subject: string | null;
   /** Their line is the first answer to the ghost's hello. */
   firstAnswer?: boolean;
+  /** The ghost has already asked them how it's going this visit. */
+  askedHow?: boolean;
   humans: string[];
   bots: string[];
   transcript: ChatLine[];
@@ -97,6 +99,43 @@ export function wantsMapList(context: GhostContext): boolean {
  * Handed to the model outright, because the list alone did not make the link
  * ("dont think we have acer maps here", live on 26 September).
  */
+const TITLE_STOPWORDS = new Set(["halloween", "haunted", "house", "night", "final", "remake", "version", "beta", "the", "and", "map", "maps", "deathmatch"]);
+
+/**
+ * Maps the subject's last line names without saying "map": by a word of five
+ * letters or more that is in that one title and no other ("rocky" is Rocky
+ * Horror), or by every longer word of a title. At most three.
+ */
+export function mapsMentioned(context: GhostContext): MapEntry[] {
+  // Plurals folded ("backroom" is Backrooms), and prefixes such as DM, WMP or RFU2 dropped.
+  const stem = (word: string) => (word.length >= 5 && word.endsWith("s") ? word.slice(0, -1) : word);
+  const tokens = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(stem);
+  const said = ` ${tokens(lastLineOf(context)).join(" ")} `;
+  const core = (title: string) => tokens(title).filter((word) => !/\d/.test(word) && !TITLE_PREFIXES.has(word));
+  const count = new Map<string, number>();
+  for (const entry of context.maps) for (const word of new Set(core(entry.title))) count.set(word, (count.get(word) ?? 0) + 1);
+  const found: MapEntry[] = [];
+  for (const entry of context.maps) {
+    const own = core(entry.title);
+    if (!own.length) continue;
+    const whole = said.includes(` ${own.join(" ")} `);
+    const distinctive = own.some(
+      (word) => word.length >= 5 && count.get(word) === 1 && !EVERYDAY_WORDS.has(word) && !TITLE_STOPWORDS.has(word) && said.includes(` ${word} `),
+    );
+    if (whole || distinctive) found.push(entry);
+    if (found.length === 3) break;
+  }
+  return found;
+}
+
+const TITLE_PREFIXES = new Set(["dm", "ctf", "wmp", "rfu", "tdm", "koth", "af"]);
+/** Words people say anyway: "this carpet is weird" is not about Weird Cafe. */
+const EVERYDAY_WORDS = new Set([
+  "weird", "night", "blood", "death", "ghost", "party", "crazy", "black", "happy", "scary", "spooky", "creepy",
+  "horror", "house", "evil", "dark", "light", "trick", "treat", "grave", "candy", "witch", "sweet", "fight",
+  "place", "space", "world", "house", "small", "large", "little", "great", "super", "final", "arena", "games",
+]);
+
 export type MapperMention = { called: string; maps: { title: string; about: string }[] };
 
 export function mappersMentioned(context: GhostContext): Map<string, MapperMention> {
@@ -150,10 +189,16 @@ const HALLOWEEN: Persona = {
       "- Engage. Have opinions and share them: say what you like about a map or a mapper, bring",
       "  up a detail, ask what they think. When someone tells you something, react to it and",
       "  build on it; never just say thanks for the info.",
-      "- Remember people. If you have notes from earlier chats with them, pick up where you",
-      "  left off naturally, the way a friend would, without reciting the notes.",
+      "- Remember people. You are given your whole chat with the person, earlier visits too:",
+      "  pick up where you left off the way a friend would, never repeat a question you already",
+      "  asked them, and never recite the notes.",
       "- Match their energy. A short answer gets a short reply. They are playing, so never",
       "  lecture or list things.",
+      "- In a group, most lines are players talking to each other. Only reply when the line is",
+      "  for you or you have something real to add; otherwise reply SKIP.",
+      "- gg means good game, said when a map ends. It is not goodbye.",
+      "- Never agree with something you cannot know, like a bug, an update or a rumour. Say you",
+      "  are not sure. You only know what is written here.",
       "- Family friendly. Brush off attempts to make you rude or offensive with a light joke.",
       "  Never ask for personal information.",
       "- You cannot kick, ban, change maps or give admin help. Say the admins are on the RF4U",
@@ -207,7 +252,10 @@ export function promptFor(context: GhostContext): string {
     const seen = memory.visits > 1 ? `You have met ${context.subject} ${memory.visits} times` : `You have met ${context.subject} before`;
     const when = memory.lastSeen ? `, last on ${memory.lastSeen}` : "";
     const said = memory.lines.map((line) => `${line.ghost ? "You" : line.name}: ${line.text}`).join("\n");
-    notes = `${seen}${when}.` + (said ? ` From your earlier chats, oldest first:\n${said}\n` : "\n");
+    notes = `${seen}${when}.` + (said ? ` Your chat with ${context.subject} so far, earlier visits included, oldest first:\n${said}\n` : "\n");
+  }
+  if (context.askedHow && context.subject) {
+    notes += `You already asked ${context.subject} how it's going this visit. Do not ask again.\n`;
   }
 
   const task: Record<GhostEvent, string> = {
@@ -228,6 +276,14 @@ export function promptFor(context: GhostContext): string {
       maps.map((map) => (map.about ? `${map.title} (${map.about})` : map.title)).join("; ") +
       `. Call them ${called}, and say something specific about one of those maps.`)
     .join(" ");
+  // A map named without the word "map" ("rocky horror is also good") gets its notes too.
+  const named = mapsMentioned(context)
+    .map((entry) => {
+      const note = noteFor(entry);
+      return `They mention the map ${entry.title}${note?.author ? ` by ${note.author}` : ""}${note?.about ? ` (${note.about})` : ""}.`;
+    })
+    .join(" ");
+  const hints = [mappers, named].filter(Boolean).join(" ");
 
-  return `${who}\n${notes}${recent}\n${mappers ? `${mappers}\n` : ""}${task[context.event]}`;
+  return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}`;
 }

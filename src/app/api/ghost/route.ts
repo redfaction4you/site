@@ -90,6 +90,7 @@ export async function POST(request: Request) {
     event,
     subject: text(body.subject, 32) || null,
     firstAnswer: body.firstAnswer === true,
+    askedHow: body.askedHow === true,
     humans: names(body.humans),
     bots: names(body.bots),
     transcript,
