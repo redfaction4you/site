@@ -256,3 +256,15 @@ test("an everyday word is not taken for a mapper's name", () => {
   assert.match(at("red death is a fun one"), /They mention the map Red Death by RF Grim Reaper/);
   assert.match(at("do you like acers maps?"), /MysticaL-AceR/);
 });
+
+// Owner, 26 September: "since this is halloween themed, he could make puns or
+// talk about halloween with ppl or ask if they like the map".
+test("Wisp brings the Halloween spirit and asks about the map", () => {
+  const system = personaFor("halloween").system({
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], playing: null, next: null, maps: [],
+  });
+  assert.match(system, /Halloween pun/);
+  assert.match(system, /costumes, candy, horror movies/);
+  assert.match(system, /what they think of the map being played/);
+  assert.doesNotMatch(system, /—/);
+});
