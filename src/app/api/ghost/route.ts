@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { speak } from "@/lib/ghost/speak";
-import { personaFor, promptFor, type ChatLine, type GhostEvent } from "@/lib/ghost/persona";
+import { personaFor, promptFor, type ChatLine, type GhostEvent, type Memory } from "@/lib/ghost/persona";
 import { rotationForServer } from "@/lib/map-packs";
 import { nextAfter, positionOfLevel } from "@/lib/server-rotation";
 import { serverBySlug } from "@/lib/servers";
@@ -36,6 +36,20 @@ const text = (value: unknown, max: number): string =>
 const names = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((entry) => text(entry, 32)).filter(Boolean).slice(0, 32) : [];
 
+/** The ghost's notes on the subject, capped like everything else here. */
+function memoryOf(value: unknown): Memory | null {
+  if (!value || typeof value !== "object") return null;
+  const memory = value as Record<string, unknown>;
+  const visits = Number.isFinite(memory.visits) ? Math.max(0, Math.min(10_000, Math.floor(Number(memory.visits)))) : 0;
+  const lines: ChatLine[] = Array.isArray(memory.lines)
+    ? memory.lines.slice(-10).map((entry) => {
+        const line = (entry ?? {}) as Record<string, unknown>;
+        return { name: text(line.name, 32), text: text(line.text, 160), ghost: line.ghost === true };
+      }).filter((line) => line.name && line.text)
+    : [];
+  return { visits, lastSeen: text(memory.lastSeen, 20) || null, lines };
+}
+
 export async function POST(request: Request) {
   if (!authorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,8 +82,9 @@ export async function POST(request: Request) {
   const pack = await rotationForServer(server);
   const maps = pack?.maps ?? [];
   const at = positionOfLevel(text(body.levelFile, 64) || null, null, maps);
-  const titleOf = (entry: { filename: string; title?: string } | null | undefined) =>
-    entry ? entry.title?.trim() || entry.filename.replace(/\.rfl$/i, "") : null;
+  const levelFile = text(body.levelFile, 64);
+  const entryOf = (entry: { filename: string; title?: string } | null | undefined) =>
+    entry ? { title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename } : null;
 
   const context = {
     event,
@@ -78,9 +93,10 @@ export async function POST(request: Request) {
     humans: names(body.humans),
     bots: names(body.bots),
     transcript,
-    playing: at !== null ? titleOf(maps[at]) : text(body.levelFile, 64) || null,
-    next: titleOf(nextAfter(at, maps)),
-    mapTitles: maps.map((entry) => titleOf(entry) ?? entry.filename),
+    playing: at !== null ? entryOf(maps[at]) : levelFile ? entryOf({ filename: levelFile }) : null,
+    next: entryOf(nextAfter(at, maps)),
+    maps: maps.map((entry) => ({ title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename })),
+    memory: memoryOf(body.memory),
   };
 
   const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength);

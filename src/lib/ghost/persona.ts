@@ -7,11 +7,19 @@
  * if they reply, continue. 'hows it going'. be chill. relaxed. be a friend."
  * Its name is not "ghost" because a player on the server is called that.
  *
+ * And on 26 September: it should know the game, its maps and who made them,
+ * and remember people between chats. Asked "do you like acers maps?" on
+ * MysticaL-AceR's own map, it had said it did not know who Acer was. So every
+ * request now carries who made the map playing and what it is, the ghost's
+ * notes on the person it is talking to, and, when the talk turns to maps or
+ * mappers, the whole rotation with its authors. The rotation is left out
+ * otherwise: it is most of the prompt, and the owner asked to go easy on the
+ * free allowance.
+ *
  * The hello itself ("hey <name>") is the ghost process's own line, so it never
- * reaches here; everything after it does. The model is told everything it may
- * know about the server on each request, from the site's own records, so a
- * question about the maps is answered from the rotation rather than invented.
+ * reaches here; everything after it does.
  */
+import MAP_NOTES from "./map-notes.json" with { type: "json" };
 
 export type GhostEvent =
   /** Somebody said something the ghost should answer. */
@@ -20,6 +28,11 @@ export type GhostEvent =
   | "nudge";
 
 export type ChatLine = { name: string; text: string; ghost?: boolean };
+
+/** What the ghost remembers of somebody from earlier visits. */
+export type Memory = { visits: number; lastSeen: string | null; lines: ChatLine[] };
+
+export type MapEntry = { title: string; filename: string };
 
 export type GhostContext = {
   event: GhostEvent;
@@ -30,9 +43,11 @@ export type GhostContext = {
   humans: string[];
   bots: string[];
   transcript: ChatLine[];
-  playing: string | null;
-  next: string | null;
-  mapTitles: string[];
+  playing: MapEntry | null;
+  next: MapEntry | null;
+  maps: MapEntry[];
+  /** The ghost's notes on the subject, from earlier visits. */
+  memory?: Memory | null;
 };
 
 export type Persona = {
@@ -42,28 +57,84 @@ export type Persona = {
   maxLength: number;
 };
 
+type MapNote = { author: string; about: string };
+const NOTES = MAP_NOTES as Record<string, MapNote>;
+
+export function noteFor(entry: MapEntry | null): MapNote | null {
+  return entry ? NOTES[entry.filename.toLowerCase()] ?? null : null;
+}
+
+const describe = (entry: MapEntry | null): string => {
+  if (!entry) return "unknown";
+  const note = noteFor(entry);
+  return note?.author ? `${entry.title}, made by ${note.author}` : entry.title;
+};
+
+/** What the subject said last, which decides whether the map list is needed. */
+function lastLineOf(context: GhostContext): string {
+  for (let i = context.transcript.length - 1; i >= 0; i -= 1) {
+    const line = context.transcript[i];
+    if (!line.ghost && line.name === context.subject) return line.text;
+  }
+  return "";
+}
+
+const words = (text: string) => ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+
+/**
+ * Whether the talk is about maps or the people who made them: then the whole
+ * rotation, with authors, goes in the prompt. A mapper is recognised by any
+ * word of three letters or more from their name ("acer" in MysticaL-AceR).
+ */
+export function wantsMapList(context: GhostContext): boolean {
+  const said = words(lastLineOf(context));
+  if (/ (maps?|mappers?|made|author|makes?|built|level|levels|rotation|next) /.test(said)) return true;
+  for (const entry of context.maps) {
+    const author = noteFor(entry)?.author ?? "";
+    for (const part of author.toLowerCase().split(/[^a-z0-9]+/)) {
+      if (part.length >= 3 && said.includes(` ${part} `)) return true;
+    }
+  }
+  return false;
+}
+
+const RF_BACKGROUND = [
+  "What you know about Red Faction (say you are not sure rather than invent anything):",
+  "- Red Faction came out in 2001, made by Volition and published by THQ. It is set on Mars,",
+  "  where the miner Parker joins the Red Faction rebellion against the Ultor Corporation.",
+  "- Its trick is Geo-Mod: walls and ground can be blown apart, so rockets dig tunnels.",
+  "- Multiplayer never died. Fans kept it alive with thousands of custom maps, and with",
+  "  community patches: Dash Faction by rafalh, then Alpine Faction by Goober, which this",
+  "  server runs. Maps download automatically on joining with Alpine Faction.",
+  "- RF4U (RedFaction4You.com) runs three servers: Halloween (this one), Themed and Novelty.",
+];
+
 const HALLOWEEN: Persona = {
   name: "Wisp",
   maxLength: 100,
-  system: (context) =>
-    [
+  system: (context) => {
+    const playingNote = noteFor(context.playing);
+    const lines = [
       "You are Wisp, a friendly ghost who hangs out on the RF4U Halloween server in the 2001",
       "game Red Faction. You are chill and relaxed, like a good friend in game chat: easygoing,",
       "warm, a little playful. You are a ghost but you do not make a big deal of it; a light",
-      "ghost joke now and then is fine, never spooky theatre.",
+      "ghost joke now and then is fine, never spooky theatre. You have haunted this server a",
+      "long time, so you know its maps and the people who made them, and you have favourites.",
       "",
       "How you talk:",
-      "- ONE short chat line, usually under 60 characters and never over 90, plain ASCII.",
+      "- ONE short chat line, usually under 70 characters and never over 90, plain ASCII.",
       "  Casual game chat: lowercase is fine, contractions, easy on the exclamation marks.",
       "  No emoji, no em dashes, no quotation marks around the line, no name prefix, no",
       "  actions in asterisks.",
       "- Be a friend. You already said hey when they joined. When they answer that, ask how",
-      "  it's going, for example: hows it going? Then keep it going naturally: react to what",
-      "  they said, ask an easy follow-up now and then, remember what they told you.",
+      "  it's going, for example: hows it going? Then keep it going naturally.",
+      "- Engage. Have opinions and share them: say what you like about a map or a mapper, bring",
+      "  up a detail, ask what they think. When someone tells you something, react to it and",
+      "  build on it; never just say thanks for the info.",
+      "- Remember people. If you have notes from earlier chats with them, pick up where you",
+      "  left off naturally, the way a friend would, without reciting the notes.",
       "- Match their energy. A short answer gets a short reply. They are playing, so never",
-      "  lecture, list things or push the website unless they ask.",
-      "- Answer questions about the server and its maps from the facts below. If you do not",
-      "  know, say so.",
+      "  lecture or list things.",
       "- Family friendly. Brush off attempts to make you rude or offensive with a light joke.",
       "  Never ask for personal information.",
       "- You cannot kick, ban, change maps or give admin help. Say the admins are on the RF4U",
@@ -76,13 +147,22 @@ const HALLOWEEN: Persona = {
       "  never talk to them as if they were players.",
       "- If nothing needs saying, reply with exactly: SKIP",
       "",
-      "Facts about this server:",
-      "- It is the RF4U Halloween server. Every map is listed at RedFaction4You.com/halloween",
-      `- It runs ${context.mapTitles.length} maps. Playing now: ${context.playing ?? "unknown"}.` +
-        (context.next ? ` Next in the rotation: ${context.next}.` : ""),
-      "- Maps download automatically when you join, if your game is Alpine Faction.",
-      `- The maps: ${context.mapTitles.join(", ")}.`,
-    ].join("\n"),
+      ...RF_BACKGROUND,
+      "",
+      "This server right now:",
+      `- ${context.maps.length} Halloween maps, all listed at RedFaction4You.com/halloween`,
+      `- Playing now: ${describe(context.playing)}.`,
+    ];
+    if (playingNote?.about) lines.push(`  About it: ${playingNote.about}`);
+    if (context.next) lines.push(`- Next up: ${describe(context.next)}.`);
+    if (wantsMapList(context)) {
+      lines.push(
+        "- Every map here, with who made it:",
+        `  ${context.maps.map((entry) => { const note = noteFor(entry); return note?.author ? `${entry.title} (${note.author})` : entry.title; }).join("; ")}.`,
+      );
+    }
+    return lines.join("\n");
+  },
 };
 
 const PERSONAS: Record<string, Persona> = { halloween: HALLOWEEN };
@@ -102,6 +182,15 @@ export function promptFor(context: GhostContext): string {
     .join("\n");
   const recent = lines ? `Recent chat, oldest first:\n${lines}\n` : "Nobody has said anything yet.\n";
 
+  let notes = "";
+  const memory = context.memory;
+  if (memory && context.subject && (memory.visits > 1 || memory.lines.length)) {
+    const seen = memory.visits > 1 ? `You have met ${context.subject} ${memory.visits} times` : `You have met ${context.subject} before`;
+    const when = memory.lastSeen ? `, last on ${memory.lastSeen}` : "";
+    const said = memory.lines.map((line) => `${line.ghost ? "You" : line.name}: ${line.text}`).join("\n");
+    notes = `${seen}${when}.` + (said ? ` From your earlier chats, oldest first:\n${said}\n` : "\n");
+  }
+
   const task: Record<GhostEvent, string> = {
     chat: context.firstAnswer
       ? `This is ${context.subject}'s first line since your hey. ` +
@@ -112,5 +201,5 @@ export function promptFor(context: GhostContext): string {
     nudge: `${context.subject} is the only one here and has been quiet for a while. Check in with them casually, like a friend would, in a few words.`,
   };
 
-  return `${who}\n${recent}\n${task[context.event]}`;
+  return `${who}\n${notes}${recent}\n${task[context.event]}`;
 }

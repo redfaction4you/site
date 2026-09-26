@@ -40,7 +40,7 @@ test("the ghost is not called ghost, and knows a player may be", () => {
   assert.doesNotMatch(persona.name, /ghost/i);
   const system = persona.system({
     event: "chat", subject: "ghost", humans: ["ghost"], bots: [], transcript: [],
-    playing: null, next: null, mapTitles: [],
+    playing: null, next: null, maps: [],
   });
   assert.match(system, /A player may be called ghost/);
 });
@@ -94,7 +94,7 @@ test("a model's silence is silence, however it is dressed", () => {
     "Wisp: SKIP", "**Wisp**: SKIP", "*Wisp*: skip", "(silence)", "*stays quiet* SKIP", "*shrugs* skip",
     "\u{1F47B} SKIP", "“SKIP”", "Wisp: *floats by* SKIP", "Wisp:\nSKIP", "**Wisp:**\nSKIP",
     "(No response)", "(no response needed, Sam is talking to Alex)", "(nothing to say)", "(stays silent)",
-    "No reply.", "N/A", "...", "*", "*stays quiet*", "Wisp: *says nothing*", "*chuckles*",
+    "No reply.", "N/A", "...", "*", "*stays quiet*", "Wisp: *says nothing*",
   ];
   for (const raw of skips) assert.deepEqual(decide(raw, "Wisp"), { skip: true, line: "" }, raw);
 });
@@ -121,7 +121,7 @@ test("the answer to the hello is named as such, so the model asks how it's going
   const context = {
     event: "chat", subject: "Sam", firstAnswer: true, humans: ["Sam"], bots: [],
     transcript: [{ name: "Wisp", text: "hey Sam", ghost: true }, { name: "Sam", text: "yo" }],
-    playing: null, next: null, mapTitles: [],
+    playing: null, next: null, maps: [],
   };
   assert.match(promptFor(context), /first line since your hey/);
   assert.match(promptFor(context), /ask how it's going/);
@@ -134,7 +134,7 @@ test("with others on, the answer to the hello can still be for somebody else", (
   const context = {
     event: "chat", subject: "Sam", firstAnswer: true, humans: ["Sam", "Alex"], bots: [],
     transcript: [{ name: "Wisp", text: "hey Sam", ghost: true }, { name: "Sam", text: "alex wait up" }],
-    playing: null, next: null, mapTitles: [],
+    playing: null, next: null, maps: [],
   };
   assert.match(promptFor(context), /clearly meant for another player, reply SKIP/);
 });
@@ -149,12 +149,13 @@ test("the ghost is told the server's facts and never to talk to the bots", () =>
       { name: "Wisp", text: "hey Romortis", ghost: true },
       { name: "Romortis", text: "hi" },
     ],
-    playing: "Backrooms",
-    next: "RFU2 - Halloween",
-    mapTitles: ["Backrooms", "RFU2 - Halloween"],
+    playing: { title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" },
+    next: { title: "RFU2 - Halloween", filename: "DM-RFU2-Halloween.rfl" },
+    maps: [{ title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" }, { title: "RFU2 - Halloween", filename: "DM-RFU2-Halloween.rfl" }],
   };
   const system = personaFor("halloween").system(context);
-  assert.match(system, /Playing now: Backrooms/);
+  // 26 September: asked about acers maps on his own map, it did not know who Acer was.
+  assert.match(system, /Playing now: Nowhere Bagge Farm \(CTCD\), made by MysticaL-AceR/);
   assert.match(system, /RedFaction4You\.com\/halloween/);
   assert.match(system, /never talk to them as if they were players/);
   assert.doesNotMatch(system, /\u2014/);
@@ -163,4 +164,47 @@ test("the ghost is told the server's facts and never to talk to the bots", () =>
   assert.match(prompt, /You: hey Romortis\nRomortis: hi/);
   assert.match(promptFor({ ...context, firstAnswer: true }), /ask how it's going/);
   assert.match(system, /chill and relaxed/);
+});
+
+test("the map list goes in only when the talk is about maps or a mapper", () => {
+  const base = {
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], playing: null, next: null,
+    maps: [{ title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" }],
+  };
+  const at = (text) => personaFor("halloween").system({ ...base, transcript: [{ name: "Sam", text }] });
+  assert.match(at("do you like acers maps?"), /Every map here, with who made it/);
+  assert.match(at("who made this?"), /Every map here/);
+  assert.doesNotMatch(at("lol nice shot"), /Every map here/);
+});
+
+test("an action alone is unusable, so another model gets the chance", () => {
+  assert.deepEqual(decide("*chuckles*", "Wisp"), { skip: false, line: "" });
+  assert.deepEqual(decide("*floats in from the shadows*\nhey sam, hows it going?", "Wisp"), { skip: false, line: "hey sam, hows it going?" });
+});
+
+// Review 4: a SKIP with a reason, a wrapper or a label reached the chat.
+test("a SKIP with its reasoning is still silence", () => {
+  for (const raw of ["SKIP. Sam is talking to Alex.", "SKIP because Sam is talking to Alex", "Sam is talking to Alex. SKIP",
+    "No response needed. SKIP", "(Sam is talking to Alex) SKIP", "Response: SKIP", "[SKIP] Sam is talking to Alex",
+    "`SKIP` - sams talking to alex", "*SKIP* - not for me", "Wisp: SKIP. talking to alex"]) {
+    assert.equal(decide(raw, "Wisp").skip, true, raw);
+  }
+});
+
+// Review 4: emphasis lost its words.
+test("emphasis keeps its words, emoticons are said", () => {
+  assert.equal(cleanReply("same, that one's *brutal*", "Wisp"), "same, that one's brutal");
+  assert.equal(cleanReply("hey sam! *hows it going?*", "Wisp"), "hey sam! hows it going?");
+  assert.equal(cleanReply("gg, *so* close", "Wisp"), "gg, so close");
+  assert.equal(cleanReply("hey, *waves*, hows it going", "Wisp"), "hey, hows it going");
+  assert.equal(cleanReply(":)", "Wisp"), ":)");
+});
+
+test("notes from earlier chats reach the model", () => {
+  const prompt = promptFor({
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], playing: null, next: null, maps: [],
+    memory: { visits: 3, lastSeen: "24 Sep", lines: [{ name: "Sam", text: "acer made this one" }] },
+  });
+  assert.match(prompt, /met Sam 3 times, last on 24 Sep/);
+  assert.match(prompt, /Sam: acer made this one/);
 });

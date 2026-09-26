@@ -50,7 +50,7 @@ export function asciiLine(text: string): string {
  * *waves*, a code fence, a note to themselves such as "(no response needed)".
  * None of that may reach a player, and a model that chose silence must stay
  * silent: its SKIP, however dressed, is never said, and neither is a canned
- * line in its place. Three reviews on 26 September 2026 found the cases
+ * line in its place. Four reviews on 26 September 2026 found the cases
  * scripts/ghost.test.mjs is built on.
  */
 
@@ -65,14 +65,26 @@ function namePrefix(speaker: string): RegExp {
   return new RegExp(`^[\\s"'\`]*(\\*\\*|__|\\*|_)?(?:${name}|you)(?:\\1)?\\s*:\\s*(?:\\1)?[\\s\`]*`, "i");
 }
 
-/** A line in single asterisks is speech in italics if it reads like speech, an action if not. */
-function readsLikeSpeech(text: string): boolean {
-  return /\?/.test(text) || /\b(you|u|ya|hey|hi|yo|sup|lol|haha|gg|nice)\b/i.test(text) || text.trim().split(/\s+/).length > 4;
+/*
+ * What a stage direction looks like: a third-person verb first ("waves",
+ * "floats in from the shadows"), never a question. Anything else in asterisks
+ * is emphasis or speech, and keeps its words.
+ */
+const ACTION_VERB = /^(waves|grins|nods|shrugs|laughs|chuckles|floats|drifts|smiles|winks|sighs|giggles|glides|hovers|stays|says|appears|materializes|fades|vanishes|whispers|rattles|flickers|leans|tips|pats|spins|swoops|twirls|looks|gives|raises|claps|cheers|beams|shivers|howls)\b/i;
+function isAction(inner: string): boolean {
+  return !/\?/.test(inner) && ACTION_VERB.test(inner.trim());
+}
+
+/** A whole line in italics is speech when it reads like chat, an action when it is one. */
+function italicIsSpeech(inner: string): boolean {
+  if (isAction(inner)) return false;
+  return /\?/.test(inner) || /^(hey|hi|yo|sup|lol|haha|nah|yeah|yep|not much|i|im|i'm|we|u|you)\b/i.test(inner.trim());
 }
 
 /** One line, cleaned of what models wrap around speech. Empty when nothing sayable is left. */
 function cleanLine(line: string, speaker: string): string {
   const prefix = namePrefix(speaker);
+  const actionOrWords = (inner: string) => (isAction(inner) ? "" : inner);
   let text = line.trim();
   for (let pass = 0; pass < 6; pass += 1) {
     const before = text;
@@ -80,37 +92,52 @@ function cleanLine(line: string, speaker: string): string {
     text = text.replace(/^["'`]+|["'`]+$/g, "").trim();
     text = text.replace(/^(\*\*|__)(.*)\1$/, "$2");
     const italic = text.match(/^\*([^*]+)\*$/);
-    if (italic) text = readsLikeSpeech(italic[1]) ? italic[1] : "";
-    text = text.replace(/^\*[^*]{1,60}\*\s+(?=\S)/, "");        // *waves* hey sam
-    text = text.replace(/\s+\*[^*]{1,60}\*$/, "");              // hey sam *waves*
-    text = text.replace(/([.!?,])\s*\*[^*]{1,60}\*\s*/g, "$1 "); // hey! *waves* how's it going?
-    text = text.trim();
+    if (italic) text = italicIsSpeech(italic[1]) ? italic[1] : "";
+    text = text.replace(/^\*([^*]{1,60})\*[\s,]*(?=\S)/, (_, inner: string) => (isAction(inner) ? "" : `${inner} `));
+    text = text.replace(/\s*\*([^*]{1,60})\*([.!?]*)$/, (_, inner: string, end: string) => {
+      const kept = actionOrWords(inner);
+      return kept ? ` ${kept}${end}` : end;
+    });
+    text = text.replace(/\*([^*]{1,60})\*/g, (_, inner: string) => actionOrWords(inner));
+    text = text.replace(/\s*,\s*,/g, ",").replace(/\s+([,.!?])/g, "$1").replace(/^[\s,]+|[\s,]+$/g, "").trim();
     if (text === before) break;
   }
-  // Emphasis left in the middle of a line keeps its words.
+  // Emphasis left over keeps its words.
   text = text.replace(/\*+/g, "");
   return asciiLine(text);
 }
 
 const FENCE = /^`{3,}[\w-]*$/;
-const BARE_SKIP = /^[\s*_`"'[(:]*(skip|silence)[\s*_`"'\])!.]*$/i;
-const SKIP_WORD = /^SKIP(?![A-Za-z0-9_])\s*([(,:;-].*)?$/;
-const SILENT_NOTE = /^[\s*_`"'[(]*(no (reply|response)( needed)?|nothing to say|n\/a|(i )?(says?|stays?) (nothing|quiet|silent))[.!]*$/i;
+const WRAP = "[\\s*_`\"'\\[\\](){}]";
+/** A bare "skip" or "silence", in any case, as the whole line. */
+const BARE_SKIP = new RegExp(`^${WRAP}*(skip|silence)${WRAP}*[.!]*$`, "i");
+/** A capital SKIP leading the line, after any label, whatever reason follows it. */
+const LEADING_SKIP = new RegExp(`^${WRAP}*([A-Za-z]+:\\s*)?${WRAP}*SKIP(?![A-Za-z0-9_])`);
+/** A capital SKIP ending the line after a sentence, a bracket or a label. */
+const TRAILING_SKIP = new RegExp(`(^|[.!?:)\\]-]\\s*)${WRAP}*SKIP${WRAP}*[.!]*$`);
+/** A note to itself about staying quiet. */
+const SILENT_NOTE = new RegExp(
+  `^${WRAP}*(no (reply|response)( needed)?|nothing to say|n/a|(i )?(says?|stays?) (nothing|quiet|silent)|remains? (quiet|silent))${WRAP}*[.!]*$`,
+  "i",
+);
 const BRACKETED = /^[([][^)\]]*[)\]][.!]*$/;
+const EMOTICON = /^(?:[:;=8][-'^o]?[()[\]/\\|DPpO3*]|[()[\]][-'^o]?[:;=]|\^[_.-]?\^|<3|xD|XD)$/;
 
 /** Whether one line is the model choosing to say nothing. */
 function isSkipLine(text: string): boolean {
-  return BARE_SKIP.test(text) || SKIP_WORD.test(text) || SILENT_NOTE.test(text) || BRACKETED.test(text);
+  return BARE_SKIP.test(text) || LEADING_SKIP.test(text) || TRAILING_SKIP.test(text) || SILENT_NOTE.test(text);
 }
 
 /**
  * A model's reply, decided: skip it, or say this line. An empty line with no
  * skip means nothing usable came back, and the next provider is asked.
  *
- * Lines are read in order: a label or a fence on its own line is passed over,
- * the first line with something to say is the reply, and a line that is only
- * an action or punctuation ("*stays quiet*", "...") means the model chose
- * silence, unless a later line says something after all.
+ * Lines are read in order. A label, a fence, a bracketed note or a stage
+ * direction on a line of its own is passed over, and the first line with
+ * something to say is the reply. A reply that is only a note about staying
+ * quiet, or only punctuation ("..."), is silence. A reply that is only an
+ * action ("*waves*") is unusable rather than silence: the model has not said
+ * anything, so another model gets the chance to.
  */
 export function decide(raw: string, speaker: string): { skip: boolean; line: string } {
   const prefix = namePrefix(speaker);
@@ -120,10 +147,11 @@ export function decide(raw: string, speaker: string): { skip: boolean; line: str
     const body = candidate.replace(prefix, "").trim();
     if (!body) continue;
     if (isSkipLine(body)) return { skip: true, line: "" };
+    if (BRACKETED.test(body)) { silent = true; continue; }
     const line = cleanLine(candidate, speaker);
     if (line && isSkipLine(line)) return { skip: true, line: "" };
-    if (/[A-Za-z0-9]/.test(line)) return { skip: false, line };
-    silent = true;
+    if (/[A-Za-z0-9]/.test(line) || EMOTICON.test(line)) return { skip: false, line };
+    if (line || !/[A-Za-z0-9]/.test(body)) silent = true; // "...", "*": punctuation, not an action
   }
   return { skip: silent, line: "" };
 }
