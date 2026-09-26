@@ -227,8 +227,12 @@ async function getLiveGame(host: string, port: string): Promise<LiveGame | null>
        * Observed live on 25 September 2026: the browser returns every bot in
        * this list, each carrying `bot` in `flags`. Without this, a server
        * running only bots read "nobody on" with their names underneath.
+       *
+       * Browsers are not players either. The Halloween ghost joins as one, so
+       * it can read and write chat without taking part, and the list returned
+       * it as "Ghost Curator" with `browser` in `flags`.
        */
-      if (flags.includes("bot")) return null;
+      if (flags.includes("bot") || flags.includes("browser")) return null;
 
       const team: "red" | "blue" | null = flags.includes("blue_team")
         ? "blue"
