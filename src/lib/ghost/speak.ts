@@ -42,54 +42,95 @@ export function asciiLine(text: string): string {
     .trim();
 }
 
-/** The first non-empty line of a reply, in plain ASCII, so every later step sees straight quotes. */
-function firstLine(raw: string): string {
-  return asciiLine(raw.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "");
-}
+/*
+ * Turning a model's reply into one chat line, or into silence.
+ *
+ * Models dress their lines up: a "Wisp:" or "You:" label (promptFor writes the
+ * ghost's own lines that way), quotes, bold, a stage direction such as
+ * *waves*, a code fence, a note to themselves such as "(no response needed)".
+ * None of that may reach a player, and a model that chose silence must stay
+ * silent: its SKIP, however dressed, is never said, and neither is a canned
+ * line in its place. Three reviews on 26 September 2026 found the cases
+ * scripts/ghost.test.mjs is built on.
+ */
 
 /**
- * "Wisp:", "You:", "**Wisp:**", "__You__:" at the start of a reply. Only a
- * doubled marker pairs with the name: a single asterisk after the colon opens
- * a stage direction, which is stripped whole, not in half.
+ * "Wisp:", "You:", "**Wisp:**", "*You*:", "__Wisp__:" at the start of a line.
+ * A marker pairs with the name only when it closes around the name or the
+ * colon, so the *waves* in "Wisp: *waves* hey" is left whole for the
+ * stage-direction strip.
  */
 function namePrefix(speaker: string): RegExp {
   const name = speaker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^[\\s"'\`]*(\\*\\*|__)?(?:${name}|you)(?:\\1)?\\s*:\\s*(?:\\1)?[\\s\`]*`, "i");
+  return new RegExp(`^[\\s"'\`]*(\\*\\*|__|\\*|_)?(?:${name}|you)(?:\\1)?\\s*:\\s*(?:\\1)?[\\s\`]*`, "i");
 }
 
-/**
- * What models add around a chat line and a player should never see: quotes
- * or bold, a "Wisp:" or "You:" prefix, a stage direction like *drifts over*.
- */
-export function cleanReply(raw: string, speaker: string): string {
-  let text = firstLine(raw);
-  text = text.replace(/^__(.*)__$/, "$1");
-  text = text.replace(namePrefix(speaker), "");
-  text = text.replace(/\*\*/g, "");
-  text = text.replace(/^\*[^*]{1,60}\*\s*/, "");
-  text = text.replace(/^["']+|["']+$/g, "");
+/** A line in single asterisks is speech in italics if it reads like speech, an action if not. */
+function readsLikeSpeech(text: string): boolean {
+  return /\?/.test(text) || /\b(you|u|ya|hey|hi|yo|sup|lol|haha|gg|nice)\b/i.test(text) || text.trim().split(/\s+/).length > 4;
+}
+
+/** One line, cleaned of what models wrap around speech. Empty when nothing sayable is left. */
+function cleanLine(line: string, speaker: string): string {
+  const prefix = namePrefix(speaker);
+  let text = line.trim();
+  for (let pass = 0; pass < 6; pass += 1) {
+    const before = text;
+    text = text.replace(prefix, "");
+    text = text.replace(/^["'`]+|["'`]+$/g, "").trim();
+    text = text.replace(/^(\*\*|__)(.*)\1$/, "$2");
+    const italic = text.match(/^\*([^*]+)\*$/);
+    if (italic) text = readsLikeSpeech(italic[1]) ? italic[1] : "";
+    text = text.replace(/^\*[^*]{1,60}\*\s+(?=\S)/, "");        // *waves* hey sam
+    text = text.replace(/\s+\*[^*]{1,60}\*$/, "");              // hey sam *waves*
+    text = text.replace(/([.!?,])\s*\*[^*]{1,60}\*\s*/g, "$1 "); // hey! *waves* how's it going?
+    text = text.trim();
+    if (text === before) break;
+  }
+  // Emphasis left in the middle of a line keeps its words.
+  text = text.replace(/\*+/g, "");
   return asciiLine(text);
 }
 
-/**
- * Whether the model chose to say nothing. Models dress it up ("**SKIP**",
- * "SKIP (for Alex)", "*stays quiet* SKIP"), so any SKIP in capitals standing
- * as a word counts. Lowercase counts only as the whole line, so a reply such as
- * "skip that map lol" still reaches the chat.
- */
-export function isSkip(raw: string, speaker: string): boolean {
-  const body = firstLine(raw).replace(namePrefix(speaker), "");
-  return (
-    /(^|[^A-Za-z])SKIP([^A-Za-z]|$)/.test(body) ||
-    /^[\s*_`"'[(]*(skip|silence)[\s*_`"'\])!.]*$/i.test(body)
-  );
+const FENCE = /^`{3,}[\w-]*$/;
+const BARE_SKIP = /^[\s*_`"'[(:]*(skip|silence)[\s*_`"'\])!.]*$/i;
+const SKIP_WORD = /^SKIP(?![A-Za-z0-9_])\s*([(,:;-].*)?$/;
+const SILENT_NOTE = /^[\s*_`"'[(]*(no (reply|response)( needed)?|nothing to say|n\/a|(i )?(says?|stays?) (nothing|quiet|silent))[.!]*$/i;
+const BRACKETED = /^[([][^)\]]*[)\]][.!]*$/;
+
+/** Whether one line is the model choosing to say nothing. */
+function isSkipLine(text: string): boolean {
+  return BARE_SKIP.test(text) || SKIP_WORD.test(text) || SILENT_NOTE.test(text) || BRACKETED.test(text);
 }
 
-/** A model's reply, decided: skip it, or say this line (empty means unusable). */
+/**
+ * A model's reply, decided: skip it, or say this line. An empty line with no
+ * skip means nothing usable came back, and the next provider is asked.
+ *
+ * Lines are read in order: a label or a fence on its own line is passed over,
+ * the first line with something to say is the reply, and a line that is only
+ * an action or punctuation ("*stays quiet*", "...") means the model chose
+ * silence, unless a later line says something after all.
+ */
 export function decide(raw: string, speaker: string): { skip: boolean; line: string } {
-  const line = cleanReply(raw, speaker);
-  if (isSkip(raw, speaker) || (line !== "" && isSkip(line, speaker))) return { skip: true, line: "" };
-  return { skip: false, line };
+  const prefix = namePrefix(speaker);
+  let silent = false;
+  for (const candidate of raw.split(/\r?\n/).map((line) => asciiLine(line))) {
+    if (!candidate || FENCE.test(candidate)) continue;
+    const body = candidate.replace(prefix, "").trim();
+    if (!body) continue;
+    if (isSkipLine(body)) return { skip: true, line: "" };
+    const line = cleanLine(candidate, speaker);
+    if (line && isSkipLine(line)) return { skip: true, line: "" };
+    if (/[A-Za-z0-9]/.test(line)) return { skip: false, line };
+    silent = true;
+  }
+  return { skip: silent, line: "" };
+}
+
+/** The line a reply would put in the chat, or "" for none. */
+export function cleanReply(raw: string, speaker: string): string {
+  return decide(raw, speaker).line;
 }
 
 type Attempt =

@@ -104,7 +104,10 @@ export function promptFor(context: GhostContext): string {
 
   const task: Record<GhostEvent, string> = {
     chat: context.firstAnswer
-      ? `${context.subject} is answering your hey. Reply as a chill friend would and ask how it's going (for example: hows it going?), after answering anything they asked.`
+      ? `This is ${context.subject}'s first line since your hey. ` +
+        (context.humans.length > 1
+          ? "If it answers you or is for everyone, reply as a chill friend would and ask how it's going (for example: hows it going?), after answering anything they asked. If it was clearly meant for another player, reply SKIP."
+          : "Reply as a chill friend would and ask how it's going (for example: hows it going?), after answering anything they asked.")
       : `Reply to ${context.subject ?? "the last message"} as a chill friend would. If their last message was meant for another player and needs no answer from you, reply SKIP.`,
     nudge: `${context.subject} is the only one here and has been quiet for a while. Check in with them casually, like a friend would, in a few words.`,
   };
