@@ -208,7 +208,7 @@ async function callCloudflare(system: string, prompt: string, model: string): Pr
           { role: "user", content: prompt },
         ],
         max_tokens: 90,
-        temperature: 0.9,
+        temperature: 0.7,
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
@@ -232,7 +232,7 @@ async function callGemini(system: string, prompt: string, model: string, key: st
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         // The budget covers the model's own reasoning as well as the reply.
-        generationConfig: { temperature: 0.9, maxOutputTokens: 2000 },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2000 },
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
