@@ -2,7 +2,10 @@
  * Builds src/lib/ghost/map-notes.json: who made each Halloween map and what
  * the mapper says about it, for the server ghost.
  *
- *   node scripts/build-map-notes.mjs <authors.json>
+ *   node scripts/build-map-notes.mjs C:/RF4U/Transfers/halloween-ghost/halloween-map-descriptions.json
+ *
+ * The input stays outside the repository: it is FactionFiles' raw text, email
+ * addresses and all, and only the cleaned notes belong in public.
  *
  * The input is FactionFiles' autodownload record for each map in the rotation
  * (filename, title, author, description). The owner, 26 September 2026: "not
