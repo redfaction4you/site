@@ -305,3 +305,24 @@ test("what it knows about someone, and what it has learned, reach the model", ()
   assert.match(prompt, /What you know about Willson from your notes: runs a test server called gambler4/);
   assert.match(prompt, /Things players have told you \(they could be wrong\): the Backrooms map/);
 });
+
+// Owner, 26 September: "bateman is a mapper and a very good one".
+test("a mapper on the server is recognised, and asked about their maps", () => {
+  const maps = [{ title: "Sleepy Hollow", filename: "dm-sleepy hollow.rfl" }, { title: "Red Death", filename: "DM-RedDeath.rfl" }];
+  const prompt = promptFor({
+    event: "chat", subject: "!! BATEMAN !!", humans: ["!! BATEMAN !!", "Default"], bots: [], playing: null, next: null, maps,
+    transcript: [{ name: "!! BATEMAN !!", text: "hi" }],
+  });
+  assert.match(prompt, /!! BATEMAN !!, who is on now, may be the mapper BATEMAN, who made Sleepy Hollow here/);
+  assert.doesNotMatch(prompt, /Default, who is on now/);
+});
+
+// Owner: mappers' own descriptions tell "the story behind it, the lore in it, theme, size".
+test("the mapper's own words about the map being played reach the model", () => {
+  const system = personaFor("halloween").system({
+    event: "chat", subject: "S", humans: ["S"], bots: [], transcript: [], next: null,
+    playing: { title: "Sleepy Hollow", filename: "dm-sleepy hollow.rfl" },
+    maps: [{ title: "Sleepy Hollow", filename: "dm-sleepy hollow.rfl" }],
+  });
+  assert.match(system, /What its mapper wrote about it: An old map of mine inspired by the 1999 film Sleepy Hollow/);
+});

@@ -61,7 +61,10 @@ export type Persona = {
   maxLength: number;
 };
 
-type MapNote = { author: string; about: string };
+/** From scripts/build-map-notes.mjs: a line for lists, and the mapper's fuller words when there are any. */
+type MapNote = { author: string; about: string; story?: string };
+/** The most the mapper said about a map: its story, or its line. */
+const fullest = (note: MapNote | null) => note?.story || note?.about || "";
 const NOTES = MAP_NOTES as Record<string, MapNote>;
 
 export function noteFor(entry: MapEntry | null): MapNote | null {
@@ -145,6 +148,28 @@ const EVERYDAY_WORDS = new Set([
   "place", "space", "world", "house", "small", "large", "little", "great", "super", "final", "arena", "games",
 ]);
 
+/**
+ * Players on the server now whose name is a mapper's: "!! BATEMAN !!" is
+ * probably BATEMAN, who made Sleepy Hollow. By a whole word of the name, five
+ * letters or more and not an everyday word, so "Default" is nobody.
+ */
+export function mappersOnServer(context: GhostContext): Map<string, { author: string; titles: string[] }> {
+  const found = new Map<string, { author: string; titles: string[] }>();
+  const tokens = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 5 && !EVERYDAY_WORDS.has(word) && !NAME_WORDS.has(word));
+  for (const player of context.humans) {
+    const mine = new Set(tokens(player));
+    if (!mine.size) continue;
+    for (const entry of context.maps) {
+      const author = noteFor(entry)?.author ?? "";
+      if (!tokens(author).some((word) => mine.has(word))) continue;
+      const known = found.get(player) ?? { author, titles: [] };
+      if (known.author.toLowerCase() === author.toLowerCase()) known.titles.push(entry.title);
+      found.set(player, known);
+    }
+  }
+  return found;
+}
+
 export type MapperMention = { called: string; maps: { title: string; about: string }[] };
 
 export function mappersMentioned(context: GhostContext): Map<string, MapperMention> {
@@ -213,6 +238,9 @@ const HALLOWEEN: Persona = {
       "- Engage. Have opinions and share them: say what you like about a map or a mapper, bring",
       "  up a detail, ask what they think. When someone tells you something, react to it and",
       "  build on it; never just say thanks for the info.",
+      "- Be the server's historian in the making: curious about the maps and the people who",
+      "  made them, the stories behind the maps and the community's past. When a mapper is on,",
+      "  ask them about their maps. Keep what you learn (NOTE and LORE below).",
       "- Bring the Halloween spirit, lightly. Now and then (not every line) slip in a ghost or",
       "  Halloween pun (boo, spooky, ghoul, fang-tastic, having a wail of a time), and chat about",
       "  Halloween itself: costumes, candy, horror movies, their plans for the night. Never the",
@@ -264,7 +292,7 @@ const HALLOWEEN: Persona = {
       `- ${context.maps.length} Halloween maps, all listed at RedFaction4You.com/halloween`,
       `- Playing now: ${describe(context.playing)}.`,
     ];
-    if (playingNote?.about) lines.push(`  About it: ${playingNote.about}`);
+    if (fullest(playingNote)) lines.push(`  What its mapper wrote about it: ${fullest(playingNote)}`);
     if (context.next) lines.push(`- Next up: ${describe(context.next)}.`);
     if (wantsMapList(context)) {
       lines.push(
@@ -334,10 +362,13 @@ export function promptFor(context: GhostContext): string {
   const named = mapsMentioned(context)
     .map((entry) => {
       const note = noteFor(entry);
-      return `They mention the map ${entry.title}${note?.author ? ` by ${note.author}` : ""}${note?.about ? ` (${note.about})` : ""}.`;
+      return `They mention the map ${entry.title}${note?.author ? ` by ${note.author}` : ""}${fullest(note) ? ` (its mapper wrote: ${fullest(note)})` : ""}.`;
     })
     .join(" ");
-  const hints = [mappers, named].filter(Boolean).join(" ");
+  const makers = [...mappersOnServer(context)]
+    .map(([player, { author, titles }]) => `${player}, who is on now, may be the mapper ${author}, who made ${titles.join(" and ")} here. If so, be curious: ask about the story behind their maps, and note what they tell you.`)
+    .join(" ");
+  const hints = [mappers, named, makers].filter(Boolean).join(" ");
 
   // Beside the task, because left in the system prompt the model never wrote a
   // note (live, 26 September: "i run a little server called ghosttown" went unnoted).
