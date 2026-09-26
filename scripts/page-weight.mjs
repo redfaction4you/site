@@ -15,10 +15,6 @@ const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
 const paths = [
   ...new Set([
     "/",
-    "/players",
-    "/players/pairings",
-    "/stats",
-    "/analyst",
     ...[...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname),
   ]),
 ];

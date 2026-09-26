@@ -3,21 +3,20 @@ import Link from "next/link";
 import { SERVERS } from "@/lib/servers";
 
 /**
- * The four servers as tabs.
+ * The three servers as tabs.
  *
  * Links, not client state, which is the same trade every other control on this
  * site makes: each tab is a real URL somebody can paste into Discord, it works
  * before any JavaScript loads, and the browser's back button does what a person
  * expects. The tab strip is rendered by each server page rather than by a
- * layout, so `/servers/map-packs` is not accidentally wrapped in it.
+ * layout, so nothing else under `/servers` is accidentally wrapped in it.
  *
- * Drawn as buttons rather than underlined words, for the reason `GameTabs`
- * records: the first version of that was small text and the owner could not tell
- * they were controls.
+ * Drawn as buttons rather than underlined words: the first tabs on this site
+ * were small text and the owner could not tell they were controls.
  *
- * **The label is the bracket, not the whole name.** Four tabs each reading
- * "RedFaction4You.com (...)" is four copies of the site's own name and one word
- * of information, and on a phone it wraps to four lines.
+ * **The label is the distinguishing word, not the whole name.** Three tabs
+ * each reading "RF4U - ..." is three copies of the site's own name and one word
+ * of information, and on a phone it wraps.
  */
 export function ServerTabs({ active }: { active: string }) {
   return (
@@ -45,7 +44,12 @@ export function ServerTabs({ active }: { active: string }) {
   );
 }
 
-/** "RedFaction4You.com (Halloween)" reads as "Halloween" on a tab. */
+/**
+ * "RF4U - Halloween" reads as "Halloween" on a tab.
+ *
+ * Also takes the older "RedFaction4You.com (Halloween)" form, which is what the
+ * server browser still shows for a server whose config has not been renamed.
+ */
 export function shortName(name: string): string {
-  return name.match(/\(([^)]+)\)\s*$/)?.[1] ?? name;
+  return name.match(/\(([^)]+)\)\s*$/)?.[1] ?? name.replace(/^RF4U\s*-\s*/i, "");
 }

@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 
 import { ServerTabs } from "@/components/server-tabs";
-import { getMapPack } from "@/lib/map-packs";
-import { getServerStatus } from "@/lib/server-status";
-import { nextInRotation, positionInRotation, rotationFrom } from "@/lib/server-rotation";
+import { rotationForServer } from "@/lib/map-packs";
+import { getServerStatus, nowPlaying } from "@/lib/server-status";
+import { nextAfter, positionOfLevel, rotationStartingAt } from "@/lib/server-rotation";
 import {
   SERVERS,
   serverAddress,
@@ -47,15 +47,15 @@ function clock(seconds: number): string {
 /**
  * One server, everything about it.
  *
- * A page each rather than tabs on one page, because these are four different
- * things a person arrives at from four different places: somebody who wants the
- * Halloween map pack has no use for the match server's scoreboard, and a tab is
- * not a URL you can put in a Discord message.
+ * A page each rather than tabs on one page, because these are three different
+ * things a person arrives at from three different places: somebody who wants
+ * the Halloween maps has no use for the Themed list, and a tab is not a URL you
+ * can put in a Discord message.
  *
- * **Live status comes from the FactionFiles server browser, not from us.** The
- * two pub servers run no broadcaster and record nothing, so there is nothing on
- * that machine for this page to ask. Asking the browser by host and port is what
- * makes a play-only server cost nothing to show.
+ * **Live status comes from the FactionFiles server browser, not from us.** None
+ * of these servers runs a broadcaster or records anything, so there is nothing
+ * on that machine for this page to ask. Asking the browser by host and port is
+ * what makes a play-only server cost nothing to show.
  *
  * **Where the order is trustworthy and where it is not**: see
  * `server-rotation.ts`. The short version is that Alpine reshuffles a rotation
@@ -69,15 +69,17 @@ export default async function ServerPage({ params }: Props) {
   const address = serverAddress(server);
   const [status, pack] = await Promise.all([
     address ? getServerStatus(address) : Promise.resolve({ state: "unknown" as const, reason: "No server address configured." }),
-    server.packSlug ? getMapPack(server.packSlug) : Promise.resolve(null),
+    rotationForServer(server),
   ]);
 
   const online = status.state === "online" ? status : null;
   const maps = pack?.maps ?? [];
-  const playing = online?.mapInfo?.name ?? online?.map ?? null;
-  const at = positionInRotation(playing, maps);
-  const next = nextInRotation(playing, maps);
-  const ordered = rotationFrom(playing, maps);
+  const playing = nowPlaying(status, maps);
+  // Placed once, by the exact level file first, and everything below reads
+  // that one position. See `positionOfLevel` for the collision this avoids.
+  const at = positionOfLevel(online?.levelFile, playing, maps);
+  const next = nextAfter(at, maps);
+  const ordered = rotationStartingAt(at, maps);
 
   return (
     <div
@@ -85,9 +87,9 @@ export default async function ServerPage({ params }: Props) {
       className="mx-auto max-w-5xl px-4 pb-16"
     >
       {/*
-        One heading for all four, then the tabs, then the one you are on.
+        One heading for all three, then the tabs, then the one you are on.
 
-        The alternative was a hub page listing four cards and a page behind each,
+        The alternative was a hub page listing three cards and a page behind each,
         which is one more click to reach the thing everybody wants and puts the
         map list two pages deep. Tabs are still links, so nothing is lost: every
         server remains a URL that can be pasted.
@@ -154,7 +156,7 @@ export default async function ServerPage({ params }: Props) {
               <div className="min-w-0">
                 <p className="eyebrow server-accent">Playing now</p>
                 <p className="mt-0.5 font-display text-xl font-bold leading-tight text-steel-100">
-                  {online.mapInfo?.name ?? online.map ?? "an unnamed level"}
+                  {playing ?? "an unnamed level"}
                 </p>
                 {/*
                   Where it is in the rotation, and what follows it, on one line.
@@ -196,9 +198,9 @@ export default async function ServerPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Who is actually in there. The whole question somebody opens
-                this page to answer, and it is free: the browser already
-                returns it beside the level. */}
+            {/* Who is actually in there, by name and nothing else. The kill
+                count beside each name went with the rest of the stats on
+                25 September 2026. */}
             {online.game?.players?.length ? (
               <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-basalt-800 pt-2.5">
                 {online.game.players.map((player, index) => (
@@ -207,9 +209,6 @@ export default async function ServerPage({ params }: Props) {
                     className="font-mono text-sm text-steel-200"
                   >
                     {player.name}
-                    <span className="ml-1.5 text-steel-600 tabular-nums">
-                      {player.kills}
-                    </span>
                   </li>
                 ))}
               </ul>
@@ -309,8 +308,8 @@ export default async function ServerPage({ params }: Props) {
           </ol>
 
           <p className="mt-4 text-xs leading-relaxed text-steel-500">
-            Every title links to its page on FactionFiles, which is where the
-            file lives. Nothing here is hosted by us.
+            Every title links to where the map can be downloaded. Most live on
+            FactionFiles; the few hosted here link to their page on this site.
           </p>
         </section>
       ) : null}

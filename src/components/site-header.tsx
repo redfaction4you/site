@@ -39,22 +39,10 @@ export async function SiteHeader() {
           `lg`, not `md`, because that is where the row actually fits.
 
           Measured rather than chosen, and measured again every time the row
-          changes length. Downloads once made it nine links and that was the
-          tight case: at 1024 the wordmark 109 pixels, the nine links and their
-          gaps 661, the search and the two menus 169, the two gaps between those
-          three groups 45, which is 984 laid into the 979 the row has between
-          its own padding, the last five pixels coming out of the right padding
-          rather than off the side of the screen.
-
-          Hiding the match record's Maps on 9 September 2026 took it to eight,
-          measured the same way: 109, 605, 169 and 45, so 928 into 979 and 52
-          pixels of slack. No horizontal scrollbar at 1024, and none at 820,
-          where the scroller below takes over.
-
-          The slack is one short label rather than a free slot, and `nav.ts`
-          keeps the working beside `VISIBLE_NAV`. Before any of this was
-          measured the row was switched on at 768 and ran off the side between
-          the two widths, giving every page on the site 84 pixels of horizontal
+          changes length. It once carried nine links and fitted at 1024 with five
+          pixels to spare; it carries three now. Before any of this was measured
+          the row was switched on at 768 and ran off the side between the two
+          widths, giving every page on the site 84 pixels of horizontal
           scrollbar at 820.
         */}
         <nav
@@ -73,37 +61,14 @@ export async function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          {/*
-            One box for the whole archive, in the one place that is on every
-            page. A plain form with a GET action, so it needs no JavaScript, the
-            browser's own history remembers what was searched, and every result
-            page is a URL somebody can paste.
-
-            Narrow on purpose: it is a way in, not the point of the header, and
-            it grows when it has focus so a long name is still readable while
-            being typed.
-          */}
-          <form action="/search" className="hidden sm:block">
-            <input
-              type="search"
-              name="q"
-              placeholder="Search"
-              aria-label="Search the archive"
-              className="w-28 rounded-sm border border-basalt-700 bg-basalt-900 px-2.5 py-1 text-xs text-steel-200 transition-all placeholder:text-steel-600 focus:w-52 focus:border-rust-500 focus:outline-none"
-            />
-          </form>
           <ThemeToggle />
           <UserMenu session={session} />
         </div>
       </div>
 
       {/*
-        Mobile nav. A horizontal scroller beats a hamburger for a row this
-        long, and it carries eight: Pairings came up from the strip that used to
-        sit under this one, Downloads was added with the catalogue, and the
-        match record's Maps was hidden in September. The Search link at the end
-        makes nine items in the row, since the box in the header above is hidden
-        below `sm`.
+        Mobile nav. A horizontal scroller rather than a hamburger, so every
+        entry is one tap away and the row can grow without a redesign.
       */}
       <nav
         aria-label="Main, compact"
@@ -118,14 +83,6 @@ export async function SiteHeader() {
             {item.label}
           </Link>
         ))}
-        {/* The box is hidden at this width, so the link stands in for it rather
-            than leaving a phone with no way to search at all. */}
-        <Link
-          href="/search"
-          className="flex shrink-0 items-center rounded-sm px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-rust-400 hover:text-rust-300"
-        >
-          Search
-        </Link>
       </nav>
 
       <div className="hazard" aria-hidden="true" />

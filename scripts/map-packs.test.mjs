@@ -128,13 +128,14 @@ test("runs of whitespace collapse, so a line cannot arrive ragged", () => {
 test("a pack with no message of its own gets one written from it", () => {
   const message = welcomeFor({
     name: "Stock Favourites",
+    server: "themed",
     welcomeMessage: null,
     maps: [{ filename: "a.rfl" }, { filename: "b.rfl" }, { filename: "c.rfl" }],
   });
   assert.match(message, /^Now playing: Stock Favourites - 3 maps\./);
-  // It used to end by pointing at the map list. It points at the stats now,
-  // because what a newcomer needs to know is that they are being recorded.
-  assert.match(message, /RedFaction4You\.com\/stats$/);
+  // It ends on the server's own page, which is where the whole list is. From
+  // 10 August it pointed at the stats instead; stats stopped on 25 September.
+  assert.match(message, /RedFaction4You\.com\/themed$/);
 });
 
 test("one map is not 1 maps", () => {
@@ -216,6 +217,10 @@ test("a null server name is not the same as an empty one", () => {
  * rather than where the map list is. The old value was f28453bc947e4e87 against
  * three levels and the old wording. Anything else moving this is a refactor
  * quietly telling the DM server to restart.
+ *
+ * Updated deliberately again on 25 September 2026, when RF4U stopped recording
+ * stats: the generated welcome went back to pointing at the server's own page.
+ * The value before that was fb2c1151039e3f49.
  */
 test("the fingerprint of the live pack has not moved", () => {
   assert.equal(
@@ -223,10 +228,10 @@ test("the fingerprint of the live pack has not moved", () => {
       slug: "stock-favourites",
       serverName: "RedFaction4You.com [DM] - Stock Favourites",
       welcomeMessage:
-        "Now playing: Stock Favourites - 2 maps. All play here is recorded and ranked on time played. Your stats: RedFaction4You.com/stats",
+        "Now playing: Stock Favourites - 2 maps. Every map on this server: RedFaction4You.com/themed",
       levels: ["dm04.rfl", "dm07.rfl"],
     }),
-    "fb2c1151039e3f49",
+    "1dc5a9efdef00ad3",
   );
 });
 
@@ -236,26 +241,46 @@ test("the welcome message a pack writes for itself matches the live one", () => 
   assert.equal(
     welcomeFor({
       name: "Stock Favourites",
+      server: "themed",
       welcomeMessage: null,
       maps: [
         { filename: "dm04.rfl", title: "Badlands" },
         { filename: "dm07.rfl", title: "High Rise" },
       ],
     }),
-    "Now playing: Stock Favourites - 2 maps. All play here is recorded and ranked on time played. Your stats: RedFaction4You.com/stats",
+    "Now playing: Stock Favourites - 2 maps. Every map on this server: RedFaction4You.com/themed",
   );
 });
 
-test("the welcome says how this server records, not how the match server does", () => {
-  // The distinction a newcomer actually needs. DM records everything and ranks
-  // on time; the match server only records inside a started match. Saying the
-  // wrong one is worse than saying nothing.
+test("the generated welcome sends people to the server's own page", () => {
+  for (const server of ["themed", "novelty", "halloween"]) {
+    const welcome = welcomeFor({
+      name: "Anything",
+      server,
+      welcomeMessage: null,
+      maps: [{ filename: "a.rfl" }],
+    });
+    assert.ok(welcome.endsWith(`RedFaction4You.com/${server}`), welcome);
+  }
+});
+
+test("with no server named, the generated welcome still lands somewhere", () => {
   const welcome = welcomeFor({
     name: "Anything",
     welcomeMessage: null,
     maps: [{ filename: "a.rfl" }],
   });
-  assert.match(welcome, /recorded/);
-  assert.match(welcome, /time played/);
-  assert.match(welcome, /RedFaction4You\.com\/stats/);
+  assert.ok(welcome.endsWith("RedFaction4You.com/servers"), welcome);
+});
+
+test("the generated welcome promises no stats", () => {
+  // RF4U stopped recording on 25 September 2026. A server telling everybody who
+  // joins that they are recorded and ranked would be untrue on arrival.
+  const welcome = welcomeFor({
+    name: "Anything",
+    server: "themed",
+    welcomeMessage: null,
+    maps: [{ filename: "a.rfl" }],
+  });
+  assert.doesNotMatch(welcome, /record|ranked|stats/i);
 });

@@ -159,6 +159,40 @@ export const activeMapPack = cache(async function activeMapPack(
   return activePackFromDb(server);
 });
 
+/**
+ * The rotation a server is running: whichever of its packs is switched on,
+ * falling back to the pack `servers.ts` names for it.
+ *
+ * The server page read the named pack only, so switching a server to a
+ * different pack in the admin changed what the server played and not what the
+ * site listed. The active lookup is cached for an hour; the fallback covers a
+ * server with nothing switched on, which should not happen and should not
+ * empty its page if it does. The front page and the server pages both call
+ * this, so they cannot disagree about which list is live.
+ */
+export async function rotationForServer(server: {
+  slug: string;
+  packSlug: string;
+}): Promise<MapPack | null> {
+  return (await activeMapPack(server.slug)) ?? (await namedPackFromDb(server.packSlug));
+}
+
+/**
+ * The fallback read, cached the same way as the active one.
+ *
+ * `getMapPack` is deduplicated per request and no further, so a server with
+ * nothing switched on would have read Neon on every visit to the front page and
+ * to its own page, which is the cost the front page promises not to have.
+ */
+const namedPackFromDb = unstable_cache(
+  async (slug: string): Promise<MapPack | null> => {
+    const [row] = await db.select(columns).from(mapPacks).where(eq(mapPacks.slug, slug));
+    return row ?? null;
+  },
+  ["named-map-pack"],
+  { tags: [MAP_PACKS_CACHE_TAG], revalidate: 3600 },
+);
+
 /** The pack currently on, as the VPS applies it. Null means "leave it alone". */
 export async function activeMapPackForServer(
   server: string,

@@ -1,9 +1,9 @@
 # Types, lint and tests on every push.
 #
-# The tests include the query guard, which is the check that would have caught
-# the bug this file was added for: a filter applied to nine queries and missed on
-# the tenth, so a night's header and the scoreboard under it disagreed by twelve
-# frags on a published page.
+# It was added for a bug in the match archive, retired on 25 September 2026: a
+# filter applied to nine queries and missed on the tenth, so a published page
+# disagreed with itself. The same checks now guard the server pages, the
+# rotations and the catalogue.
 #
 # No secrets and no database. Everything here runs on the source alone, which is
 # what keeps it fast enough to be worth having on every push.

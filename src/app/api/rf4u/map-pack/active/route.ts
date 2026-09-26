@@ -10,7 +10,8 @@ import { activeMapPackForServer } from "@/lib/map-packs";
  * they differ. Everything else in that config — the rules, the votes, the rcon
  * password — it never touches.
  *
- * Authenticated with the same secret as the archive ingest. Nothing here is
+ * Authenticated with the VPS secret, which the archive ingest also used until
+ * it was retired on 25 September 2026. Nothing here is
  * private, but an unauthenticated endpoint that drives a server restart is a
  * lever left where anybody can pull it: the applier reads this and then stops
  * a game server.

@@ -102,3 +102,41 @@ test("reordering does not mutate the rotation it was given", () => {
   rotationFrom("Sky Kingdom 2", ROTATION);
   assert.deepEqual(ROTATION.map((m) => m.filename), before);
 });
+
+/* --- placing by the exact file ------------------------------------------- */
+
+import { nextAfter, positionOfLevel, rotationStartingAt } from "../src/lib/server-rotation.ts";
+
+test("the exact level file wins over a title that folds to it", () => {
+  // Measured 25 September 2026: a v2 file keeping the v1 internal name. Title
+  // first put the marker on dm-nemo2 while the server was on dm-nemo.
+  const maps = [
+    { filename: "dm-a.rfl", title: "A" },
+    { filename: "dm-nemo2.rfl", title: "DM-Nemo" },
+    { filename: "dm-b.rfl", title: "B" },
+    { filename: "dm-nemo.rfl", title: "DM-Nemo" },
+    { filename: "dm-c.rfl", title: "C" },
+  ];
+  const at = positionOfLevel("DM-Nemo.rfl", "DM-Nemo", maps);
+  assert.equal(at, 3);
+  assert.equal(nextAfter(at, maps)?.filename, "dm-c.rfl");
+  assert.equal(rotationStartingAt(at, maps)[0].filename, "dm-nemo.rfl");
+});
+
+test("without a file it falls back to the name, as before", () => {
+  const maps = [
+    { filename: "dm-a.rfl", title: "Alpha" },
+    { filename: "dm-b.rfl", title: "Bravo" },
+  ];
+  assert.equal(positionOfLevel(null, "Bravo", maps), 1);
+  assert.equal(positionOfLevel("not-listed.rfl", "Alpha", maps), 0);
+  assert.equal(positionOfLevel(null, null, maps), null);
+});
+
+test("no position means no next and an unchanged list", () => {
+  const maps = [{ filename: "a.rfl" }, { filename: "b.rfl" }];
+  assert.equal(nextAfter(null, maps), null);
+  assert.equal(nextAfter(0, [{ filename: "only.rfl" }]), null);
+  assert.equal(rotationStartingAt(null, maps), maps);
+  assert.equal(nextAfter(1, maps)?.filename, "a.rfl");
+});

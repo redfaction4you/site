@@ -1,14 +1,12 @@
 /**
  * Machine readable health, for an uptime monitor to poll.
  *
- * Answers 200 when the pipeline is running and 503 when it is not, because
- * that is the difference a monitor can act on. Free services like UptimeRobot
- * will email when a URL starts returning 503, which turns a silent failure
- * into a message. That is the whole point: nothing here alerts anyone today,
- * so a stopped sync is only found by someone wondering where last night went.
+ * Answers 200 when the nightly backup is current and the database answers, and
+ * 503 when either is not, because that is the difference a monitor can act on.
+ * Free services like UptimeRobot email when a URL starts returning 503, which
+ * turns a silent failure into a message.
  *
- * Public and deliberately dull. Match counts and timestamps, nothing about
- * players, no secrets, nothing an attacker gains from.
+ * Public and deliberately dull: two timestamps and a count, no secrets.
  */
 import { getHealth } from "@/lib/health";
 

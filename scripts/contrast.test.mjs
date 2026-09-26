@@ -76,12 +76,6 @@ const MUST_BE_CLEAN = [
   // ordinal under every thumbnail and the stored caption, all of it small and
   // all of it tempting towards a dimmer grey.
   "components/screenshot-upload.tsx",
-  // The front page's arrivals block, 9 September 2026. It replaced a rail strip
-  // whose first draft used steel-500 for the shelf line and steel-600 for the
-  // date, copied off the leaderboard beside it, and this ratchet is what caught
-  // them. The replacement is in the main column at reading size, where a dim
-  // grey would be worse still.
-  "components/new-arrivals.tsx",
   // The transfer mechanism both upload screens now share. It renders nothing
   // itself, so today it can only fail this by accident, which is the point:
   // the refusal sentences it returns end up as body text on whichever screen
@@ -101,7 +95,9 @@ const MUST_BE_CLEAN = [
  *
  * Lower this when you fix a page. Never raise it.
  */
-const BASELINE = 343;
+// 343 until 25 September 2026, when the stats and archive pages that held most
+// of it were removed.
+const BASELINE = 34;
 
 function walk(dir) {
   const out = [];

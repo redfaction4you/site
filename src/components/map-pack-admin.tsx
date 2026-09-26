@@ -13,10 +13,11 @@ import { SERVERS } from "@/lib/servers";
 /**
  * Map packs, managed.
  *
- * A pack is a themed rotation for the deathmatch server: one mapper's work, a
- * Halloween set, whatever is wanted next. Switching one on rewrites three
- * fields of that server's config and restarts it, and nothing else about the
- * server changes.
+ * A pack is the rotation one server runs: one mapper's work, a Halloween set,
+ * whatever is wanted next. Exactly one pack is on per server. For Themed,
+ * switching one on rewrites three fields of that server's config and restarts
+ * it, and nothing else about the server changes; see the note on the panel for
+ * why Novelty and Halloween are different.
  *
  * The maps go in as text, one per line, because a pack is twenty filenames and
  * the fastest way to enter twenty filenames is to paste twenty lines. The
@@ -48,72 +49,88 @@ export function MapPackAdmin({
   /** The pack `?pack=<slug>` asked to edit, loaded into the form below. */
   editing: MapPack | null;
 }) {
-  const active = packs.find((pack) => pack.active) ?? null;
+  // One entry per server, because exactly one pack is on per server. This
+  // showed the first active pack in the table and nothing else, which was the
+  // same answer while only Themed took packs and hid two servers after that.
+  const onNow = SERVERS.map((server) => ({
+    server,
+    pack: packs.find((pack) => pack.active && pack.server === server.slug) ?? null,
+  }));
 
   return (
     <div className="mt-10 border-t border-basalt-800 pt-6">
-      <h3 className="rule-heading">Deathmatch map packs</h3>
+      <h3 className="rule-heading">Map packs</h3>
       <p className="mt-2 max-w-4xl text-sm leading-relaxed text-steel-400">
-        A themed rotation for the DM server. Switching one on changes the level
-        list, what the server calls itself and the message players see when they
-        join &mdash; nothing else about the server moves.{" "}
+        The rotation each server runs. Switching one on changes the level list,
+        what the server calls itself and the message players see when they
+        join, and nothing else about the server.{" "}
         <strong className="text-steel-400">
-          The server picks it up on its nightly pass, around 4am Pacific
+          Themed picks it up on its nightly pass, around 4am Pacific
         </strong>
-        , and only while nobody is playing, so a change never kicks anybody.
-        Packs change a few times a season, so the applier checks once a day
-        rather than around the clock; to land one sooner, start the{" "}
-        <code>RF4U DM Map Pack</code> task on the VPS by hand.{" "}
-        <Link href="/servers/map-packs" className="text-steel-400 hover:text-rust-300">
-          The public page
-        </Link>{" "}
-        shows whichever is on.
+        , and only while nobody is playing, so a change never kicks anybody; to
+        land one sooner, start the <code>RF4U DM Map Pack</code> task on the
+        VPS by hand.{" "}
+        <strong className="text-steel-400">
+          Novelty and Halloween are not applied automatically.
+        </strong>{" "}
+        Their configs on the VPS are edited by hand, so switching a pack on
+        here changes the list on their page and not what they play until the
+        config is changed to match. Each server&rsquo;s page shows whichever
+        pack is on.
       </p>
 
-      {active ? (
-        <div className="plate mt-4 border-l-2 border-l-rust-500 p-3">
-          <p className="text-sm text-steel-200">
-            <span className="font-semibold">{active.name}</span> is on
-            {active.activatedAt ? (
-              <span className="text-steel-500">
-                {" "}
-                since {active.activatedAt.slice(0, 10)}
-              </span>
-            ) : null}
-          </p>
-          <p className="mt-1 font-mono text-xs text-steel-500">
-            {active.maps.length} maps · server name:{" "}
-            {active.serverName ?? <span className="text-steel-400">unchanged</span>}
-          </p>
-          <p className="mt-1 text-xs leading-snug text-steel-400">
-            Welcome message: &ldquo;{welcomeFor(active)}&rdquo;
-          </p>
-          <form action={deactivateMapPacks} className="mt-2">
-            <button
-              type="submit"
-              className="rounded-sm border border-basalt-600 px-3 py-1 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
-            >
-              Switch off
-            </button>
-          </form>
-          <p className="mt-1.5 text-xs leading-snug text-steel-400">
-            Switching off leaves the server exactly as it is. It does not put a
-            previous rotation back, because this only knows what it set. The
-            pack cannot be deleted while it is on, so that the site never
-            forgets a rotation the server is still running.
-          </p>
-          {/* Not obvious from the button, and it throws away a real reading. */}
-          <p className="mt-1 text-xs leading-snug text-steel-400">
-            Switching a pack on again restarts its clock: the figures on the
-            public page are counted from the moment it was last activated.
-          </p>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-steel-500">
-          No pack is on. The DM server is running whatever rotation it was last
-          given.
-        </p>
-      )}
+      <ul className="mt-4 space-y-3">
+        {onNow.map(({ server, pack }) => (
+          <li key={server.slug}>
+            {pack ? (
+              <div className="plate border-l-2 border-l-rust-500 p-3">
+                <p className="text-sm text-steel-200">
+                  <Link
+                    href={`/servers/${server.slug}`}
+                    className="text-steel-400 hover:text-rust-300"
+                  >
+                    {server.name}
+                  </Link>
+                  : <span className="font-semibold">{pack.name}</span> is on
+                  {pack.activatedAt ? (
+                    <span className="text-steel-500">
+                      {" "}
+                      since {pack.activatedAt.slice(0, 10)}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="mt-1 font-mono text-xs text-steel-500">
+                  {pack.maps.length} maps · server name:{" "}
+                  {pack.serverName ?? <span className="text-steel-400">unchanged</span>}
+                </p>
+                <p className="mt-1 text-xs leading-snug text-steel-400">
+                  Welcome message: &ldquo;{welcomeFor(pack)}&rdquo;
+                </p>
+                <form action={deactivateMapPacks} className="mt-2">
+                  <input type="hidden" name="server" value={server.slug} />
+                  <button
+                    type="submit"
+                    className="rounded-sm border border-basalt-600 px-3 py-1 font-display text-xs uppercase tracking-wider text-steel-300 hover:border-rust-500 hover:text-rust-300"
+                  >
+                    Switch off
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <p className="text-sm text-steel-500">
+                {server.name}: no pack is on. It is running whatever rotation it
+                was last given.
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs leading-snug text-steel-400">
+        Switching off leaves that server exactly as it is. It does not put a
+        previous rotation back, because this only knows what it set. A pack
+        cannot be deleted while it is on, so that the site never forgets a
+        rotation a server is still running.
+      </p>
 
       {packs.length > 0 ? (
         <ul className="mt-4 space-y-2">
@@ -160,7 +177,7 @@ export function MapPackAdmin({
                   // round trip and reads as a rule rather than a rejection.
                   title={
                     pack.active
-                      ? "Switch it off first — this is the rotation the server is running"
+                      ? "Switch it off first: this is the rotation the server is running"
                       : "Delete this pack"
                   }
                 >
@@ -222,7 +239,7 @@ export function MapPackAdmin({
           </div>
           <div>
             <label className={LABEL} htmlFor="pack-slug">
-              Slug — blank to derive from the name
+              Slug: blank to derive from the name
             </label>
             <input
               id="pack-slug"
@@ -247,8 +264,7 @@ export function MapPackAdmin({
 
           A default of `themed` rather than a blank first option, because a pack
           has to belong to a server and the form should not be able to submit a
-          state the action refuses. Only servers that take a pack are offered:
-          Match's rotation is curated by hand and nothing applies a pack to it.
+          state the action refuses. Every server in servers.ts takes a pack.
         */}
         <div>
           <label className={LABEL} htmlFor="pack-server">
@@ -265,7 +281,7 @@ export function MapPackAdmin({
             defaultValue={editing?.server ?? "themed"}
             className={FIELD}
           >
-            {SERVERS.filter((server) => server.packSlug !== null).map((server) => (
+            {SERVERS.map((server) => (
               <option key={server.slug} value={server.slug}>
                 {server.name}
               </option>
@@ -275,7 +291,7 @@ export function MapPackAdmin({
 
         <div>
           <label className={LABEL} htmlFor="pack-server-name">
-            Server name while it is on — blank leaves it alone
+            Server name while it is on: blank leaves it alone
           </label>
           {/* Worth reading before typing in this box. The applier writes this
               straight into rf4u-dm.toml, so a pack carrying an old name silently
@@ -303,14 +319,14 @@ export function MapPackAdmin({
             and both go through asciiForGame on the way out. */}
         <div>
           <label className={LABEL} htmlFor="pack-welcome">
-            Welcome message — blank writes one from the pack
+            Welcome message: blank writes one from the pack
           </label>
           <input
             id="pack-welcome"
             name="welcomeMessage"
             maxLength={300}
             defaultValue={editing?.welcomeMessage ?? ""}
-            placeholder="Now playing: Halloween 2026 — 10 maps."
+            placeholder="Now playing: Halloween 2026, 10 maps."
             className={FIELD}
           />
         </div>
@@ -352,23 +368,15 @@ export function MapPackAdmin({
             it and quietly run a shorter rotation. Lines starting with{" "}
             <code className="text-steel-500">#</code> are ignored.
           </p>
-          {/* The title is not decoration: it is the join between a pack and the
-              archive, and an entry without one goes figureless on the public
-              page. Worth saying on the form rather than in a handoff. */}
+          {/* The title is not decoration: it is what the server page prints,
+              and what it looks for when it marks the map playing now. Worth
+              saying on the form rather than in a handoff. */}
           <p className="mt-1.5 text-xs leading-snug text-steel-400">
             <strong className="text-steel-500">Give every map a title.</strong>{" "}
-            The server reports a map by its display name and never by its
-            filename, so the title is how a map is matched to what has been
-            played on it. Without one it shows on{" "}
-            <Link
-              href="/servers/map-packs"
-              className="text-steel-500 hover:text-rust-300"
-            >
-              the public page
-            </Link>{" "}
-            with no time, no rounds and no frags. Author and link are for custom
-            maps: a player whose client cannot fetch a map has no other way to
-            get it.
+            It is what the server page lists, and how that page marks the map
+            playing now when the server reports a name rather than a filename.
+            Author and link are for custom maps: a player whose client cannot
+            fetch a map has no other way to get it.
           </p>
         </div>
 

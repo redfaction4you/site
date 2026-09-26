@@ -21,7 +21,8 @@ FactionFiles cannot be corrected or withdrawn by the person who made it, and for
 a community whose maps are most of its history that is the wrong way round. This
 is the mechanism that lets an author keep their own work.
 
-It is not about coverage. All 372 maps across our four servers already resolve
+It is not about coverage. All 372 maps across our servers (four at the time, three since 25 September
+2026) already resolve
 through FactionFiles, so nobody joining is stuck today.
 
 ## The endpoints

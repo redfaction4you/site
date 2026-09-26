@@ -87,33 +87,35 @@ export function asciiForGame(value: string): string {
  *
  * Written from the pack when it has no message of its own, because typing the
  * map list twice is how the two come to disagree. Kept to one line: this is
- * printed into a chat area, not a page. ASCII only — see `asciiForGame`.
+ * printed into a chat area, not a page. ASCII only, see `asciiForGame`.
  */
 export function welcomeFor(pack: {
   name: string;
+  /** Which server runs the pack, so the message can send people to its page. */
+  server?: string | null;
   welcomeMessage?: string | null;
   maps: MapPackEntry[];
 }): string {
   if (pack.welcomeMessage?.trim()) return asciiForGame(pack.welcomeMessage);
   const count = pack.maps.length;
   /*
-   * The generated one says how stats work here, not just what is playing.
+   * What is playing, and where to find the rest of the list.
    *
-   * Asked for on 10 August: somebody joining should know straight away that
-   * they are being recorded and where to look. It is written here rather than
-   * into a pack's own `welcomeMessage` field on purpose — a per-pack string
-   * freezes to that pack, and the next pack somebody makes silently loses it.
+   * It said how stats worked here from 10 August until 25 September 2026, when
+   * RF4U stopped recording stats: "All play here is recorded ... Your stats:
+   * RedFaction4You.com/stats". A server repeating that to every newcomer after
+   * the recording stopped would be telling them something untrue on arrival.
+   * It is written here rather than into a pack's own `welcomeMessage` on
+   * purpose: a per-pack string freezes to that pack, and the next pack somebody
+   * makes silently loses it.
    *
-   * **The wording differs from the match server's on purpose.** Everything on
-   * this server is recorded whether or not a match is running, and the board is
-   * ranked on time played; the match server only records inside a started
-   * match. Telling a newcomer the wrong one of those is worse than telling them
-   * nothing.
+   * The link is to the server's own page, which lists every map in the pack.
+   * Without a server, the servers index still lands somewhere useful.
    */
+  const page = pack.server ? `RedFaction4You.com/${pack.server}` : "RedFaction4You.com/servers";
   return asciiForGame(
     `Now playing: ${pack.name} - ${count} ${count === 1 ? "map" : "maps"}. ` +
-      `All play here is recorded and ranked on time played. ` +
-      `Your stats: RedFaction4You.com/stats`,
+      `Every map on this server: ${page}`,
   );
 }
 

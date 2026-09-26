@@ -1,263 +1,77 @@
 /**
- * Is the pipeline actually running?
+ * Is the site's own plumbing working?
  *
- * The failure that matters here is silent. If the VPS stops syncing, the site
- * keeps serving yesterday's matches and looks perfectly healthy. Nobody finds
- * out until somebody wonders why last night is missing, which could be days.
- * The same is true of the nightly backup.
+ * Two questions, both of which fail silently if nobody asks them: is the
+ * nightly backup still being taken, and does the database answer at all.
  *
- * So both are measured against how often they are supposed to happen, and
- * anything overdue is reported as such rather than left to be noticed.
+ * This used to be mostly about the match archive: whether the VPS was still
+ * syncing, whether the analyst's pieces were reaching Discord, whether the
+ * deathmatch rows contradicted themselves. RF4U stopped recording stats on
+ * 25 September 2026 and all of that went with it. Left in, every one of those
+ * checks would have turned this endpoint red within the hour for a pipeline
+ * that was switched off on purpose, and an alarm that is always on is not an
+ * alarm.
  */
 import { unstable_cache } from "next/cache";
-import { desc, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { matches, nightColumns, opinionPieces } from "@/lib/db/schema";
+import { mapPacks } from "@/lib/db/schema";
 import { listBackups } from "@/lib/backup";
-import { dmIntegrity } from "@/lib/dm/integrity";
-import { listSyncPings } from "@/lib/sync-ping";
-import { quietSince } from "@/lib/sync-freshness";
-import { serverLabel } from "@/lib/matches/server-names";
-import { discordConfigured, webhookReachable } from "@/lib/ai/discord";
-
-/**
- * The VPS syncs every fifteen minutes. Three missed in a row is a problem
- * rather than a blip, and short enough to catch the same evening.
- */
-const SYNC_STALE_MINUTES = 45;
 
 /** Backups run nightly, so a day and a half means one was skipped. */
 const BACKUP_STALE_HOURS = 36;
 
-/**
- * How long a written piece may sit unannounced before that is a fault.
- *
- * Announcing happens on the sync, one column and one opinion per run, so six
- * hours is twenty-four chances to post. Anything still waiting after that is not
- * a backlog draining, it is a pipeline that is not running.
- *
- * This exists because it went wrong for five days in the quietest possible way.
- * `DISCORD_NEWS_WEBHOOK` was set locally and never added to production, so the
- * site wrote every column and every opinion piece, queued them all, and posted
- * none. Nothing failed. `announceColumn` returned false, the row kept its null
- * `posted_at`, the next sync tried again, and the only symptom was somebody
- * eventually noticing that the write-ups had stopped appearing in Discord.
- */
-const ANNOUNCE_STALE_HOURS = 6;
-
 export type Health = {
   ok: boolean;
-  sync: {
-    /** When any server last reached the ingest, news or not. */
-    lastAt: string | null;
-    minutesAgo: number | null;
-    stale: boolean;
-    /** Servers that have gone quiet, named, with how long ago each was heard. */
-    quiet: string[];
-    /**
-     * When a row was last actually written, which is not the same thing.
-     *
-     * Kept because it is genuinely interesting — hours here with a fresh
-     * `lastAt` means the servers are talking and nothing is being played — and
-     * because it is what this check used to read, so a reader comparing the two
-     * can see why it was wrong.
-     */
-    lastWriteAt: string | null;
-  };
   backup: {
     lastAt: string | null;
     hoursAgo: number | null;
     stale: boolean;
   };
-  /**
-   * Whether what has been written is reaching Discord.
-   *
-   * `configured` is a boolean about the environment and carries no part of the
-   * webhook, which is the only thing here that could not go in a public
-   * response.
-   */
-  announce: {
-    configured: boolean;
-    /**
-     * Whether the webhook still exists at Discord. Null when it could not be
-     * asked, which is not the same as broken. See `webhookReachable`.
-     */
-    reachable: boolean | null;
-    pending: number;
-    /**
-     * Claimed but never confirmed as delivered.
-     *
-     * Distinct from `pending`, and the distinction is the point: a pending piece
-     * has not been tried yet, a failed one has been tried and lost. `posted_at`
-     * is claimed before the request goes out, so a failure leaves a row that
-     * looks posted and `pending` cannot see it. Any value above zero is a fault.
-     */
-    failed: number;
-    oldestPendingHours: number | null;
-    stale: boolean;
-  };
-  archive: {
-    matches: number;
-    nights: number;
-  };
-  /**
-   * The deathmatch archive contradicting itself, surfaced here because this is
-   * the one endpoint `vet-live` polls without secrets. `npm run vet:dm` is the
-   * same pair of questions by hand, with the rows named.
-   */
-  dm: {
-    /** Players with kills or deaths but zero seconds — the ranking column failing. */
-    untimedPlayers: number;
-    /** Sub-30-second rounds carrying stats — the phantom-round shape. */
-    phantomRounds: number;
-    broken: boolean;
+  database: {
+    /** Whether a trivial read came back, as of the cached reading. */
+    reachable: boolean;
+    /** Rotations on record, which is what the three server pages are built from. */
+    mapPacks: number;
   };
 };
 
 /**
- * The database's half of the health answer, cached for up to an hour.
- *
- * Everything in here is a raw reading — timestamps and counts, never a verdict.
- * The verdicts are computed per request, measured against `snapshotAtIso`, the
- * moment the reading was taken. Not against the live clock: that was the first
- * version, on the reasoning that it could "only delay an alarm", and within the
- * hour it had done the opposite — an aging cache made fresh pings read as an
- * hour of silence and the endpoint 503ed over two perfectly healthy servers.
- * Measured as of the snapshot, a verdict is exactly as true as its data, and a
- * real outage shows up at most one cache lifetime late, against thresholds
- * measured in hours anyway (`vet-live` polls every six).
+ * The database's half of the answer, cached for up to an hour.
  *
  * Cached because this endpoint exists to be polled from outside, and Neon
  * bills for every hour the compute is kept awake: an uptime monitor on a
  * five-minute interval was one of the things that stopped the database ever
- * suspending. Timestamps cross the cache as ISO strings — `unstable_cache`
- * serialises to JSON, so a `Date` would come back a string on a warm read and
- * only on a warm read, which is exactly the kind of bug that passes every
- * first test.
+ * suspending. A real outage therefore shows up at most one cache lifetime
+ * late, which is fine for something `vet-live` polls every six hours.
+ *
+ * The count is of `map_packs` because that is the table the server pages
+ * cannot do without. A database that answers but has lost it is not healthy
+ * for this site.
  */
-const healthSnapshot = unstable_cache(
+const databaseSnapshot = unstable_cache(
   async () => {
-    // counts-everything: this answers "is data arriving", not "what does the
-    // archive say happened". A cancelled match is data arriving.
     const [row] = await db
-      .select({
-        lastIngest: sql<Date | null>`max(${matches.ingestedAt})`,
-        matchCount: sql<number>`count(*)::int`,
-        nightCount: sql<number>`count(distinct ${matches.archiveDay})::int`,
-      })
-      .from(matches);
-
-    /*
-     * When each server last reached us, which is a different question from when
-     * a row was last written and had been standing in for it.
-     *
-     * Unchanged days stopped being rewritten on 6 August, so `max(ingested_at)`
-     * only moves when something actually happened or when the six hourly
-     * re-verify fires. A quiet afternoon therefore read as a dead pipeline: this
-     * endpoint answered 503 for most of 7 August, and `vet-live` failed with it,
-     * while the VPS was syncing every fifteen minutes and writing `unchanged` in
-     * its own log each time. An alarm that is usually wrong gets ignored, and
-     * then it is not an alarm.
-     *
-     * The pings are the answer now. `lastIngest` stays, as the honest fallback
-     * for the window after this ships and before the first sync lands, and as
-     * what `matchCount` and `nightCount` are read from anyway.
-     */
-    const pings = await listSyncPings();
-
-    /*
-     * Anything written and not yet announced, and how long the oldest has waited.
-     *
-     * Both tables, in one query, because the two announce independently and
-     * either one stopping is the same fault. `generated_at` rather than the
-     * archive day: a piece written today about last Tuesday has waited since
-     * today.
-     */
-    const [queued] = await db
-      .select({
-        pending: sql<number>`count(*)::int`,
-        oldest: sql<Date | null>`min(generated_at)`,
-      })
-      .from(
-        sql`(
-          select ${nightColumns.generatedAt} as generated_at
-          from ${nightColumns} where ${nightColumns.postedAt} is null
-          union all
-          select ${opinionPieces.generatedAt} as generated_at
-          from ${opinionPieces} where ${opinionPieces.postedAt} is null
-        ) as unannounced`,
-      );
-
-    /*
-     * Pieces that were claimed and did not arrive.
-     *
-     * `pending` above cannot see these and never could. `posted_at` is set before
-     * the request is sent, on purpose, so a delivery that fails leaves a row that
-     * looks posted. The six-hour alarm was built for exactly this failure and was
-     * blind to it: on 18 August a column and an opinion were both claimed against
-     * a webhook that had been deleted, and this endpoint reported `pending: 0`
-     * while the channel stayed silent.
-     */
-    const [failed] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(
-        sql`(
-          select 1 from ${nightColumns} where ${nightColumns.announceFailedAt} is not null
-          union all
-          select 1 from ${opinionPieces} where ${opinionPieces.announceFailedAt} is not null
-        ) as failures`,
-      );
-
-    const dm = await dmIntegrity();
-
-    return {
-      /*
-       * When this reading was taken. Every time-based verdict downstream is
-       * computed against THIS moment, never against the live clock: measured
-       * against the clock, an hour-old cached snapshot of a perfectly healthy
-       * sync reads as an hour of silence, and this endpoint answered 503 over
-       * exactly that on 1 September, failing `vet-live` while both servers
-       * synced on schedule. Age against the snapshot cannot false-alarm; it
-       * only detects a real outage one cache lifetime later, which is the
-       * trade the caching already made.
-       */
-      snapshotAtIso: new Date().toISOString(),
-      lastIngestIso: row?.lastIngest ? new Date(row.lastIngest).toISOString() : null,
-      matchCount: row?.matchCount ?? 0,
-      nightCount: row?.nightCount ?? 0,
-      pings: pings.map((ping) => ({
-        server: ping.server,
-        lastSeenAtIso: ping.lastSeenAt.toISOString(),
-      })),
-      pending: queued?.pending ?? 0,
-      oldestPendingIso: queued?.oldest ? new Date(queued.oldest).toISOString() : null,
-      announceFailures: failed?.count ?? 0,
-      dm,
-    };
+      .from(mapPacks);
+    return { mapPacks: row?.count ?? 0 };
   },
-  // v2: the key retires the pre-snapshotAtIso entry, which persists across
-  // deploys and would otherwise be read once with the field missing.
-  ["health-db-snapshot-v2"],
+  ["health-db-snapshot-v3"],
   { revalidate: 3600 },
 );
 
 export async function getHealth(): Promise<Health> {
-  const snapshot = await healthSnapshot();
-
-  // The clock every time-based verdict is measured against. See the note on
-  // `snapshotAtIso`: the live clock plus a cached reading equals a false alarm.
-  const asOf = new Date(snapshot.snapshotAtIso).getTime();
-
-  const lastIngest = snapshot.lastIngestIso ? new Date(snapshot.lastIngestIso) : null;
-  const pings = snapshot.pings.map((ping) => ({
-    server: ping.server,
-    lastSeenAt: new Date(ping.lastSeenAtIso),
-  }));
-  const lastArrival = pings[0]?.lastSeenAt ?? lastIngest;
-  const minutesAgo = lastArrival
-    ? Math.round((asOf - lastArrival.getTime()) / 60_000)
-    : null;
+  let reachable = false;
+  let packCount = 0;
+  try {
+    const snapshot = await databaseSnapshot();
+    reachable = true;
+    packCount = snapshot.mapPacks;
+  } catch {
+    // Reported as unreachable rather than thrown, so the backup half of the
+    // answer still arrives and says which of the two is broken.
+  }
 
   let lastBackup: Date | null = null;
   try {
@@ -273,123 +87,15 @@ export async function getHealth(): Promise<Health> {
     ? Math.round((Date.now() - lastBackup.getTime()) / 3_600_000)
     : null;
 
-  /*
-   * Any failure at all is a fault, with no grace period. Unlike a queue, which
-   * is only a problem once it stops draining, a recorded failure is already the
-   * end state: nothing retries it, so it will still be there tomorrow.
-   */
-  const announceFailures = snapshot.announceFailures;
-
-  const oldestPending = snapshot.oldestPendingIso
-    ? new Date(snapshot.oldestPendingIso)
-    : null;
-  const oldestPendingHours = oldestPending
-    ? Math.round((asOf - oldestPending.getTime()) / 3_600_000)
-    : null;
-
-  // Never synced and never backed up is a new deployment, not a fault. Only
-  // something that has happened and then stopped counts as stale.
-  /*
-   * Any server that has gone quiet, not the newest of them.
-   *
-   * With one server these are the same answer. With two they are not, and the
-   * difference is the whole point: once deathmatch syncs every fifteen minutes,
-   * the match server could stop for a week while the newest ping stayed four
-   * minutes old. Before any ping exists at all, this falls back to the old
-   * reading so the check is never simply off.
-   */
-  const quiet = quietSince(pings, SYNC_STALE_MINUTES, asOf);
-  const syncStale = pings.length
-    ? quiet.length > 0
-    : minutesAgo !== null && minutesAgo > SYNC_STALE_MINUTES;
+  // Never backed up is a new deployment, not a fault. Only something that has
+  // happened and then stopped counts as stale.
   const backupStale = hoursAgo !== null && hoursAgo > BACKUP_STALE_HOURS;
 
-  /*
-   * Deliberately stale whether or not a webhook is configured.
-   *
-   * The temptation is to treat "no webhook" as a deliberate choice and stay
-   * green, and that is exactly the reasoning that let this run silently for
-   * five days. An unconfigured announcer with six pieces queued behind it is
-   * not a configuration preference, it is the failure. `configured` says which
-   * of the two it is; neither is healthy.
-   */
-  const announceStale =
-    (oldestPendingHours !== null && oldestPendingHours > ANNOUNCE_STALE_HOURS) ||
-    announceFailures > 0;
-
-  /*
-   * Whether the webhook is still there, as opposed to still configured.
-   *
-   * Added the night a recreated webhook stopped every post while this endpoint
-   * reported `configured: true`, because the URL was set and well formed and
-   * nothing here had ever asked Discord whether it resolved. Only a definite
-   * 404 or 401 counts against health: an unreachable Discord is not a broken
-   * configuration, and a check that goes red on a timeout is a check people
-   * learn to ignore.
-   */
-  const reachable = await webhookReachable();
-  const webhookGone = reachable === false;
-
-  /*
-   * The deathmatch archive contradicting itself. `vet-live` polls this
-   * endpoint, so either shape recurring turns the check red within six hours
-   * with nobody watching.
-   *
-   * The query moved to `dm/integrity.ts` so the admin page can ask it too:
-   * these were the two alarms the person who would fix them could not see.
-   */
-  const dm = snapshot.dm;
-  const dmBroken = dm.untimed > 0 || dm.phantoms > 0;
-
   return {
-    ok: !syncStale && !backupStale && !announceStale && !dmBroken && !webhookGone,
-    sync: {
-      lastAt: lastArrival?.toISOString() ?? null,
-      minutesAgo,
-      stale: syncStale,
-      // Named, so a failure says which machine stopped rather than that
-      // something did. There will be two of them.
-      quiet: quiet.map(
-        (entry) => `${serverLabel(entry.server)} (${entry.minutesAgo}m)`,
-      ),
-      lastWriteAt: lastIngest?.toISOString() ?? null,
-    },
+    ok: reachable && packCount > 0 && !backupStale,
     backup: { lastAt: lastBackup?.toISOString() ?? null, hoursAgo, stale: backupStale },
-    announce: {
-      configured: discordConfigured(),
-      reachable,
-      pending: snapshot.pending,
-      /**
-       * Claimed but never confirmed as delivered. Always a fault; nothing
-       * retries these, so clear `posted_at` by hand to send one again.
-       */
-      failed: announceFailures,
-      oldestPendingHours,
-      stale: announceStale,
-    },
-    archive: { matches: snapshot.matchCount, nights: snapshot.nightCount },
-    dm: {
-      untimedPlayers: dm.untimed,
-      phantomRounds: dm.phantoms,
-      broken: dmBroken,
-    },
+    database: { reachable, mapPacks: packCount },
   };
 }
 
-export { SYNC_STALE_MINUTES, BACKUP_STALE_HOURS, ANNOUNCE_STALE_HOURS };
-
-/**
- * Newest ingest time, for the small indicator on the server page.
- *
- * counts-everything: when the archive last heard from the VPS, which is a fact
- * about the pipeline rather than about the matches in it.
- */
-export async function lastSyncAt(): Promise<Date | null> {
-  const [row] = await db
-    .select({ ingestedAt: matches.ingestedAt })
-    .from(matches)
-    .orderBy(desc(matches.ingestedAt))
-    .limit(1);
-
-  return row?.ingestedAt ?? null;
-}
+export { BACKUP_STALE_HOURS };

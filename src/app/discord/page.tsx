@@ -5,7 +5,7 @@ import { DISCORD_INVITE } from "@/lib/nav";
 export const metadata: Metadata = {
   title: "Discord",
   description:
-    "Join the RedFaction4You Discord for pickup games, map releases and match announcements.",
+    "Join the RedFaction4You Discord for pickup games, map releases and server news.",
 };
 
 const GUILD_ID = process.env.NEXT_PUBLIC_DISCORD_GUILD_ID;
@@ -18,8 +18,8 @@ export default function DiscordPage() {
         Discord
       </h1>
       <p className="mt-4 max-w-2xl text-lg leading-relaxed text-steel-300">
-        Pickup games start here. Match announcements, map releases, server
-        status and the place to shout when you want a game right now.
+        Pickup games start here. Map releases, server news and the place to
+        shout when you want a game right now.
       </p>
 
       <div className="mt-10 grid gap-6 md:grid-cols-[1fr_auto]">

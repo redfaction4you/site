@@ -1,20 +1,26 @@
 # RedFaction4You — site
 
-A community archive for Red Faction (2001): maps, mods, player models, custom
-weapons, tools, guides, videos and events. Free, no account needed to download,
-self-hosted so it does not vanish when someone else's server does.
+The home of the RF4U Red Faction (2001) servers, Themed, Novelty and Halloween,
+with every map in each rotation, and a catalogue of maps, mods, assets and tools
+to play them with. Free, no account needed to download, self-hosted so it does
+not vanish when someone else's server does.
 
 Repo: `github.com/redfaction4you/site` (public).
 
 ## The scope rule
 
-**If it is not something you can download, read or watch, it does not ship.**
+**The servers and the files to play on them.** The site leads with the three
+RF4U servers, each with a page listing its rotation and the map playing now, and
+keeps the downloads catalogue beside them.
 
-This rule is load-bearing. It is the result of three rounds of cutting and it
-killed, in order: a C++ client fork (Red Faction Classic), a UDP game-server
-tracker, a live server browser, the game servers section, the weekly match
-schedule, and a standalone client-comparison page. Apply it before adding
-anything. The full reasoning is in `../BUILD-PLAN.md`.
+The first rule was "if it is not something you can download, read or watch, it
+does not ship", and it once cut the game servers section along with a C++ client
+fork, a UDP tracker and a live server browser. The servers came back and are now
+the point of the site. **Stats did not.** A match archive with player records,
+stat boards and an AI analyst's write-ups was built and then retired on
+25 September 2026 at the owner's request: its pages redirect, its data is kept,
+and it is not to be rebuilt without the owner asking. `../BUILD-PLAN.md` has the
+older reasoning.
 
 ## Current state
 
@@ -22,13 +28,10 @@ anything. The full reasoning is in `../BUILD-PLAN.md`.
 `main`. `docs/HANDOVER.md` is the authority on what is built and what is next;
 this file is conventions and gotchas.
 
-Navigation: News, Downloads, Matches, Players, Pairings, Stats, Servers,
-Events. That is eight, and `/matches/maps` was the ninth until 9 September 2026:
-the row was measured full at nine and the label read "Maps" beside a Downloads
-menu whose largest shelf is also maps, so it was hidden rather than renamed. The
-row now measures 928 into the 979 it has, and that 51px of slack is one short
-label and not a free slot. A tenth entry, or a ninth back, needs the working
-under `VISIBLE_NAV` in `src/lib/nav.ts` taken again rather than trusted.
+Navigation: Servers, Downloads, Events. `/servers` lands on the first server
+in `src/lib/servers.ts`, and the tabs there reach the other two. `/themed`,
+`/novelty` and `/halloween` are short redirects to them, because that is what
+the in-game welcome messages print.
 
 Downloads is the hub at `/downloads`. The four shelves behind it (`/maps`,
 `/assets`, `/mods`, `/tools`) are real pages that keep the `hidden` flag,
@@ -50,7 +53,7 @@ account.
 npm run dev          # localhost:3000
 npm run typecheck    # tsc --noEmit — run before every push
 npm run lint
-npm test             # node --test, currently the RFL/VPP/ZIP readers
+npm test             # node --test over scripts/*.test.mjs
 npm run rfl -- <file>  # print what the site would record about a download
 npm run ingest -- <folder>       # what an ingest would do. Dry run is the default
 npm run ingest -- <folder> --go  # store the bytes and write the rows, as drafts
@@ -58,30 +61,10 @@ npm run db:generate  # drizzle-kit generate → ./drizzle/*.sql
 npm run db:migrate   # apply to Neon
 npm run db:check     # verify tables actually exist (custom, scripts/check-db.mjs)
 npm run db:studio
-npm run ai:quota     # what each Gemini key can do today; -- --images too
-npm run vet          # the archive against itself
-npm run vet:queries  # every match query filters, or says why not
-npm run vet:pages    # a rendered page against itself; -- <url> for production
-npm run vet:names    # no page shows a name belonging to somebody called something else
-npm run vet:dm       # the deathmatch archive against itself; exits non-zero on a finding
-npm run drives:recompute  # rerun drive credit over stored events; -- --go
+npm run vet:pages    # the server pages, redirects and front page; -- <url> for production
+npm run weigh        # every page in the sitemap, timed and weighed
+npm run apply:welcome  # carry servers.ts welcome texts to map_packs; -- --go to write
 ```
-
-## Search (`src/lib/search.ts`, `/search`)
-
-One box for the whole archive: players grouped as people, nights by date in
-either form, a match by its scoreline either way round, maps, and anything
-written. Queried live rather than indexed, because an index that drifts is a
-search that quietly stops finding last night.
-
-- **The parsing lives in `search-query.ts` and is tested.** A date read wrongly
-  returns the wrong night with nothing to show for it, and `5-3` mistaken for a
-  date returns nothing at all. Dates are day first, matching the rest of the
-  site.
-- **A form with a GET action, not client state.** It works without JavaScript
-  and every search is a URL, the same reasoning as the filters.
-- Search results count matches the way every other page does, which the query
-  guard now enforces per query rather than per statement.
 
 ## Stack
 
@@ -99,14 +82,9 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
 - **Colour token names are historical.** `basalt`, `rust`, `oxide`, `steel` no
   longer describe the colours; only their values changed when the site was
   rethemed. Renaming them would touch every component for no benefit.
-- **The blue team is `cobalt`, and `oxide` is gold.** Every blue side on the
-  site used to be drawn in `oxide`, so scoreboards, scores, legends and the
-  capture timeline showed blue as gold and a reader eventually said so. Red and
-  blue are the two things that have to be told apart on every result, so the
-  blue team has its own token now. `oxide` is still correct for what it always
-  was: overtime marks, the columnist's rule and byline, staleness warnings,
-  compatibility badges. **Anything that means "the blue team" is `cobalt`; a
-  gold accent that means something else stays `oxide`.**
+- **`oxide` is gold, and `cobalt` is the old blue team colour.** Nothing uses
+  `cobalt` since the scoreboards went on 25 September 2026; `oxide` is still the
+  gold accent for staleness warnings and compatibility badges.
 - **`font-brand` (Black Ops One) ships one weight.** Never combine it with
   `font-bold` or similar — synthetic bolding looks awful. A bare
   `.font-brand { font-weight: 400 }` rule sits outside `@layer` to win against
@@ -117,39 +95,12 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   from `src/lib/auth.ts`; keep that guard.
 - **Neon connection strings**: pooled (`-pooler` in host) for the app, direct for
   migrations. Neon's pooler rejects the statements drizzle-kit issues.
-- **The free Gemini tier is twenty requests per day, per model, per project.**
-  Not per key: a second key in the same Google Cloud project shares the first
-  one's twenty. This is the binding constraint on everything in `src/lib/ai/`, and
-  when it runs out generation returns null and the missing text is retried on the
-  next sync. Capacity appears to free up on a rolling basis rather than at a fixed
-  daily boundary: two exhausted keys were serving again fifty minutes later, well
-  before midnight in any timezone. Do not rely on a reset time.
-  `npm run ai:quota` reports where each key stands right now, which is the only
-  reliable answer.
-- **A missing article is not necessarily quota.** Three separate bugs produced the
-  identical symptom, an article that simply never appears, and each was mistaken
-  for quota first:
-  - Gemini answers 503 "currently experiencing high demand" readily, and
-    `shouldTryNextKey` treating that as a malformed request cost a whole night's
-    column while the first key still had quota. 5xx now falls through.
-  - The text timeout was 30 seconds. The output budget covers the model's
-    thinking, so a column that reasons for twenty seconds before writing a word
-    times out. Now 60, against a route budget of 300.
-  - The vision timeout was 45 seconds against a payload that is the whole image,
-    a couple of megabytes and a third larger again as base64. Four of five keys
-    timed out on the first real check. Now 120. That gate fails closed, so a
-    timeout there silently rejects a perfectly good picture.
-
-  Read the status before assuming. `docs/HANDOVER.md` has the diagnosis.
 - **Local development shares the production database.** There is one Neon
-  instance. A row edited locally is edited on the live site, and the VPS syncs
-  every fifteen minutes, so production will happily act on it: marking a column
-  stale locally had the deployed code rewrite it first, with none of the fixes
-  that were being tested. Anything that touches `night_columns` or `matches` from
-  a local run is a production change.
-- **The models endpoint lists models the key cannot call.** Every image model is
-  listed and every one answers 429 with no free tier allocation. A 429 whose
-  detail carries no quota number means "not included", not "ran out".
+  instance. A row edited locally is edited on the live site: a rotation changed
+  from a local admin page is the rotation the VPS applier reads that night. And
+  never run `db:push` or `db:generate` expecting nothing to happen: the retired
+  stats tables are still defined in `schema.ts` precisely so that neither
+  command proposes dropping them.
 - **Vercel environment variables need a fresh build, not a redeploy.** Adding a
   variable and hitting redeploy reuses the previous build and the function keeps
   the old environment. `vercel --prod` builds again and picks it up. Half an hour
@@ -161,10 +112,9 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   drops it before the script sees `process.argv`. Every destructive script here
   is dry-run by default, so the run that was meant to write prints its dry-run
   report, says nothing was written and exits 0. **It is indistinguishable from a
-  successful no-op**, which is why it went unnoticed: `refs:push`,
-  `apply:welcome`, `map:remove` and `drives:recompute` had all been silently
-  refusing to act under PowerShell, and the last of those is documented in this
-  file as the way to rerun drive credit. `link-maps` and `shuffle-packs` were
+  successful no-op**, which is why it went unnoticed: `apply:welcome`,
+  `map:remove` and two scripts since retired had all been silently refusing to
+  act under PowerShell. `link-maps` and `shuffle-packs` were
   converted in the same pass but were never affected, because they are run
   directly with `node` and npm is never in the path to strip anything. **Only a
   script with an entry in `package.json` can be bitten by this.**
@@ -216,27 +166,6 @@ Discord · Drizzle 0.44 · Neon Postgres (`us-east-2`) · Vercel · Cloudflare R
   `.next` underneath the dev server and it starts answering 500 with
   `Cannot find module './chunks/vendor-chunks/next.js'`. Stop the dev server, or
   delete `.next` afterwards and restart it.
-- **`DISCORD_NEWS_WEBHOOK` is set in both `.env.local` and production, and both
-  ends post for real.** This entry has now been wrong twice in opposite
-  directions — first "unset in both", then "unset in production" — so check it
-  rather than trusting it: `vercel env ls production` lists it, and
-  `/api/health` reports `announce.configured: true`. It was added to production
-  on 9 August, which cleared the queue of columns and opinion pieces that had
-  been stuck behind its absence. Adding or changing it needs a fresh build, not
-  a redeploy — see the Vercel entry below. Two consequences now, and they are
-  both the dangerous one.
-  - **A local run posts to the real channel.** There is one webhook and it is the
-    community's. Anything that reaches `announcePendingColumns` or
-    `announcePendingOpinions` from a local server announces for real, including
-    `/api/rf4u/archive/rebuild`, and including a column being *re*generated after
-    somebody deleted a row to force a rewrite. Blank the variable for that run.
-  - **So does production, on every sync.** An `opinion_pieces` row written with
-    `posted_at` null is swept up and posted by the next sync from either end, so
-    **regenerating a piece somebody has already read republishes it**. Generate
-    drafts through something that does not write, decide, then store. A null
-    `posted_at` now means "not yet swept", not "production has no webhook".
-    `feature_pieces` are deliberately exempt: nothing sweeps that table, and
-    publishing a feature to Discord stays a separate decision.
 
 ## Compatibility detection (`src/lib/rfl/`)
 
@@ -382,8 +311,8 @@ Four things a person editing this code needs to know:
   signal Red Faction has is gone before anything can read it.
 - **The CLI cannot import `@/lib` anything that touches the database.** It runs
   under plain `node`, outside Next, so the path alias and the server-only
-  environment are not there. It builds its own Neon and S3 clients the way
-  `scripts/refs-push.mjs` does. What it shares instead is
+  environment are not there. It builds its own Neon and S3 clients, at the top of
+  `scripts/ingest.mjs`. What it shares instead is
   `src/lib/ingest-rules.ts`, which imports nothing and is loaded directly by
   `node` in `scripts/ingest-rules.test.mjs`: **keep it importing nothing.** The
   sharing is the point, because a storage key is a promise and two callers
@@ -393,355 +322,23 @@ Four things a person editing this code needs to know:
   world readable the moment the ingest writes it, so the decision to distribute
   something happens before `--go`, not at publish time.
 
-## Match archive (`src/lib/matches/`, `/matches`)
+## Retired: stats, the match archive and the analyst
 
-The dedicated server pushes each night's results to
-`POST /api/rf4u/archive/ingest`, authenticated by `RF4U_ARCHIVE_SYNC_SECRET`.
-Setup and troubleshooting: `docs/match-archive-vps.md`.
+Built between July and September 2026 and retired on 25 September 2026 at the
+owner's request: the CTF match archive, the deathmatch rounds, players,
+pairings, stat boards, search, and Stanley Mesh, the AI analyst who wrote a
+column each night. `docs/HANDOVER.md` has the full story and what replaced it.
 
-- **A match that did not count must not count anywhere, and the checks are
-  automatic now.** An abandoned start arrives labelled `final` like any other
-  match, so duration is the only test: `completion.ts` holds the rule,
-  `MATCH_COMPLETED` in `queries.ts` is its SQL twin, and the two must be kept in
-  step exactly as `tookPart` and `TOOK_PART` are. The rule has been written once
-  and missed twice, both times reaching a published page, so three things now
-  watch it:
-  - **`npm run vet:queries`**, which runs inside `npm test`. Every query reading
-    the match tables either filters or carries a comment saying
-    `counts-everything: <why>`. There is no third option. Plenty of queries
-    genuinely want every row and the reason differs each time, which is why the
-    exemption is a sentence rather than a flag.
-  - **`npm run vet:pages`**, which reads rendered pages over HTTP and checks
-    that a page does not contradict itself: a header total against the rows it
-    totals, a player count against the scoreboard, attendance denominators
-    against the match count. It found the last two failures on production while
-    the database was entirely consistent. Point it at what the reader is
-    looking at, not at localhost.
-    - **Pass the URL bare: `npm run vet:pages -- https://redfaction4you.com`.**
-      The documented `-- --base <url>` did not work and had not worked for as
-      long as it had been written down: npm parses `--base` as one of its own
-      config flags and drops it, so the script fell back to localhost and
-      printed a clean bill of health for a dev server while claiming to have
-      read production. A bare URL is now the base, and an argument that is
-      neither a URL nor a date stops the run rather than being ignored.
-    - **A disagreement is read twice before it is reported.** The VPS syncs
-      every fifteen minutes and this reads nineteen pages one after another, so
-      a sync landing mid-run produces exactly what a real bug produces: two
-      totals differing by about one match. It has happened. The second reading
-      is what tells them apart, and it matters most for `vet-live`, which runs
-      on a schedule with nobody watching.
-  - **`npm run vet:names`**, which asks the other question: not whether a page
-    contradicts itself about a figure, but whether it contradicts itself about a
-    person. The identity work fixed every total and no prose, so ten aliases
-    were live on production, including a front page reading "Special ED" over a
-    results strip that said Romek. Needs `DATABASE_URL` as well as a URL, which
-    is why it is a separate script rather than another check inside `vet:pages`.
-  - **GitHub Actions**, `checks` on every push and `vet-live` after a deploy and
-    every six hours, because the archive changes without anybody pushing.
-  It covers the night pages, the archive index, `/players`, `/stats` and the
-  map index, which are three cuts of the same rows and therefore have to agree:
-  the nights by evening, `/players` by person, `/matches/maps` by level. Match
-  pages, pairings and the per-map pages are not cross-checked by anything.
-- **"Is the sync alive" is answered by arrivals, not by writes.** Health used
-  `max(matches.ingested_at)`, which was the same question until unchanged days
-  stopped being rewritten on 6 August. After that a quiet afternoon wrote
-  nothing, so `/api/health` answered 503 and `vet-live` failed with it, for most
-  of 7 August, while the VPS synced every fifteen minutes and logged `unchanged`
-  each time. **An alarm that is usually wrong gets ignored, and then it is not an
-  alarm.** Both ingests now record a row in `sync_pings` whether or not there is
-  anything to store, and `quietSince` judges **each server on its own** — with
-  two servers, reading the newest ping would let deathmatch cover for the match
-  server going dark. A retired server has to have its row deleted or it holds
-  health red, which is the right way round. `sync.lastWriteAt` keeps the old
-  reading, because hours there against a fresh `lastAt` means the servers are
-  talking and nothing is being played.
-- **Deathmatch is a different game with different tables, and the routing
-  between them is checked.** `POST /api/rf4u/archive/dm` takes the DM server's
-  day document into `dm_rounds` and `dm_players`; `src/lib/dm/` is its sanitizer
-  and ingest. The tables were chosen over a `mode` column because the query
-  guard counted 65 reads that would each have to remember an `IS_CTF` filter.
-  - **The guarantee is only as good as which URL is in which `.env` on the
-    VPS**, so each endpoint refuses the other's game and says which one to use.
-    `modes.ts` is the rule. A misrouted night of DM would land in `matches`
-    looking entirely normal, with the flag counters simply zero.
-  - **The two checks are deliberately not symmetrical, and there is a test
-    saying so.** The match endpoint refuses a pub mode and still accepts a mode
-    nobody has heard of, because `mode` is not in the documented contract and
-    refusing `CTF Pro` would break a sync that has worked since July to defend
-    against a payload that does not exist. The pub endpoint refuses two things
-    only: a round that says CTF, and a round that will not say what it is at
-    all, because the CTF sanitizer reads a missing mode as CTF and a blank one
-    here could be exactly that.
-  - **The pub endpoint used to require a mode from a list, and that was wrong.**
-    It said strictness was free because nothing had ever flowed into it. On
-    27 August 2026 the Themed server's rotation gained Damage Control maps, one
-    DC round finished at 03:44 Pacific, and the whole day was refused because
-    `DC` was not on the list. That server's archive went quiet for ninety
-    minutes and `/api/health` went red, over a round nobody played. A mixed
-    rotation was always going to do this: Themed runs DM and DC maps together
-    by design, so "every round is the same game" was never a property a pub day
-    could have. Refuse what is positively wrong, not whatever is not on a list.
-    Adding a map is not something anybody thinks of as a code change.
-  - **A DM round is kept for provenance and never browsed.** No night pages, no
-    round pages, no completion rule: a rotation cut short by a map vote is still
-    time in which people fragged each other. Rows with nothing recorded are
-    dropped at ingest rather than filtered at read, which is the opposite of the
-    CTF side and the same reasoning as the separate tables — a row that cannot
-    be selected beats one every future query must remember to exclude.
-  - **The shooting rules are imported from `matches/sanitize.ts`, never
-    restated.** Hits and shots are one measurement on both servers. A second
-    copy of that rule would be the copy that drifts.
-  - **`seconds_played` is read and expected to be zero.** It is not in the
-    documented contract. The ingest reports `playersTimed` in its response so
-    the first real sync answers whether time on the server can be shown, rather
-    than a column of dashes answering it later. That has happened twice.
-- **`sanitize.ts` is a security boundary and an allowlist.** Every stored field
-  is named in it. A new field appearing in the VPS export cannot leak through,
-  because it simply is not copied. **Never** replace this with a spread of the
-  source object.
-- **Grouping by identity fixes the totals and none of the prose.** `IDENTITY_KEY`
-  and `DISPLAY_NAME` answer "what is this person called" for anything that
-  carries an identity, which is every aggregate and no sentence. A kill in the
-  event log, a capture's assist list, a flag event's message, a match report, a
-  night column, an opinion piece and a player profile all carry a bare name and
-  nothing else, and every one of them was still printing whatever the scoreboard
-  said that evening. Ten were live on production: a front page reading "Special
-  ED" over a results strip that said Romek, a timeline tooltip reading "s9!nX
-  grabbed the red flag" above a scoreboard that said Skuldug, and match report
-  prose to match. **`aliasNames()` in `queries.ts` is the lookup for a bare name,
-  and `renameInText` in `names.ts` is the one for a sentence.** Both are applied
-  in the query rather than in a page, so a new surface gets it for free.
-  - **The substitution is at read time and the archive keeps the names as sent.**
-    Regenerating the prose would spend model requests from the allowance the
-    match reports draw on, change an article somebody has already read, and
-    re-run the fact checker over a piece that passed it. Replacing one of a
-    person's names with another of their names asserts nothing new.
-  - **A name is not a key, and `cowboy dan` is why.** Two different people have
-    played under it. So `canonicalNames()`, which takes an identity, is the
-    lookup wherever the row has one, and `aliasNames()` is only for text that
-    carries no key at all. Three queries selected `match_players.name` and
-    rendered it as a person — the night list's best player, the records ticker
-    and `serverRecords` — and were invisible until `$t!nX` was pinned on 9
-    August, because until then the raw name and the display name agreed.
-    **A name that happens to match hides a query that never resolved it**, so
-    `vet:names` is only as sharp as the pins on `/admin`.
-  - **`!`, `$` and `}` are name characters here.** `$t!nX`, `J!nX` and
-    `T1k}super` are real, so a naive word boundary turns `s9!nX` into
-    `Skuldug!nX`. `names.ts` treats `!` as part of a name only when something
-    name-like follows it, which also lets `skrub!` end a sentence.
-  - `npm run vet:names` is what catches the next one.
-- **`match_players.identity_key` is stored and never served.** It is the only
-  stable key that could link a Discord account to an in-game player, which the
-  build plan calls the hard part of player statistics. Every query in
-  `queries.ts` names its columns and none name that one. Do not use
-  `db.query.matchPlayers.findMany()` here — it would select everything.
-- **Hits and shots are one measurement and must never be merged separately.**
-  This was the cause of the 1067% accuracy on Rail Fight, and the 2.2
-  broadcaster package confirmed it: `mergePlayers` took the maximum of every
-  counter independently, which is right for a running total and wrong for a
-  pair, so it could report the largest hit count it had seen against the largest
-  shot count it had seen, from different snapshots. One bad sample then stuck
-  forever. `chooseShotTuple` in `sanitize.ts` now picks a whole tuple, prefers
-  the newest valid one, and never lets a newer invalid one displace an older
-  valid one. Weapon stats obey the same rule. **Do not put `shotsHit` or
-  `shotsFired` back into `MAX_FIELDS`.**
-- **A capture, a solo capture and a run are three different things, and only
-  the third is timed.** A capture is who touched it down. A solo capture is one
-  nobody else carried, which still allows the same player being killed at the
-  door and taking the flag off the floor themselves. A run is stand to capture,
-  one carrier, the flag never on the ground, and it is the only one of the three
-  where the flag's time and a player's time are the same measurement. `unbroken`
-  in `drives.ts` is the test, and `fastest_solo_capture_ms` is set from nothing
-  else. **The word "solo" is not used anywhere a reader can see it**: it was on
-  a stat board reading "carried the whole way without a hand-off", a reader said
-  it made them think base to base, and no wording rescues a stat whose plain
-  reading is a different stat. The board is gone and the count is data now.
-- **A run belongs to the map it was set on.** Huna b8's best runs sit between
-  8.7 and 13.4 seconds and Warlords Pro (No Fog)'s between 27 and 56, so a board
-  ranking runs across maps ranks the maps and calls it a ranking of players.
-  `/matches/map/[map]` carries the record; there is deliberately no cross-map
-  fastest board, the same trade as the pairing win rate withheld below five
-  matches.
-- **Drive credit is derived at ingest, so a rule change leaves the archive
-  behind.** `npm run drives:recompute` reruns the reconstruction over stored
-  events and rewrites only the five derived columns; without `-- --go` it prints
-  what would change. The VPS re-sending recent days fixes those and nothing
-  else.
-- **`fastest_capture_ms` is not the length of a run and nothing reads it.** The
-  server times the carrier's last leg, so a flag dropped and recovered by the
-  same player reports the recovery: Medeo carried the blue flag for 27.8 seconds
-  in match 10 across a death and a pickup off the ground, and the field says
-  2.785. `drives.ts` reconstructs the flag's own journey instead, and
-  `fastest_solo_capture_ms` is what every read path uses — the boards, the
-  ticker, the match page and the vet. The raw field is still stored and still
-  exported in the day document, because that is what the server sent, and it is
-  the only place it appears.
-- **A row can still arrive bad with nothing better to choose**, so the read
-  guard stays as well. **`src/lib/matches/accuracy.ts` is the single rule.** `accuracyOf` returns
-  null where the record contradicts itself, every read path uses it, and the
-  aggregates total only sound matches via `SOUND_SHOOTING` in `queries.ts`. The
-  rows are left exactly as sent, the same trade `fastest_capture_ms` makes for
-  relays. Do not clamp to 100%: that puts a broken counter top of the board.
-  - **`accuracyOf` returns a fraction and `accuracyPercent` is how it is
-    written out.** 0.185, not 18.5. Three pages multiplied by a hundred
-    themselves and two places forgot to: `/stats/dm` published a column of
-    "0.2%", and the feature fact sheet gave the same numbers to the writer and
-    then to the fact checker, which would have confirmed them. `vet:pages`
-    cannot see this — it reads a page against its own totals, and both pages
-    were internally consistent while disagreeing with each other by 100×.
-- **`spectator = false` does not mean somebody played.** The server sends a row
-  for everyone it had on a team when it snapshotted, and five rows on record
-  carry a real team, the flag unset, and every counter zero: no score, frags,
-  deaths, shots, flag touches or damage taken. They never entered the game.
-  Real spectators arrive correctly marked with `team = 'spectator'`; this is a
-  third category the schema had no name for. **`participation.ts` (`tookPart`)
-  and its SQL twin `TOOK_PART` in `queries.ts` are now the test everywhere**, and
-  the two must be kept in step. Any sign of life counts, down to one point of
-  damage taken, because dropping somebody who played is far worse than keeping
-  somebody who did not. Uncorrected it made match 10 a three against three when
-  it was two against two, gave Chill Hippo and Ath-PL a player page each despite
-  never playing a match, fed the illustration the wrong number of figures a
-  side, and put a name in a column for a match they were not in, which is how a
-  reader found it.
-- **`shots_hit` is fractional and that is correct.** Values like 159.75 and
-  207.875 are always eighths, and an audit of every match traced all 32 of them
-  to the Automatic Shotgun: eight pellets a shot, so three pellets landing is
-  three eighths of a hit. No row is fractional without shotgun use and no other
-  weapon ever produces one. Accuracy is therefore pellet weighted, which is the
-  more meaningful figure and matches what the game reports. Rounding to integers
-  would inflate every shotgun user. The column is `doublePrecision` for this.
-- **Weapon stats are absent, never wrong, before the 2.1 broadcaster.** Matches 2
-  to 5 carry none; from match 6 onward all 44 rows sum exactly to their player
-  total. An empty `weapon_stats` is expected history, not a fault.
-- **Overtime restarts `elapsed_seconds` at zero**, and two things sorted on it.
-  The capture timeline opened with the golden goal and counted up to it, fixed by
-  `CAPTURE_ORDER` in `queries.ts`, which orders on `observed_at`. Worse,
-  `drives.ts` reconstructs the flag's journey by time, so extra time sorted in
-  front of the first minute and **credit came out wrong**: across the three
-  overtime matches on record it turned two of Romek's solo captures into relays
-  and gave a drive to somebody with no part in it. `reconstructDrives` now
-  re-times everything onto `observed_at` when the whole match has it, and falls
-  back to the match clock when it does not. All or nothing per match: mixing an
-  epoch in milliseconds with a clock in seconds sorts worse than either alone.
-  **Drive credit is computed at ingest, so stored rows only correct themselves
-  when a day is re-sent.**
-- **Duplicate player rows are merged by maximum, not summed.** The server emits
-  periodic snapshots, so two rows are one player counted twice. Summing would
-  double everyone's night. Accuracy is recomputed from shot counts rather than
-  trusted.
-- **Ingest is idempotent** — the VPS re-sends recent days on every sync.
-  Matches upsert on `(server, source_match_id)`; players and captures are
-  replaced. A match deleted upstream is deleted here.
-- **An unchanged day is not rewritten, and the replace is one transaction.**
-  The VPS sends its three most recent days every fifteen minutes whether or not
-  anything moved, so 31 July was fully rewritten every fifteen minutes for a
-  week: 288 ingests a day at 1.3 MB a document. Worse, the replace was a delete
-  awaited and then an insert awaited, so between the two the match had **no
-  players**, and a page rendered in that gap showed an empty scoreboard. That is
-  the real cause of a `vet:pages` run that failed once and passed twice on
-  identical data, which was wrongly written off as the archive moving.
-  - `archive_days` holds a SHA-256 of the sanitised day. Matching and less than
-    six hours old means nothing is written and the vetting is skipped too.
-  - **The hash is written last.** A run that throws part way leaves the old
-    value, so the next sync rewrites rather than trusting an unfinished write.
-  - **Six hours, not forever.** A hash says the payload has not changed, not
-    that the rows are still there. Deleting a row by hand used to be undone by
-    the next sync and that repair is worth four rewrites a day to keep.
-  - `db.batch`, not `db.transaction`: `neon-http` cannot hold an interactive
-    transaction across awaits, which is why nothing here has ever used one.
-- **Days are `America/Los_Angeles`, not UTC.** A match at 20:00 Pacific belongs
-  to that evening even though it is the next day in UTC. Timestamps stay UTC;
-  only the grouping is local.
-- **Stanley Mesh (`src/lib/ai/opinion.ts`) is the one thing here allowed a view.**
-  A sports analyst who writes a short piece about pairings after each night. The
-  whole guard is the line between a preference and a finding: "the pairing worth
-  trying is X with Y" claims nothing about the record, "X and Y are the strongest
-  pairing" claims a measurement three matches cannot support. The fact checker
-  cannot catch the second kind, since every number in such a sentence may be
-  true, so the defence is upstream. **He is handed a win rate only where the
-  pairing has cleared the bar, and below it never sees a percentage** rather than
-  being told to ignore one. A model given a tempting number and told not to use
-  it uses it.
-  - **He is shown the archive as it stood that night, not as it stands now.**
-    Written from everything, the piece under 28 July said two players had shared
-    a side seven times at 86%; on 28 July they had played together once. Every
-    number was true of today and false of the page it sat on.
-  - Byline and photo are deliberate. A mesh is a 3D model, and the portrait is a
-    visibly low poly character from the game. A photorealistic face would be the
-    one thing that quietly undoes the machine written label. The name lives in
-    `COLUMNIST_NAME`, so renaming him is one line.
-  - Runs last in `runNightJobs`, so it only spends quota nothing else wanted, and
-    never rewrites: an opinion does not go stale the way a summary of a half
-    finished evening does.
-- **Pairings (`src/lib/matches/pairings.ts`) are built on names, never on
-  colours.** Who is on a side with whom, and who is opposite. The module is pure
-  so `node --test` loads it directly, the same arrangement as `leaderboards.ts`.
-  Two decisions in it are load bearing: a win rate is withheld below five decided
-  matches together, because a percentage from three games describes the last one
-  rather than the pairing, and the record is shown regardless because that is a
-  fact where the rate is an inference. **How much better somebody plays with a
-  given partner is deliberately not computed** and the header says why: it splits
-  an already small sample in two and the difference would be mostly which side
-  the shuffle picked.
-- **The nightly column carries a generated illustration, composed from reference
-  images** rather than imagined: a screenshot of the map that was actually played,
-  the actual player models in red and blue, and the real number of figures a side.
-  - **Almost nothing is a model's decision.** `match-pick.ts` reads which match was
-    the most interesting, which moment to depict, the squad sizes and whose flag was
-    moving straight off the record. A text model contributes one short mood phrase
-    and nothing else. The prompt is assembled by code in `image-prompt.ts`.
-  - **The style block describes treatment only, never a setting.** It once said
-    "industrial Mars mining colony", which is wrong: the screenshot is the location,
-    and most CTF maps are not Martian anyway. Ankh is an Egyptian tomb; only the
-    Warlords maps are mining bases. Anything about architecture or materials belongs
-    in the screenshot.
-  - **Prohibitions belong in the gate, not the prompt.** Listing "no text, no
-    signage, no numbers" put an illuminated sign reading 22 in the first image
-    generated. Diffusion models condition on the tokens they are given.
-  - **The vision gate fails closed.** No key, a timeout, an unparseable answer are
-    all rejections. An unchecked synthetic photograph must never reach a reader.
-    It knows two exceptions, both learned by it wrongly rejecting good pictures:
-    the game's own low polygon faces are not "a real person", and carved ornament
-    is not "text". Ankh is an Egyptian tomb whose walls are covered in glyphs, and
-    a strict reading meant it could never be illustrated at all.
-  - **References are Gemini only, measured not assumed.** Cloudflare's FLUX.2
-    accepts a multipart upload, returns 200, and ignores it: a reference that was
-    20% vivid marker pixels produced outputs containing 0.00%. Cloudflare is used
-    only when there are no references.
-  - A map with no screenshots is skipped rather than invented. `MAP_ALIASES` in
-    `image-refs.ts` maps server map names onto folders; `npm run refs:push`
-    regenerates that file and syncs `assets/refs` to R2.
-  - `src/components/column-image.tsx` is the only thing that renders it. It
-    carried a visible "AI interpretation" caption until **30 July 2026, when the
-    user asked for it to be removed**. What labels the picture now is the alt
-    text, which calls it a generated illustration, and the figure's title, which
-    says it is not a photograph of the match. Both are attached inside the
-    component so the picture cannot be rendered without them. Do not reinstate the
-    caption without being asked. There is deliberately no OpenGraph image.
-- **A feature argues; a scoreboard is not an argument, and the fact checker
-  cannot tell the difference.** Asked for a piece about two players finally
-  sharing a side, the first one spent two paragraphs reading out both
-  scoreboards and a reader said it lost its plot. Every figure in it was true,
-  so `checkClaims` passed it. Three things changed and the middle one is the
-  load-bearing one: the prompt stopped asking for a walk through the matches,
-  **the fact sheet stopped containing one** — a pairing or rivalry sheet carries
-  only its subjects' lines, everyone else in a sentence, and captures as counts
-  rather than clock times — and `prose-density.ts` now rejects a draft on
-  figures per paragraph *before* the fact check. `baselinesFor` is the other
-  half: a figure means nothing without the player's usual beside it, and with it
-  the same figure becomes an observation.
-- **Generated writing is fact checked before it is stored.** `fact-check.ts` sends
-  every draft column and match report back with the facts and asks what the data
-  does not support; a failure is rewritten once, then discarded. It exists because a
-  column claimed a "session-high 19.2 percent accuracy" when another player shot
-  19.4, and omitted a player's capture while listing everyone else's. Superlatives
-  are now also computed in code and handed over, because reading down a table for
-  the largest number is what models get wrong. Unlike the image gate this **fails
-  open**: withholding every article whenever the checker is rate limited would be a
-  worse trade than a rare small error.
-- Stored in Postgres rather than the day-sized documents the handoff package
-  used, because player statistics need to query across matches and a per-day
-  document cannot answer that without reading all of them.
+- **The pages are gone and their addresses redirect**, temporarily, in
+  `next.config.ts`. Old Discord posts and in-game messages still land.
+- **The data is kept.** Every table is still defined in `schema.ts`, so nothing
+  proposes dropping it. **Only four of the thirteen are in the nightly backup**
+  (`matches`, `match_players`, `match_captures`, `night_columns`), so take a
+  full export before dropping anything.
+- **Nothing calls a model any more.** The only trigger was the archive ingest
+  route, which is deleted. The AI keys in Vercel are unused and should be
+  revoked at each provider.
+- **Do not rebuild any of it without the owner asking.**
 
 ## Weight, measured rather than guessed
 
@@ -753,15 +350,11 @@ Numbers from 6 August, so they can be re-checked. The whole site went from
 18.1 MB to 9.1 MB across 62 pages in one change, and none of it was visible in
 the source: read the real response rather than reasoning about the components.
 
-- **A match page was 749 kB**, of which 465 kB was the React payload, and 750 of
-  its 774 player links were one list: the frag log, rendered in full inside a
-  `<details>` that is closed. Moved to `/matches/[day]/[match]/frags` and the
-  page is 255 kB. Nothing was truncated; an archive that stops listing after a
-  hundred rows is worse than one that asks for a click.
-- **The database is small and is not the problem.** 704 kB of matches, 440 kB of
-  players, 174 kB of kill events across every match on record. When a page is
-  heavy it is the rendering, not the data: that frag log was about seventy-five
-  times the size of the rows behind it.
+- **When a page is heavy it is the rendering, not the data.** The worst case
+  on record was a match page (since retired) at 749 kB, of which 465 kB was the
+  React payload for one list that was rendered in full inside a closed
+  `<details>`. The largest page today is a server rotation, and `map-rotation`
+  in `globals.css` numbers its rows by CSS for the same reason.
 - **The VPS is not busy**: two cores at 4%, the broadcaster on 44 MB, 49 GB of
   disk free. See `../STACK.md` before optimising anything there.
 
@@ -799,7 +392,3 @@ fist-and-pickaxe favicon at `public/icon.png`.
    empty shell. This matters more than any code.
 2. **First videos** — `src/lib/videos.ts` is an empty array by design.
 3. **Discord role IDs** for Mapper and Admin.
-4. **What the dedicated server records** — decides what Phase 3 player statistics
-   can show. Constraints: the VPS must not be hogged (batch export, not live
-   queries), and reconciling Discord identity against RF player names is the hard
-   part, not the charts.

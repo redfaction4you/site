@@ -33,6 +33,7 @@ import {
   itemUpdates,
   items,
   mapMeta,
+  mapPacks,
   matchCaptures,
   matchPlayers,
   matches,
@@ -141,6 +142,13 @@ export async function runBackup(): Promise<BackupResult> {
     // record of what changed between one release of a map and the next, and
     // unlike the file itself it exists nowhere but this database.
     ["item_updates", db.select().from(itemUpdates)],
+    // The rotation each server runs, which the three server pages are built
+    // from. Left out of this list until 25 September 2026, when it became the
+    // most important thing the site holds that exists nowhere else.
+    ["map_packs", db.select().from(mapPacks)],
+    // The retired match archive. Nothing reads these tables since stats
+    // stopped on 25 September 2026, but they are still kept, so they are
+    // still backed up.
     // counts-everything: the archive as it stands, cancelled matches included.
     ["matches", db.select().from(matches)],
     // counts-everything: the scoreboards belonging to those matches.

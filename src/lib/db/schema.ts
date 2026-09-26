@@ -20,12 +20,6 @@ import type { AdapterAccountType } from "next-auth/adapters";
 // resolve it. Keeps the client list in one place rather than duplicating it.
 import type { RfClient } from "../rfl/clients.ts";
 import type { ItemKind } from "../downloads.ts";
-import type {
-  PublicFlagEvent,
-  PublicKill,
-  PublicRosterEvent,
-  PublicWeaponStat,
-} from "../matches/sanitize.ts";
 
 /**
  * Phase 1 identity tables, plus the Phase 2 catalogue.
@@ -523,18 +517,79 @@ export const screenshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Match archive
+// Match archive and the written pieces about it: RETIRED
 //
-// Populated by the dedicated server, which posts a day's results to
-// /api/rf4u/archive/ingest. Stored as tables rather than day-sized documents
-// because the point of keeping this data is eventually to answer questions
-// across matches, a player's accuracy over a month, captures in a season,
-// and a per-day document cannot answer those without reading all of them.
+// The stats and the analyst were switched off in September 2026. Nothing in
+// the site reads or writes these tables any more: `matches`, `match_players`,
+// `match_captures`, `night_columns`, `opinion_pieces`, `player_profiles`,
+// `dm_rounds`, `dm_players`, `archive_days`, `sync_pings`,
+// `player_identities`, `match_videos` and `feature_pieces`.
 //
-// PRIVACY: everything the public sees is sanitised at ingest. The one field
-// that never leaves the server is `match_players.identity_key`. Read the
-// comment on it before using it anywhere.
+// The definitions stay on purpose. There is one Neon database and local runs
+// share it with production, so a definition removed here is a DROP TABLE the
+// next `db:generate` or `db:push` would write and run against the live data.
+// Dropping them is a separate decision, to be taken after a full export,
+// because the nightly backup covers only some of them.
+//
+// The four jsonb shapes below were imported from the match sanitizer, which
+// went with the ingest. They are copied here so the column types still say
+// what the stored rows hold.
+//
+// PRIVACY: `match_players.identity_key` was never served. Read the comment on
+// it before using it anywhere, should any of this come back.
 // ---------------------------------------------------------------------------
+
+/** One frag from a match's event log, as the sanitizer stored it. */
+export type PublicKill = {
+  elapsedSeconds: number;
+  killerName: string | null;
+  killerTeam: string | null;
+  victimName: string;
+  victimTeam: string | null;
+  weapon: string | null;
+  suicide: boolean;
+  teamKill: boolean;
+  flagContext: string | null;
+  observedAt: string | null;
+};
+
+/** One flag pickup, drop, return or capture, as the sanitizer stored it. */
+export type PublicFlagEvent = {
+  eventType: string;
+  elapsedSeconds: number;
+  flagOwner: string | null;
+  playerName: string | null;
+  killerName: string | null;
+  victimName: string | null;
+  carryMs: number;
+  attribution: string | null;
+  recovery: boolean;
+  previousCarrierName: string | null;
+  message: string;
+  observedAt: string | null;
+};
+
+/** A join, leave or team change, as the sanitizer stored it. */
+export type PublicRosterEvent = {
+  eventType: string;
+  playerName: string | null;
+  fromTeam: string | null;
+  toTeam: string | null;
+  elapsedSeconds: number;
+  observedAt: string | null;
+};
+
+/**
+ * Per weapon shooting, added by the 2.1 broadcaster. Matches archived before
+ * that upgrade carry none, because it was never recorded.
+ */
+export type PublicWeaponStat = {
+  weapon: string;
+  shotsHit: number;
+  shotsFired: number;
+  accuracy: number;
+  kills: number;
+};
 
 export const matches = pgTable(
   "matches",
@@ -1367,7 +1422,7 @@ export type MapPackEntry = {
 };
 
 /**
- * A themed set of maps for the deathmatch server.
+ * A themed set of maps for one of the servers in `src/lib/servers.ts`.
  *
  * Mapper highlights, a Halloween pack, a Christmas pack — defined here,
  * switched on from /admin, and applied by the VPS, which polls for the active

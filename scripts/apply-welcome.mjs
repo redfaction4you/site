@@ -5,16 +5,16 @@
  *   npm run apply:welcome -- --go
  *
  * `servers.ts` is where these are written and reviewed, and it is not what any
- * server reads. The pub servers read `map_packs.welcome_message`, which the
- * applier on the VPS polls and writes into a TOML; the match server runs no
- * pack and keeps its text in `rf4u-match.toml` directly. So a message edited in
- * the registry and nowhere else is a message nobody in the game ever sees, and
- * the two quietly disagree from then on.
+ * server reads. The servers read `map_packs.welcome_message`, which the
+ * applier on the VPS polls and writes into a TOML. So a message edited in the
+ * registry and nowhere else is a message nobody in the game ever sees, and the
+ * two quietly disagree from then on.
  *
- * This closes the gap for everything that has a pack. The match server cannot
- * be reached from here at all, so it is printed rather than skipped silently:
- * an applier that is quiet about the one thing it cannot do reads exactly like
- * one that had nothing to do.
+ * **Only Themed is carried the whole way.** The applier on the VPS applies the
+ * Themed pack and nothing else; Novelty's and Halloween's configs are edited by
+ * hand. A change written here for those two lands in the database and on the
+ * admin page, and reaches the game only when somebody edits that server's TOML
+ * to match.
  *
  * Writes only `welcome_message`, and only on the active pack for each server.
  * The level list, the pack name and everything else are somebody else's job.
@@ -48,7 +48,7 @@ const sql = neon(url);
  * contains something the fold changes, and writing it would never settle.
  */
 const intended = new Map(
-  SERVERS.filter((server) => server.packSlug).map((server) => [
+  SERVERS.map((server) => [
     server.slug,
     asciiForGame(server.welcome),
   ]),
@@ -63,8 +63,6 @@ let changed = 0;
 let missing = 0;
 
 for (const server of SERVERS) {
-  if (!server.packSlug) continue;
-
   const row = rows.find((candidate) => candidate.server === server.slug);
   if (!row) {
     console.log(`  ${server.slug.padEnd(10)} no active pack, nothing to write`);
@@ -89,19 +87,6 @@ for (const server of SERVERS) {
       set welcome_message = ${want}, updated_at = now()
       where server = ${server.slug} and active`;
   }
-}
-
-/*
- * The one this cannot reach.
- *
- * Two blocks, because `[levels.rules]` overrides `[base.rules]` and editing
- * only the second changes nothing anybody joining will read.
- */
-const match = SERVERS.find((server) => !server.packSlug);
-if (match) {
-  console.log(`\n  ${match.slug.padEnd(10)} runs no pack. Set both welcome_message blocks in`);
-  console.log(`             rf4u-match.toml by hand, then restart it:`);
-  console.log(`             ${asciiForGame(match.welcome)}`);
 }
 
 console.log(

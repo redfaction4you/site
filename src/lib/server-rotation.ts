@@ -94,3 +94,41 @@ export function rotationFrom<T extends RotationEntry>(
   if (at === null || at === 0) return maps;
   return [...maps.slice(at), ...maps.slice(0, at)];
 }
+
+/**
+ * Where the running level sits, found by its exact filename first.
+ *
+ * The server reports the file it loaded, and that is the one name here that
+ * cannot be confused with another entry. Matching titles first, as
+ * `positionInRotation` does, goes wrong when a later version of a map keeps
+ * the earlier version's internal name: the old entry's title folds to the new
+ * entry's filename and the marker lands on the wrong row. Measured on
+ * 25 September 2026 with `dm-nemo2.rfl` titled "DM-Nemo" ahead of `dm-nemo.rfl`.
+ *
+ * Falls back to `positionInRotation` on the display name when the file is
+ * unknown or not in the list, which is the old behaviour.
+ */
+export function positionOfLevel(
+  levelFile: string | null | undefined,
+  levelName: string | null | undefined,
+  maps: RotationEntry[],
+): number | null {
+  const file = levelFile?.toLowerCase();
+  if (file) {
+    const exact = maps.findIndex((entry) => entry.filename.toLowerCase() === file);
+    if (exact >= 0) return exact;
+  }
+  return positionInRotation(levelName, maps);
+}
+
+/** The entry after `at`, wrapping; null for no position or a one-map rotation. */
+export function nextAfter<T extends RotationEntry>(at: number | null, maps: T[]): T | null {
+  if (at === null || maps.length < 2) return null;
+  return maps[(at + 1) % maps.length];
+}
+
+/** The rotation reordered to start at `at`; unchanged for no position. */
+export function rotationStartingAt<T extends RotationEntry>(at: number | null, maps: T[]): T[] {
+  if (at === null || at === 0) return maps;
+  return [...maps.slice(at), ...maps.slice(0, at)];
+}

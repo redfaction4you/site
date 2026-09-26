@@ -33,11 +33,12 @@ export const metadata: Metadata = {
    *
    * This described the file catalogue, which is built but empty and hidden from
    * the navigation, so every link preview promised maps, mods and guides and led
-   * to a match archive. The footer was already fixed; this is the copy that
-   * unfurls in Discord, which is where most people meet the site first.
+   * to a match archive. Then it described the match archive, which went on
+   * 25 September 2026. This is the copy that unfurls in Discord, which is where
+   * most people meet the site first, so it names what is live: the servers.
    */
   description:
-    "A community archive for Red Faction (2001): match results, nightly write-ups, player records and the community server, in one place that stays up.",
+    "Three Red Faction (2001) community servers, Themed, Novelty and Halloween, with every map in each rotation and the files to play them, in one place that stays up.",
   icons: { icon: "/icon.png" },
   openGraph: {
     type: "website",

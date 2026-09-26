@@ -240,9 +240,12 @@ outgrows hand-editing.
 leaves a dead entry; self-hosting would fix it and cost real money, so we accept
 it and check links periodically instead.
 
-**No servers, no tracker, no match schedule.** This is an archive. The rule that
-settled the scope: if it is not something you can download, read or watch, it
-does not ship. See build plan v6 section 0.
+**The servers are the point, and stats are not.** The first scope rule was "if
+it is not something you can download, read or watch, it does not ship", and it
+kept servers out. That changed: the site now leads with the three RF4U servers,
+each with its rotation and the map playing now. A match archive with player
+stats and generated write-ups was built and then retired on 25 September 2026;
+its data is kept, its pages redirect. Do not rebuild it unasked.
 
 **The `/clients` page takes no side.** It reports what the Red Faction Wiki
 says, with a visible last-checked date in `src/lib/clients.ts`. As of July 2026

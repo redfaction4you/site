@@ -2,8 +2,8 @@
  * Writing to the R2 bucket.
  *
  * `storage.ts` is the read half: it turns a stored key into the permanent public
- * URL. This is the write half, and it exists because the nightly column now
- * generates an illustration that has to live somewhere.
+ * URL. This is the write half, used by the upload path in the admin and by the
+ * nightly database backup.
  *
  * Two things are worth knowing before adding a caller.
  *

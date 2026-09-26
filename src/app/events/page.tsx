@@ -52,11 +52,10 @@ export default function EventsPage() {
           Coming here later
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-steel-400">
-          The hub will be rebuilt into this site so brackets, match results and player
-          records sit together. A tournament match should link straight to its
-          scoreboard, and a player&rsquo;s page should show what they won. That is a
-          rebuild rather than a copy, because the two currently use different accounts
-          and this site&rsquo;s Discord sign-in should win.
+          The hub will be rebuilt into this site so brackets and events sit
+          together. That is a rebuild rather than a copy, because the two
+          currently use different accounts and this site&rsquo;s Discord sign-in
+          should win.
         </p>
       </div>
 
@@ -70,12 +69,12 @@ export default function EventsPage() {
         >
           Discord
         </a>
-        . Results from those land in{" "}
+        , and played on{" "}
         <Link
-          href="/matches"
+          href="/servers"
           className="text-rust-400 underline underline-offset-4 hover:text-rust-300"
         >
-          the match archive
+          our servers
         </Link>
         .
       </p>

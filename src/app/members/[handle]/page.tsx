@@ -100,8 +100,8 @@ export default async function MemberPage({
           Coming in phase 3
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-steel-400">
-          Uploads, comments, ratings, team history and match results all land on
-          this page once the catalogue and tournaments are live.
+          Uploads, comments, ratings and team history all land on this page
+          once the catalogue and tournaments are live.
         </p>
       </div>
     </div>

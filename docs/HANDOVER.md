@@ -6,7 +6,67 @@ conventions and gotchas; this covers state, intent and what is unfinished.
 
 ---
 
-## Where things stand
+## 25 September 2026: stats, the Match server and the analyst are retired
+
+**Read this before anything below it.** The owner decided to stop recording
+stats completely and to focus the site on three servers. Most of the rest of
+this file describes the system that was retired that day and is kept as
+history, not as instructions.
+
+What the site is now:
+
+| | |
+|---|---|
+| Servers | `/servers/themed`, `/servers/novelty`, `/servers/halloween`: each server's rotation and the map playing now |
+| Front page | three server cards, each with its live state and the map playing now |
+| Downloads | the catalogue: maps, assets, mods, tools |
+| Events | unchanged |
+| Health | `/api/health`: the nightly backup and the database, nothing else |
+
+Navigation: Servers, Downloads, Events.
+
+What went, and where it went:
+
+- **The match archive, players, pairings, stat boards and search.** Pages and
+  their code deleted. Every old address redirects (temporarily, in
+  `next.config.ts`): the record to `/servers`, the writing to `/`.
+- **Stanley Mesh and all generated writing.** `src/lib/ai/` is gone, with the
+  news pages, the analyst page, the illustrations and the Discord announcer.
+  The only trigger was the archive ingest route, which is deleted, so nothing
+  can call a model any more.
+- **The Match server (17755).** Removed from `servers.ts`; the owner expects it
+  back later as a different kind of server, probably DM. Switching it off on the
+  VPS is the package in `C:\RF4U\Transfers\stop-stats`.
+- **The two maps on the front page.** Outlaws b1 was also unpublished, because
+  it is a Match (CTF) map. Arena Island B3 stays, in the Themed rotation.
+
+**The data was not deleted, deliberately.** Every stats and AI table is still
+defined in `schema.ts` so that drizzle-kit never generates a `DROP`, and the
+rows are still there. The owner said keeping them is fine. Dropping them is a
+separate decision and needs a full export first: only four of the thirteen
+tables are in the nightly backup.
+
+**Two things were left for the owner**, because the auto-mode classifier
+refused them from here:
+
+- **The Themed welcome message** in `map_packs` still says play is recorded and
+  ranked. `servers.ts` has the new text. Carry it over with
+  `node scripts/apply-welcome.mjs --go` (a dry run without `--go` shows that
+  only Themed changes), or edit the Themed pack's welcome box in `/admin`. The
+  nightly applier on the VPS then writes it to `rf4u-dm.toml` while the server
+  is empty.
+- **Switching off the Match server and the stats processes on the VPS**:
+  `C:\RF4U-Transfers\stop-stats\stop-stats.ps1 -Go`, dry run already passed.
+  Until then the VPS archive sync keeps calling the deleted ingest route every
+  fifteen minutes and gets a 404, which is harmless.
+
+**Not for rebuilding.** Do not bring back stats, the archive or generated
+writing without the owner asking; the pages that describe them below are
+history.
+
+---
+
+## Where things stood on 30 July 2026 (history)
 
 Live at `redfaction4you.com`, deployed from `redfaction4you/site` on push to
 `main`. Everything below is working in production.
@@ -34,7 +94,7 @@ page spent apologising for a feature nobody was waiting for.
 
 ---
 
-## The thing to understand first: two stages of checking
+## Two stages of checking (history: the analyst, retired 25 September 2026)
 
 This is the spine of the project and most of the session went into it. **Every
 piece of writing on this site is machine generated, so the whole value
@@ -87,7 +147,7 @@ good.** All three were flattering and plausible, which is why they published.
 
 ---
 
-## The illustrations
+## The illustrations (history, retired 25 September 2026)
 
 One per column, composed from reference images rather than imagined: a screenshot
 of the map that was played and the actual player models. Almost nothing is a
@@ -146,7 +206,7 @@ and relic-seeker.
 
 ---
 
-## Keys, quota and cost
+## Keys, quota and cost (history, retired 25 September 2026)
 
 The binding constraint on everything in `src/lib/ai/`.
 
@@ -167,7 +227,7 @@ Cloudflare). See `CLAUDE.md` for the redeploy gotcha.
 
 ---
 
-## The interface pass, 31 July 2026
+## The interface pass, 31 July 2026 (history, retired 25 September 2026)
 
 The archive pages were rebuilt around what the data is rather than what fitted
 in a box. Four decisions in it are load bearing.
@@ -219,7 +279,7 @@ confined to the one part of the site labelled as opinion, why it is short enough
 for a person to read in full and correct, and why the prompt tells him it is
 context and never evidence. Do not feed it to anything that reports.
 
-## Outstanding
+## Outstanding (history: the stats work, retired 25 September 2026)
 
 **Map overviews.** Five maps have them. The user has more coming and said they
 would add them the day after this session. Drop into
@@ -305,7 +365,7 @@ match boards exist for this reason; eventually you want recent-form windows.
 columns publish on the site but are announced nowhere. Setting it turns
 announcements on with no code change.
 
-## The 2.2 broadcaster package, and why the storage was not changed
+## The 2.2 broadcaster package, and why the storage was not changed (history)
 
 `RF4U-MATCH-ARCHIVE-INTEGRATION-2.2.zip` arrived on 31 July with instructions to
 build the archive on Vercel Blob, one JSON document per day. **The shot integrity
@@ -362,7 +422,7 @@ pass if it recurs.
 
 ---
 
-## Next session: what to do, and why
+## Next session, as written before 25 September 2026 (history)
 
 Written at the end of 31 July 2026. Everything below is deployed and verified
 unless it says otherwise.
@@ -449,51 +509,38 @@ production database that is also the development one.
 
 ```bash
 npm run dev            # localhost:3000
-npm test               # 124 tests
+npm test
 npm run typecheck      # before every push
-npm run vet            # check the archive against itself
-npm run ai:quota       # what each key can do today
-npm run refs:label     # label new character poses
-npm run refs:push -- --go
+npm run vet:pages -- https://redfaction4you.com   # the live pages, as a visitor reads them
 ```
 
-Two authenticated endpoints, both taking `RF4U_ARCHIVE_SYNC_SECRET` as a bearer
-token:
+Two endpoints take `RF4U_ARCHIVE_SYNC_SECRET` as a bearer token:
 
 ```
-POST /api/rf4u/archive/rebuild   run report, column, image and profile generation now
-GET  /api/admin/backup           run a backup now; ?list=1 to list without writing
+GET /api/rf4u/map-pack/active    what the VPS applier reads to set a server's rotation
+GET /api/admin/backup            run a backup now; ?list=1 to list without writing
 ```
 
-`GET /api/health` is public and returns 503 when the sync or the backup is
-overdue.
+`GET /api/health` is public and returns 503 when the backup is overdue or the
+database does not answer.
 
 ---
 
 ## Things not to break
 
-**The sanitizer is an allowlist.** `src/lib/matches/sanitize.ts` names every field
-it copies. A field invented upstream cannot leak because it is simply not copied.
-Never replace it with a spread.
+**The retired tables stay defined in `schema.ts`.** Removing a definition makes
+the next `db:generate` or `db:push` write a `DROP TABLE` against the one
+database that local and production share.
 
-**`match_players.identity_key` is stored and never served.** Every read path in
-`queries.ts` names its columns. Do not use `db.query.matchPlayers.findMany()`.
+**`match_players.identity_key` is still in the database and must never be
+served.** Nothing reads that table now; if anything ever does again, it names
+its columns.
 
 **The R2 bucket is public.** Anything written there is downloadable by anyone who
 guesses the key. Backups are encrypted and an unencrypted write is refused.
 `src/lib/r2.ts` refuses the `backups/` prefix outright.
 
-**Generated content is always labelled**, with one exception the user asked for.
-Prose says who wrote it everywhere it appears. The illustration's visible "AI
-interpretation" caption was removed on 30 July 2026 at the user's request; the alt
-text and the figure title still identify it as generated, and both live inside
-`ColumnImage` so the picture cannot be rendered without them. Do not put the
-caption back unasked. There is deliberately no OpenGraph image: a link preview is
-the one place a label could not follow it.
-
-**No em dashes**, anywhere, in site copy or generated text.
-
-**They and them for every player**, in all generated text.
+**No em dashes**, anywhere, in site copy.
 
 ---
 

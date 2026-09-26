@@ -1,8 +1,8 @@
 /**
- * Is our server up, and who is on it.
+ * Is each of our servers up, what is it playing, and who is on it.
  *
- * One HTTP request to FactionFiles' public server-browser API, for our server
- * and nothing else. That distinction matters: this is not the UDP tracker the
+ * One HTTP request to FactionFiles' public server-browser API per server, for
+ * our servers and nothing else. That distinction matters: this is not the UDP tracker the
  * build plan cut twice. There is no socket to keep open, no Windows service, no
  * list of other people's servers to maintain, and nothing stored. If the API
  * goes away the page says it does not know, and everything else still works.
@@ -18,8 +18,18 @@ const RFSB_LOOKUP_API = "https://rfsb.factionfiles.com/api/v2/ff-rfl-lookup";
 /** How long a cached answer stays good, in seconds. */
 const REVALIDATE = 30;
 
-/** Give up rather than hang a page render on a third party being slow. */
-const TIMEOUT_MS = 4000;
+/**
+ * Give up rather than hang a page render on a third party being slow.
+ *
+ * Two budgets, not one. The summary is the call that decides online, offline
+ * or unknown, and the browser takes about five and a half seconds to report an
+ * unreachable server as such, so four seconds turned a server that was simply
+ * down into "we could not ask". The player list and the map lookup are extras
+ * made after it and share the page with it: at the summary's budget each, a
+ * slow browser would hold a page on three servers for over twenty seconds.
+ */
+const SUMMARY_TIMEOUT_MS = 8000;
+const LOOKUP_TIMEOUT_MS = 3500;
 
 /** Live state of the game in progress, when there is one. */
 export type LiveGame = {
@@ -69,6 +79,11 @@ export type ServerStatus =
       bots: number;
       maxPlayers: number;
       map: string | null;
+      /**
+       * The level file the server says it has loaded, e.g. "DM-Gothic.rfl".
+       * The one name here that can be matched exactly against a rotation.
+       */
+      levelFile: string | null;
       gameType: string | null;
       client: string | null;
       matchMode: boolean;
@@ -154,7 +169,7 @@ function ruleTags(flags: string[] | undefined): string[] {
 async function getJson<T>(url: string): Promise<T | null> {
   try {
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
       next: { revalidate: REVALIDATE },
     });
     if (!response.ok) return null;
@@ -260,6 +275,14 @@ async function getMapInfo(rflName: string | undefined): Promise<MapInfo | null> 
 
   if (!lookup?.success || !lookup.file_id) return null;
 
+  /*
+   * A guess is not an answer. The lookup falls back to the nearest name it
+   * knows when it has no exact match, and a map hosted here rather than on
+   * FactionFiles has none, so a guess would put another map's name and
+   * picture under "playing now". Nothing is better than the wrong thing.
+   */
+  if (lookup.guessed) return null;
+
   return {
     name: lookup.file_name || rflName,
     fileId: lookup.file_id,
@@ -269,29 +292,15 @@ async function getMapInfo(rflName: string | undefined): Promise<MapInfo | null> 
 }
 
 /**
- * The deathmatch server, same lookup at its own port.
+ * One server's live state, by `host:port`.
  *
- * `NEXT_PUBLIC_DM_SERVER_ADDRESS` wins where set; absent one, the host is the
- * match server's — the two run on the same machine — and the port is 17756,
- * which is a recorded fact of the install rather than a guess. Deriving it
- * means the section works without a Vercel env change and a fresh build, which
- * is the trap new env vars fall into here.
+ * The address is required. It used to default to `NEXT_PUBLIC_SERVER_ADDRESS`,
+ * which is the Match server's address, so a caller that forgot to say which
+ * server it meant silently reported on that one. The Match server was switched
+ * off on 25 September 2026 and a default pointing at it would have read
+ * "offline" forever. Take the address from `serverAddress()` in `servers.ts`.
  */
-export async function getDmServerStatus(): Promise<ServerStatus> {
-  const configured = process.env.NEXT_PUBLIC_DM_SERVER_ADDRESS;
-  if (configured) return getServerStatus(configured);
-
-  const ctf = process.env.NEXT_PUBLIC_SERVER_ADDRESS;
-  const host = ctf?.split(":")[0];
-  if (!host) return { state: "unknown", reason: "No server address configured." };
-  return getServerStatus(`${host}:17756`);
-}
-
-export async function getServerStatus(
-  addressOverride?: string,
-): Promise<ServerStatus> {
-  const address = addressOverride ?? process.env.NEXT_PUBLIC_SERVER_ADDRESS;
-  if (!address) return { state: "unknown", reason: "No server address configured." };
+export async function getServerStatus(address: string): Promise<ServerStatus> {
 
   const [host, port] = address.split(":");
   if (!host || !port) {
@@ -300,7 +309,7 @@ export async function getServerStatus(
 
   try {
     const response = await fetch(`${RFSB_API}/${host}/${port}`, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(SUMMARY_TIMEOUT_MS),
       next: { revalidate: REVALIDATE },
     });
 
@@ -332,6 +341,7 @@ export async function getServerStatus(
       bots: counts.num_bots ?? 0,
       maxPlayers: counts.max_players ?? 0,
       map: body.info.level_name || null,
+      levelFile: body.info.rfl_name || null,
       gameType: gameType(body.info.game_type),
       client:
         body.info.patch_name && body.info.patch_ver
@@ -349,4 +359,28 @@ export async function getServerStatus(
         : "Could not reach the server browser.";
     return { state: "unknown", reason };
   }
+}
+
+/**
+ * What to call the map a server is playing, or null when it is not up.
+ *
+ * The one live fact every server page and the front page show, so it is
+ * decided once. The level file is matched exactly against the server's own
+ * rotation first, because that is the list the page prints and a title written
+ * there is the title the reader will look for in it. Only when the file is not
+ * in the rotation does it fall back to what the server browser calls it.
+ */
+export function nowPlaying(
+  status: ServerStatus,
+  maps: readonly { filename: string; title?: string }[] = [],
+): string | null {
+  if (status.state !== "online") return null;
+
+  const file = status.levelFile?.toLowerCase();
+  if (file) {
+    const entry = maps.find((map) => map.filename.toLowerCase() === file);
+    if (entry) return entry.title?.trim() || entry.filename.replace(/.rfl$/i, "");
+  }
+
+  return status.mapInfo?.name ?? status.map ?? status.levelFile;
 }

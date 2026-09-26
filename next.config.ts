@@ -116,23 +116,48 @@ const nextConfig: NextConfig = {
         remember where "/servers/halloween" is two, and the shorter it is the
         more of it survives the walk to the other window.
 
-        Derived from the registry rather than listed, so a fifth server gets
+        Derived from the registry rather than listed, so a fourth server gets
         one without anybody remembering to come back here.
-
-        The match server is deliberately left out. "/match" beside "/matches"
-        is two URLs a letter apart meaning different things, and its welcome
-        message points at the archive anyway.
 
         Temporary on purpose, unlike the singular-to-plural pair above. These
         are conveniences rather than the canonical URL, and a permanent
         redirect cached in every browser that ever followed it would be in the
         way the first time /halloween is wanted for a Halloween event.
       */
-      ...SERVERS.filter((server) => server.slug !== "match").map((server) => ({
+      ...SERVERS.map((server) => ({
         source: `/${server.slug}`,
         destination: `/servers/${server.slug}`,
         permanent: false,
       })),
+      /*
+        The stats, the match archive and the analyst, retired on 25 September
+        2026.
+
+        Every one of these was linked from somewhere a person can still find
+        it: Discord posts, in-game welcome messages that pointed at /stats and
+        /matches, shared player pages. A redirect keeps each of those landing
+        on a page that answers rather than a 404. The record went to the
+        servers, which is what the site is about now; the writing went to the
+        front page.
+
+        Temporary, not permanent. /news in particular is a good address for
+        whatever gets announced next, and a 308 cached in every browser that
+        ever followed an old link would be in its way.
+      */
+      { source: "/matches", destination: "/servers", permanent: false },
+      { source: "/matches/:path*", destination: "/servers", permanent: false },
+      { source: "/players", destination: "/servers", permanent: false },
+      { source: "/players/:path*", destination: "/servers", permanent: false },
+      { source: "/stats", destination: "/servers", permanent: false },
+      { source: "/stats/:path*", destination: "/servers", permanent: false },
+      { source: "/news", destination: "/", permanent: false },
+      { source: "/news/:path*", destination: "/", permanent: false },
+      { source: "/analyst", destination: "/", permanent: false },
+      { source: "/analyst/:path*", destination: "/", permanent: false },
+      { source: "/search", destination: "/", permanent: false },
+      { source: "/link", destination: "/", permanent: false },
+      { source: "/servers/map-packs", destination: "/servers/themed", permanent: false },
+      { source: "/servers/match", destination: "/servers", permanent: false },
       // The client comparison moved into Guides.
       { source: "/clients", destination: "/guides", permanent: true },
       { source: "/client", destination: "/guides", permanent: true },

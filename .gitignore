@@ -25,15 +25,8 @@ npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Reference images for the column illustration.
-#
-# Staged here, pushed to R2, and served from there. Deliberately not committed:
-# they are binaries that would bloat every clone forever, and the bucket is
-# already the place this project serves images from. The manifest that names them
-# IS committed, in src/lib/ai/image-refs.ts, so the repo still records what the
-# set is meant to contain even though it does not carry the bytes.
-assets/refs/**
-!assets/refs/README.md
-# The pose labels are text, cost a vision request each to work out, and are the
-# record of which render is a run and which is a crouch. Worth keeping.
-!assets/refs/poses.json
+# Reference images that fed the analyst's column illustrations, retired on
+# 25 September 2026. The folder still holds about 25 MB of local PNGs that were
+# never meant for the repo, so it stays ignored: without this line the next
+# `git add -A` would commit them to a public repository.
+assets/refs/

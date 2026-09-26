@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { COLUMNIST_HREF, COLUMNIST_NAME } from "@/lib/ai/opinion";
 import { DISCORD_INVITE, VISIBLE_NAV } from "@/lib/nav";
 
 export function SiteFooter() {
@@ -14,14 +13,14 @@ export function SiteFooter() {
           <p className="mt-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.32em] text-rust-500">
             Red Faction Archive
           </p>
-          {/* Describes what is actually here. The file catalogue is built but
-              empty and hidden from the navigation, so promising it in the
-              footer would send people looking for shelves with nothing on
-              them. */}
+          {/* Describes what is actually here: the three servers and the
+              downloads. It is on every page, so a promise in it that the site
+              does not keep is a promise broken everywhere at once. */}
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-steel-400">
-            A community archive for Red Faction (2001). Match results, player
-            records and the community server, kept in one place. Everything
-            here is free, nothing is walled off, and you never need an account.
+            A community archive for Red Faction (2001). Three community servers,
+            Themed, Novelty and Halloween, and the maps and files to play on
+            them. Everything here is free, nothing is walled off, and you never
+            need an account.
           </p>
         </div>
 
@@ -38,22 +37,6 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
-            {/*
-              The columnist, who had no route to him from anywhere except a card
-              on the news page a reader had to already be looking at. His pieces
-              are filed under the nights they are about, so the only way to find
-              the second one was to guess which night it belonged to. Not in the
-              header, which is full at eight: an opinion column is something you
-              go and find once you know it is there.
-            */}
-            <li>
-              <Link
-                href={COLUMNIST_HREF}
-                className="text-steel-400 transition-colors hover:text-steel-200"
-              >
-                {COLUMNIST_NAME}
-              </Link>
-            </li>
           </ul>
         </div>
 

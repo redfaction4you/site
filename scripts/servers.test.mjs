@@ -3,17 +3,13 @@
  *
  *   npm test
  *
- * Two things here are correctness rather than presentation, and both are
- * failures this project has already had once.
- *
- * An identity must never be edited to follow a rename. The archive upserts on
- * `(server, source_match_id)` and `sync_pings` is keyed on the same string, so
- * changing one forks that server's history and strands the old name in
- * `sync_pings`, where it goes quiet forever and holds `/api/health` red.
- *
- * And two servers must never share a port. They run on one machine; a duplicate
+ * Two servers must never share a port. They run on one machine; a duplicate
  * would silently point two tabs at whichever process bound it first, and the
  * page would look entirely normal.
+ *
+ * And every server must run a pack. A server page is its rotation and the map
+ * playing now; a server with no pack is a page with nothing on it, and the
+ * first server in the list is where `/servers` lands.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -44,43 +40,26 @@ test("no two servers share a name", () => {
   assert.equal(new Set(names).size, names.length);
 });
 
-test("no two servers share an archive identity", () => {
-  // Sharing one would merge two servers' history into a single record with no
-  // way to tell them apart afterwards.
-  const identities = SERVERS.map((s) => s.identity).filter((id) => id !== null);
-  assert.equal(new Set(identities).size, identities.length);
-});
+/* --- rotations ---------------------------------------------------------------- */
 
-/* --- the identities themselves --------------------------------------------- */
-
-test("the recorded servers keep the identities the archive already has", () => {
-  // Pinned deliberately. These are the exact strings in archive_days,
-  // sync_pings and RF_SERVER_NAME on the VPS. A rename belongs in
-  // server-names.ts, never here.
-  const byslug = Object.fromEntries(SERVERS.map((s) => [s.slug, s]));
-
-  assert.equal(byslug["match"].identity, "RF4U Competitive [Match]");
-  assert.equal(byslug["themed"].identity, "RedFaction4You.com [DM]");
-});
-
-test("an identity is never the display name for the renamed servers", () => {
-  // If these ever match it means somebody "tidied" an identity to agree with
-  // the name, which is the exact change that forks the archive.
-  const renamed = SERVERS.filter(
-    (server) => server.slug === "match" || server.slug === "themed",
-  );
-
-  for (const server of renamed) {
-    assert.notEqual(server.identity, server.name, `${server.slug} identity was renamed`);
-  }
-});
-
-test("a server that records nothing carries no identity", () => {
+test("every server runs a pack", () => {
   for (const server of SERVERS) {
-    if (server.kind === "pub") {
-      assert.equal(server.identity, null, `${server.slug} should not be archived`);
-    }
+    assert.equal(typeof server.packSlug, "string", `${server.slug} has no pack`);
+    assert.ok(server.packSlug.length > 0, `${server.slug} has an empty pack slug`);
   }
+});
+
+test("the server /servers lands on has a rotation to show", () => {
+  // The Match server led this list and ran no pack, so the landing tab was the
+  // one page with no map list on it. It was switched off on 25 September 2026;
+  // this keeps anything like it from coming back as the first tab.
+  assert.ok(SERVERS.length > 0);
+  assert.ok(SERVERS[0].packSlug, `${SERVERS[0].slug} leads but runs no pack`);
+});
+
+test("the Match server is gone from the list, not hidden in it", () => {
+  assert.equal(serverBySlug("match"), null);
+  assert.ok(!SERVERS.some((server) => server.port === 17755));
 });
 
 /* --- addresses -------------------------------------------------------------- */
@@ -113,13 +92,13 @@ test("with no host configured an address is absent, not a broken string", () => 
 test("a server is found by its slug, and an unknown slug is null", () => {
   assert.equal(serverBySlug("novelty")?.port, 17757);
   assert.equal(serverBySlug("themed")?.port, 17756);
+  assert.equal(serverBySlug("halloween")?.port, 17758);
   assert.equal(serverBySlug("nothing-here"), null);
 });
 
 test("every server says what it is for", () => {
   for (const server of SERVERS) {
     assert.ok(server.blurb.length > 20, `${server.slug} has no blurb`);
-    assert.ok(["match", "deathmatch", "pub"].includes(server.kind));
   }
 });
 
@@ -143,13 +122,24 @@ test("the client version is stated once and is current", () => {
  */
 const WELCOME_LINK = /RedFaction4You\.com\/([a-z]+)/;
 
+/**
+ * Servers whose welcome deliberately carries no link.
+ *
+ * Halloween's is the owner's seasonal text, stored in `map_packs` and mirrored
+ * in `servers.ts` character for character so that `apply:welcome` never
+ * overwrites it. Anything added here should be as deliberate, because a
+ * welcome with no link is one a newcomer cannot follow anywhere.
+ */
+const NO_LINK = new Set(["halloween"]);
+
 test("every server tells a newcomer where to find it", () => {
   for (const server of SERVERS) {
+    if (NO_LINK.has(server.slug)) continue;
     assert.match(server.welcome, WELCOME_LINK, `${server.slug} carries no link`);
   }
 });
 
-test("no server sends people to another server's page", () => {
+test("a welcome with a link sends people to that server's own page", () => {
   /*
    * This is the failure, not a hypothetical one.
    *
@@ -159,22 +149,18 @@ test("no server sends people to another server's page", () => {
    * rotation is right, and the server still says the wrong thing to everybody
    * who joins it.
    */
-  const slugs = SERVERS.map((server) => server.slug);
   for (const server of SERVERS) {
-    const landing = server.welcome.match(WELCOME_LINK)[1];
-    const someoneElse = slugs.filter((slug) => slug !== server.slug);
-    assert.ok(
-      !someoneElse.includes(landing),
-      `${server.slug} sends people to /${landing}`,
-    );
+    const landing = server.welcome.match(WELCOME_LINK)?.[1];
+    if (!landing) continue;
+    assert.equal(landing, server.slug, `${server.slug} sends people to /${landing}`);
   }
 });
 
-test("a server showcasing a pack links to its own page", () => {
-  // The match server is the exception and says so in the registry: it runs no
-  // pack, so its page has no map list to send anybody to.
-  for (const server of SERVERS.filter((server) => server.packSlug)) {
-    assert.equal(server.welcome.match(WELCOME_LINK)[1], server.slug);
+test("no welcome promises stats any more", () => {
+  // RF4U stopped recording on 25 September 2026. A server telling everybody
+  // who joins that their play is recorded and ranked would be untrue on arrival.
+  for (const server of SERVERS) {
+    assert.doesNotMatch(server.welcome, /record|ranked|standings|stats/i, server.slug);
   }
 });
 

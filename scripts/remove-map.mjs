@@ -8,9 +8,9 @@
  * rebuilding it because one map left would reshuffle every other map with it
  * and quietly discard that decision.
  *
- * **This is half the job for three of the four servers.** The applier on the
+ * **This is half the job for two of the three servers.** The applier on the
  * VPS polls `/api/rf4u/map-pack/active` and rewrites `rf4u-dm.toml` only, so
- * the Themed server picks a change up within five minutes and Novelty and
+ * the Themed server picks a change up on its nightly pass and Novelty and
  * Halloween do not: their TOMLs were written by hand and stay that way until
  * somebody edits them. The script says so at the end rather than exiting
  * quietly, because a pack that no longer lists a map while the server still

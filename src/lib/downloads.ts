@@ -396,35 +396,3 @@ export function levelFact(
  */
 export const ARCHIVE_TIME_ZONE = "America/Los_Angeles";
 
-/**
- * Whether a new download leads the front page, or the night's report does.
- *
- * The front page is a feed: the newest thing is at the top and older things are
- * below it. A map published this afternoon leads; the morning after a match
- * night the report leads and the map drops under it.
- *
- * **The comparison is the whole function and it fails silently if it is
- * inverted.** Nothing throws, no page 500s, no test of a rendered page can tell
- * a deliberate order from a backwards one. It would simply look wrong on a day
- * nobody happens to be looking, which is why the rule is here rather than
- * inline in the page.
- *
- * `day` is a calendar day and `publishedAt` is a moment, so the day is read at
- * noon UTC before they are compared, the same trick `archiveDate` uses. That is
- * not cosmetic: a day string carries no time, and reading it as midnight would
- * make a report filed on Tuesday evening lose to anything published later that
- * same Tuesday.
- *
- * No column at all means the arrival leads, because the alternative it would be
- * competing with is the site's static welcome paragraph.
- */
-export function arrivalLeadsColumn(
-  publishedAt: Date | null | undefined,
-  columnDay: string | null | undefined,
-): boolean {
-  if (!publishedAt) return false;
-  if (!columnDay) return true;
-  const day = new Date(`${columnDay}T12:00:00Z`);
-  if (Number.isNaN(day.getTime())) return true;
-  return publishedAt.getTime() > day.getTime();
-}

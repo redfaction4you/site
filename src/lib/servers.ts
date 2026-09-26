@@ -12,25 +12,12 @@
  * that trap has cost half an hour once already. Adding a server here is a code
  * change that ships with the deploy that mentions it.
  *
- * **`identity` is not `name`.** The archive upserts matches on
- * `(server, source_match_id)` and `sync_pings` is keyed on the same string, so
- * an identity can never follow a rename. The two servers that record anything
- * therefore carry both: the name a person reads, and the string the database
- * has always used. `server-names.ts` is what keeps them looking the same.
- *
- * The deathmatch server is the cautionary one. It has been called RF4U [DM],
- * Bot-Free Pub and Themed Maps; the archive has called it `RedFaction4You.com
- * [DM]` throughout, and must go on doing so.
+ * There were four until 25 September 2026. The Match server was switched off
+ * that day, when RF4U stopped recording stats, and is expected back later as a
+ * different kind of server. It left this list rather than being hidden in it,
+ * because every page built from this list would otherwise have to remember to
+ * skip it.
  */
-
-/** What a server is for, which decides what the site can show about it. */
-export type ServerKind =
-  /** Organised capture the flag. Everything is recorded. */
-  | "match"
-  /** Casual play, recorded as rounds rather than matches. */
-  | "deathmatch"
-  /** Casual play, not recorded at all. */
-  | "pub";
 
 export type GameServer = {
   /** URL fragment and tab key. Stable; changing one breaks a shared link. */
@@ -39,22 +26,15 @@ export type GameServer = {
   name: string;
   /** One sentence on what it is for. */
   blurb: string;
-  kind: ServerKind;
   port: number;
   /**
-   * The string the archive stores for this server, or null when nothing about
-   * it is archived.
+   * The map pack whose rotation this server runs, by slug.
    *
-   * Never edit one of these to match a rename. See the module note.
+   * Required, not nullable. Every server here exists to be looked up by its
+   * maps, so a server without a pack would be a page with nothing on it, and
+   * `servers.test.mjs` would rather that failed than shipped.
    */
-  identity: string | null;
-  /**
-   * The map pack whose rotation this server runs, by slug, or null where the
-   * rotation is not managed from the site.
-   *
-   * The match server's levels are chosen per match rather than by a pack.
-   */
-  packSlug: string | null;
+  packSlug: string;
   /**
    * The server's config file on the VPS, by name, inside the game directory.
    *
@@ -81,22 +61,20 @@ export type GameServer = {
    * One line, plain ASCII, and it reaches a 2001 bitmap font, so `asciiForGame`
    * folds anything a browser produced.
    *
-   * **Every one of them ends on a link to its own page.** Chat in Red Faction
-   * is not clickable, so whatever is written here has to be retyped into a
-   * browser from memory: the link is short, it is the last thing on the line,
-   * and no two servers send people to the same place. `servers.test.mjs`
-   * checks that last part, because the way this breaks is a copy of another
-   * server's message with the link left in it, which is what happened when
-   * these configs were first built.
+   * **Every one of them ends on a link to its own page**, apart from
+   * Halloween's, which was written for the season and is left as its author
+   * wrote it. Chat in Red Faction is not clickable, so whatever is written here
+   * has to be retyped into a browser from memory: the link is short, it is the
+   * last thing on the line, and no two servers send people to the same place.
+   * `servers.test.mjs` checks that last part, because the way this breaks is a
+   * copy of another server's message with the link left in it, which is what
+   * happened when these configs were first built.
    *
-   * The match server points at the archive rather than at its own page. It
-   * runs no pack, so there is no map list there to send anybody to.
-   *
-   * **This file is the source, and it is not what the servers read.** The pub
-   * servers read `map_packs.welcome_message` through the applier and the match
-   * server reads its own TOML, so `npm run apply:welcome` is what carries a
-   * change here to the first of those. Editing this alone changes nothing in
-   * the game.
+   * **This file is the source, and it is not what the servers read.** They read
+   * `map_packs.welcome_message` through the applier, so `npm run apply:welcome`
+   * is what carries a change here to them. Editing this alone changes nothing in
+   * the game, and every text here must match the database or that command will
+   * overwrite the database with it.
    */
   welcome: string;
   /**
@@ -117,60 +95,23 @@ export type ServerTheme = "default" | "novelty" | "halloween";
 /**
  * The servers.
  *
- * Order is the order of the tabs, and it is deliberate: match first because it
- * is what the archive is about, then the casual servers by how long they have
- * existed.
+ * Order is the order of the tabs and of the cards on the front page, oldest
+ * first. The first one is also where `/servers` lands.
  */
 export const SERVERS: GameServer[] = [
-  {
-    slug: "match",
-    name: "RF4U - Match",
-    blurb:
-      "Organised capture the flag. Matches are started deliberately and every " +
-      "one of them is recorded here.",
-    kind: "match",
-    port: 17755,
-    identity: "RF4U Competitive [Match]",
-    packSlug: null,
-    configFile: "rf4u-match.toml",
-    restartTask: "RF4U Dedicated Server",
-    /*
-     * The one that points somewhere other than its own page.
-     *
-     * `/servers/match` carries the live panel and nothing else, because the
-     * levels here are picked per match rather than by a pack. The archive is
-     * where the reason to visit is.
-     */
-    welcome:
-      "Match server. Every match played here is recorded, with scoreboards " +
-      "and records: RedFaction4You.com/matches",
-    theme: "default",
-  },
   {
     slug: "themed",
     name: "RF4U - Themed",
     blurb:
       "Films, real places, and levels rebuilt from other games. One idea per " +
       "map, carried all the way through it.",
-    kind: "deathmatch",
     port: 17756,
-    /*
-     * Still the deathmatch identity, and it always will be.
-     *
-     * This server has been called RF4U [DM], Bot-Free Pub, Themed Maps and now
-     * Themed. The archive has called it one thing throughout, because
-     * `archive_days` upserts on this string and `sync_pings` is keyed on it, so
-     * following a rename here would fork its history and strand the old name in
-     * `sync_pings` where it holds health red forever.
-     */
-    identity: "RedFaction4You.com [DM]",
     packSlug: "themed",
     configFile: "rf4u-dm.toml",
     restartTask: "RF4U DM Server",
     welcome:
       "Themed maps: films, real places, and levels rebuilt from other games. " +
-      "All play here is recorded and ranked on time played. " +
-      "Every map and the standings: RedFaction4You.com/themed",
+      "Every map on this server: RedFaction4You.com/themed",
     theme: "default",
   },
   {
@@ -179,9 +120,7 @@ export const SERVERS: GameServer[] = [
     blurb:
       "Liminal spaces, oddities and minigames. Maps too strange or too rare to " +
       "turn up anywhere else.",
-    kind: "pub",
     port: 17757,
-    identity: null,
     packSlug: "novelty",
     configFile: "rf4u-novelty.toml",
     restartTask: "RF4U Novelty Server",
@@ -197,16 +136,19 @@ export const SERVERS: GameServer[] = [
     blurb:
       "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
       "map picked for Halloween.",
-    kind: "pub",
     port: 17758,
-    identity: null,
     packSlug: "halloween",
     configFile: "rf4u-halloween.toml",
     restartTask: "RF4U Halloween Server",
+    /*
+     * Exactly the text in `map_packs`, character for character, so that
+     * `apply:welcome` finds nothing to change here. The owner set it for the
+     * season; see the note on `welcome` about why it has no link.
+     */
     welcome:
-      "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
-      "map picked for Halloween. The whole haunted rotation: " +
-      "RedFaction4You.com/halloween",
+      "Welcome to Haunt Faction 2026! The Spookiest server this side of mars! " +
+      "Filled with the creepiest down-right most frightening maps in the Red " +
+      "Faction collection!",
     theme: "halloween",
   },
 ];
@@ -232,7 +174,7 @@ export function serverBySlug(slug: string): GameServer | null {
  * The client build people need, said once.
  *
  * This was `NEXT_PUBLIC_SERVER_CLIENT`, and on 26 August it still read
- * "Alpine Faction 1.3.0" a day after both servers went to 1.4.0 -- a version
+ * "Alpine Faction 1.3.0" a day after both servers went to 1.4.0: a version
  * number in an environment variable is a version number nobody updates. The
  * servers all run the same build, so it belongs beside them.
  */
