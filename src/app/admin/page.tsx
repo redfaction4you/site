@@ -5,6 +5,8 @@ import { adminState } from "@/lib/admin-key";
 import { listMapPacks } from "@/lib/map-packs";
 import { listAllItems } from "@/lib/catalogue";
 import { MapPackAdmin } from "@/components/map-pack-admin";
+import { MapOpinionsAdmin } from "@/components/map-opinions-admin";
+import { mapReviewList } from "@/lib/map-opinions";
 import { CatalogueAdmin } from "@/components/catalogue-admin";
 import { UploadAdmin } from "@/components/upload-admin";
 import { canWriteToStorage } from "@/lib/r2";
@@ -150,11 +152,13 @@ export default async function AdminPage({ searchParams }: Props) {
     );
   }
 
-  const [packs, catalogue] = await Promise.all([
+  const [packs, catalogue, reviews] = await Promise.all([
     listMapPacks(),
     // The one read on this page that can see a draft. Everything else in
     // `catalogue.ts` filters to published, deliberately.
     listAllItems(),
+    // What players told Wisp about the maps. Never cached: this page is the only reader.
+    mapReviewList(),
   ]);
 
   // The pack `?pack=` asked to edit. Unknown slugs fall back to a blank form
@@ -302,6 +306,9 @@ export default async function AdminPage({ searchParams }: Props) {
         params={params}
         storageReady={canWriteToStorage()}
       />
+
+      {/* Right above the packs: reading it is how a map ends up coming out of one. */}
+      <MapOpinionsAdmin reviews={reviews} />
 
       <MapPackAdmin packs={packs} editing={editingPack} />
     </div>

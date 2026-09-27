@@ -42,6 +42,8 @@ export type GhostContext = {
   firstAnswer?: boolean;
   /** The ghost has already asked them how it's going this visit. */
   askedHow?: boolean;
+  /** The map the ghost just asked the subject about: their line is the answer. */
+  mapQuestion?: string | null;
   humans: string[];
   bots: string[];
   transcript: ChatLine[];
@@ -374,13 +376,16 @@ export function promptFor(context: GhostContext): string {
   const makers = [...mappersOnServer(context)]
     .map(([player, { author, titles }]) => `${player}, who is on now, may be the mapper ${author}, who made ${titles.join(" and ")} here. If so, be curious: ask about the story behind their maps, and note what they tell you.`)
     .join(" ");
-  const hints = [mappers, named, makers].filter(Boolean).join(" ");
+  const answer = context.mapQuestion
+    ? `They are answering your question about the map ${context.mapQuestion}. React like a friend: agree, laugh, or ask what they would change.`
+    : "";
+  const hints = [answer, mappers, named, makers].filter(Boolean).join(" ");
 
   // Beside the task, because left in the system prompt the model never wrote a
   // note (live, 26 September: "i run a little server called ghosttown" went unnoted).
   const keep =
     context.event === "chat"
-      ? `\nAfter your line: if ${context.subject ?? "they"} just told you a concrete fact worth remembering (something they made, run, like, plan or are called), add a line starting NOTE: (about them) or LORE: (about maps, mappers or the game), e.g. NOTE: runs a server called ghosttown. Never note moods, guesses, or that they came back or are playing. Otherwise add nothing.`
+      ? `\nAfter your line: if ${context.subject ?? "they"} just told you a concrete fact worth remembering (something they made, run, like, plan or are called), add a line starting NOTE: (about them) or LORE: (about maps, mappers or the game), e.g. NOTE: runs a server called ghosttown. Never note moods, guesses, or that they came back or are playing. And if they said what they think of the map (the one being played, or the one you asked about), add a line MAP: like, MAP: dislike or MAP: mixed, then why in a few words, e.g. MAP: dislike too dark to see anyone. Otherwise add nothing.`
       : "";
 
   return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}${keep}`;

@@ -1596,3 +1596,38 @@ export const matchPlayersRelations = relations(matchPlayers, ({ one }) => ({
 export const matchCapturesRelations = relations(matchCaptures, ({ one }) => ({
   match: one(matches, { fields: [matchCaptures.matchId], references: [matches.id] }),
 }));
+
+/**
+ * What players told the server ghost about a map: one row per opinion.
+ *
+ * The owner, 27 September 2026: "maybe wisp can ask ppl thoughts on the map
+ * and if ppl dislike it, keep note and add it to a remove list that we can
+ * review". The ghost asks, or hears it unprompted; the model tags the answer
+ * like, dislike or mixed with the reason in the player's own words, and
+ * `/api/ghost` writes it here. The admin page lists the most disliked maps
+ * first. Nothing is removed automatically: a person reads the list and edits
+ * the rotation.
+ */
+export const mapOpinions = pgTable(
+  "map_opinions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    /** The server's slug in `src/lib/servers.ts`. */
+    server: text("server").notNull(),
+    /** The level file, as the server names it: the key to its rotation entry. */
+    filename: text("filename").notNull(),
+    title: text("title"),
+    /** The player's name in game. Names are all the game offers. */
+    player: text("player").notNull(),
+    /** `like`, `dislike` or `mixed`. */
+    verdict: text("verdict").notNull(),
+    /** Why, in a few of the player's own words, as the model summed it up. */
+    reason: text("reason"),
+    /** Whether it answered the ghost's question, or was said unprompted. */
+    asked: boolean("asked").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (row) => [index("map_opinions_map_idx").on(row.server, row.filename)],
+);

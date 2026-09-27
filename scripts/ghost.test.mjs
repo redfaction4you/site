@@ -337,3 +337,24 @@ test("Wisp is told to say less, never repeat, and answer what it is asked", () =
   const prompt = promptFor({ event: "chat", subject: "S", firstAnswer: true, humans: ["S"], bots: [], transcript: [{ name: "S", text: "hey wisp, how's it going" }], playing: null, next: null, maps: [] });
   assert.match(prompt, /If they asked how you are, answer that first/);
 });
+
+// Owner, 27 September: "maybe wisp can ask ppl thoughts on the map and if ppl
+// dislike it, keep note and add it to a remove list that we can review".
+test("an opinion of the map rides on the reply and never reaches the chat", () => {
+  const taken = takeNotes("ha yeah it is pretty dark\nMAP: dislike - too dark to see anyone\nNOTE: likes bright maps");
+  assert.equal(taken.rest, "ha yeah it is pretty dark");
+  assert.deepEqual(taken.opinions, [{ verdict: "dislike", reason: "too dark to see anyone" }]);
+  assert.deepEqual(taken.notes, ["likes bright maps"]);
+  assert.deepEqual(takeNotes("MAP: love it, the music rules").opinions, [{ verdict: "like", reason: "it, the music rules" }]);
+  assert.deepEqual(takeNotes("MAP: meh").opinions, [{ verdict: "mixed", reason: "" }]);
+  assert.deepEqual(takeNotes("MAP: sure thing").opinions, []); // not a verdict
+});
+
+test("the model knows when a line answers its question about the map, and to tag opinions", () => {
+  const prompt = promptFor({
+    event: "chat", subject: "Sam", mapQuestion: "Sleepy Hollow", humans: ["Sam"], bots: [], playing: null, next: null, maps: [],
+    transcript: [{ name: "Wisp", text: "what do you think of Sleepy Hollow?", ghost: true }, { name: "Sam", text: "too dark lol" }],
+  });
+  assert.match(prompt, /answering your question about the map Sleepy Hollow/);
+  assert.match(prompt, /MAP: like, MAP: dislike or MAP: mixed/);
+});

@@ -5,6 +5,7 @@ import { personaFor, promptFor, type ChatLine, type GhostEvent, type Memory } fr
 import { rotationForServer } from "@/lib/map-packs";
 import { nextAfter, positionOfLevel } from "@/lib/server-rotation";
 import { serverBySlug } from "@/lib/servers";
+import { recordOpinion } from "@/lib/map-opinions";
 
 /**
  * What the ghost on a server should say next.
@@ -100,12 +101,39 @@ export async function POST(request: Request) {
     maps: maps.map((entry) => ({ title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename })),
     memory: memoryOf(body.memory),
     lore: Array.isArray(body.lore) ? body.lore.slice(-25).map((fact) => text(fact, 200)).filter(Boolean) : [],
+    // The map the ghost just asked this player about, when it did: their line is the answer.
+    mapQuestion: text(body.mapQuestion, 64) || null,
   };
 
   // The ghost keeps its own count of paid replies and says whether today's cap allows another.
   const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength, {
     allowPaid: body.allowPaid === true,
   });
+
+  /*
+   * What the player thinks of the map, for the review list on the admin page.
+   * The map asked about when there was a question (the level may have changed
+   * since), otherwise the one being played. A failed write loses one opinion,
+   * never the reply.
+   */
+  const opinion = spoken?.opinions[0];
+  const opinionFile = text(body.mapFile, 64) || levelFile;
+  if (opinion && context.subject && opinionFile) {
+    const entry = maps.find((map) => map.filename.toLowerCase() === opinionFile.toLowerCase());
+    try {
+      await recordOpinion({
+        ...opinion,
+        server: slug,
+        filename: entry?.filename ?? opinionFile,
+        title: entry ? entryOf(entry)!.title : null,
+        player: context.subject,
+        asked: Boolean(context.mapQuestion),
+      });
+    } catch (error) {
+      console.warn(`[ghost] could not record an opinion: ${error instanceof Error ? error.name : "error"}`);
+    }
+  }
+
   return Response.json(
     {
       line: spoken ? spoken.line || null : null,
@@ -113,6 +141,7 @@ export async function POST(request: Request) {
       provider: spoken?.provider ?? null,
       notes: spoken?.notes ?? [],
       lore: spoken?.lore ?? [],
+      opinion: opinion ?? null,
     },
     { headers: { "cache-control": "no-store" } },
   );

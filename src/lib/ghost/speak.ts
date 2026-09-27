@@ -283,7 +283,16 @@ async function callGemini(system: string, prompt: string, model: string, key: st
   return body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? null;
 }
 
-export type Spoken = { line: string; provider: string; notes: string[]; lore: string[] } | null;
+/** What a player thinks of the map being played, as the model heard it. */
+export type Opinion = { verdict: "like" | "dislike" | "mixed"; reason: string };
+
+export type Spoken = { line: string; provider: string; notes: string[]; lore: string[]; opinions: Opinion[] } | null;
+
+const VERDICTS: Record<string, Opinion["verdict"]> = {
+  like: "like", likes: "like", love: "like", loves: "like", good: "like",
+  dislike: "dislike", dislikes: "dislike", hate: "dislike", hates: "dislike", bad: "dislike",
+  mixed: "mixed", meh: "mixed", neutral: "mixed",
+};
 
 /**
  * The notes a reply carries after its chat line: "NOTE: ..." about the person,
@@ -293,18 +302,25 @@ export type Spoken = { line: string; provider: string; notes: string[]; lore: st
  * like a friend would". It rides on the reply's own call, so it costs nothing
  * extra.
  */
-export function takeNotes(raw: string): { rest: string; notes: string[]; lore: string[] } {
+export function takeNotes(raw: string): { rest: string; notes: string[]; lore: string[]; opinions: Opinion[] } {
   const notes: string[] = [];
   const lore: string[] = [];
+  const opinions: Opinion[] = [];
   const rest: string[] = [];
   for (const line of raw.split(/\r?\n/)) {
-    const match = asciiLine(line).match(/^[\s*_`"'[(-]*(note|lore)[\s*_]*:[\s*_`"']*(.+?)[\s*_`"')\]]*$/i);
+    const match = asciiLine(line).match(/^[\s*_`"'[(-]*(note|lore|map)[\s*_]*:[\s*_`"']*(.+?)[\s*_`"')\]]*$/i);
     if (!match) { rest.push(line); continue; }
     const text = match[2].trim().slice(0, 160);
-    if (text.length < 4 || /^(none|n\/a|nothing|-)\.?$/i.test(text)) continue;
-    (match[1].toLowerCase() === "note" ? notes : lore).push(text);
+    if (text.length < 3 || /^(none|n\/a|nothing|-)\.?$/i.test(text)) continue;
+    const kind = match[1].toLowerCase();
+    if (kind === "map") {
+      // "MAP: dislike - too dark to see anyone": the verdict, then why.
+      const said = text.match(/^(\w+)\b[\s:,.-]*(.*)$/);
+      const verdict = said ? VERDICTS[said[1].toLowerCase()] : undefined;
+      if (verdict) opinions.push({ verdict, reason: said![2].trim().slice(0, 140) });
+    } else (kind === "note" ? notes : lore).push(text);
   }
-  return { rest: rest.join("\n"), notes: notes.slice(0, 3), lore: lore.slice(0, 3) };
+  return { rest: rest.join("\n"), notes: notes.slice(0, 3), lore: lore.slice(0, 3), opinions: opinions.slice(0, 1) };
 }
 
 /**
@@ -330,11 +346,11 @@ export async function speak(
             ? await callGemini(system, prompt, attempt.model, attempt.key)
             : await callAnthropic(system, prompt, attempt.model, attempt.key);
       if (!raw) continue;
-      const { rest, notes, lore } = takeNotes(raw);
+      const { rest, notes, lore, opinions } = takeNotes(raw);
       const decided = decide(rest, speaker);
-      if (decided.skip) return { line: "", provider: attempt.model, notes, lore };
+      if (decided.skip) return { line: "", provider: attempt.model, notes, lore, opinions };
       if (!decided.line) continue;
-      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore };
+      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore, opinions };
     } catch (error) {
       console.warn(`[ghost] ${attempt.model} failed: ${error instanceof Error ? error.name : "error"}`);
     }
