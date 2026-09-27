@@ -1,11 +1,14 @@
 /**
- * One short line of chat, from whichever free model answers first.
+ * One short line of chat, from whichever model answers first, free ones first.
  *
  * The ghost on each server asks the site what to say rather than holding keys
  * of its own: the keys stay in Vercel's environment and never reach the VPS.
- * The owner asked on 25 September 2026 for this to run on free services only,
- * so the paid providers the retired analyst could use (OpenAI, Anthropic) are
- * deliberately absent.
+ * The owner asked on 25 September 2026 for this to run on free services. On
+ * 27 September, after the free allowance ran out in one busy evening (266
+ * replies), he added: "thats why we have those other api codes because it can
+ * use up free stuff". So Anthropic's small model is the last resort, used only
+ * when every free one has failed, and only while the ghost's own daily cap
+ * allows it (the VPS counts, and says so in `allowPaid`).
  *
  * The order is by what was measured that day, one short prompt each:
  *
@@ -14,12 +17,16 @@
  *   the free daily allowance per reply spent on less.
  * - Gemini flash lite across every numbered key: the free tier is about twenty
  *   requests a day per project and the default flash model answered 503
- *   "experiencing high demand", so it is the last resort, not the first.
+ *   "experiencing high demand", so it comes after Cloudflare.
+ * - Claude Haiku 4.5 on the Anthropic keys, paid, capped by the VPS: roughly a
+ *   third of a cent a reply.
  *
  * Null means none of them produced a usable line. The ghost then says one of
  * its own lines where one fits: "hows it going?" in answer to a reply to its
  * hello, a canned line to a lone player (see ghost-rules.mjs on the VPS).
  */
+
+import Anthropic from "@anthropic-ai/sdk";
 
 const TIMEOUT_MS = 12_000;
 
@@ -163,7 +170,17 @@ export function cleanReply(raw: string, speaker: string): string {
 
 type Attempt =
   | { provider: "cloudflare"; model: string }
-  | { provider: "gemini"; model: string; key: string };
+  | { provider: "gemini"; model: string; key: string }
+  | { provider: "anthropic"; model: string; key: string };
+
+/** The paid last resort: Anthropic's smallest current model, on each Anthropic key. */
+export const PAID_MODEL = "claude-haiku-4-5";
+
+function anthropicKeys(): string[] {
+  return [process.env.ANTHROPIC_API_KEY, process.env.ANTHROPIC_API_KEY_2]
+    .map((key) => key?.trim())
+    .filter((key): key is string => Boolean(key));
+}
 
 function cloudflareAccount(): string | null {
   // The R2 account is the same Cloudflare account, which is how the retired
@@ -182,7 +199,7 @@ function geminiKeys(): string[] {
   return keys;
 }
 
-function attempts(): Attempt[] {
+function attempts(allowPaid: boolean): Attempt[] {
   const list: Attempt[] = [];
   if (cloudflareAccount() && process.env.CLOUDFLARE_AI_TOKEN?.trim()) {
     list.push({ provider: "cloudflare", model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" });
@@ -190,7 +207,25 @@ function attempts(): Attempt[] {
   }
   const gemini = process.env.GHOST_GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
   for (const key of geminiKeys()) list.push({ provider: "gemini", model: gemini, key });
+  if (allowPaid) for (const key of anthropicKeys()) list.push({ provider: "anthropic", model: PAID_MODEL, key });
   return list;
+}
+
+async function callAnthropic(system: string, prompt: string, model: string, key: string): Promise<string | null> {
+  // No retries: a failure here goes to the next key, then to the ghost's own lines.
+  const client = new Anthropic({ apiKey: key, timeout: TIMEOUT_MS, maxRetries: 0 });
+  const response = await client.messages.create({
+    model,
+    max_tokens: 160,
+    temperature: 0.7,
+    system,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const text = response.content
+    .map((block) => (block.type === "text" ? block.text : ""))
+    .join("")
+    .trim();
+  return text || null;
 }
 
 async function callCloudflare(system: string, prompt: string, model: string): Promise<string | null> {
@@ -284,13 +319,16 @@ export async function speak(
   prompt: string,
   speaker: string,
   maxLength: number,
+  { allowPaid = false }: { allowPaid?: boolean } = {},
 ): Promise<Spoken> {
-  for (const attempt of attempts()) {
+  for (const attempt of attempts(allowPaid)) {
     try {
       const raw =
         attempt.provider === "cloudflare"
           ? await callCloudflare(system, prompt, attempt.model)
-          : await callGemini(system, prompt, attempt.model, attempt.key);
+          : attempt.provider === "gemini"
+            ? await callGemini(system, prompt, attempt.model, attempt.key)
+            : await callAnthropic(system, prompt, attempt.model, attempt.key);
       if (!raw) continue;
       const { rest, notes, lore } = takeNotes(raw);
       const decided = decide(rest, speaker);

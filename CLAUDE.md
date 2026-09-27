@@ -354,10 +354,14 @@ server, and everything a lone player says. It is a Node process on the VPS
 (`C:\RFMatchBroadcast\ghost\ghost.mjs`, task "RF4U Halloween Ghost") that joins
 the game as a server-browser client and asks this site what to say.
 
-- **Free services only, by the owner's instruction.** `speak.ts` tries
-  Cloudflare Workers AI (Llama 3.3 70B, then 3.1 8B) and then Gemini flash lite
-  across every numbered key. No paid provider is called. When none answers, the
-  ghost says one of its own scripted lines.
+- **Free services first, a capped paid one last.** `speak.ts` tries Cloudflare
+  Workers AI (Llama 3.3 70B, then 3.1 8B), then Gemini flash lite across every
+  numbered key. On 27 September, after one busy evening used up the free
+  allowance, the owner said the Anthropic keys are there "because it can use up
+  free stuff": so Claude Haiku 4.5 is the last resort, and only while the VPS
+  says its daily cap (150 replies, `data/ghost-halloween-paid.json`) allows.
+  The OpenAI key is still unused. When nothing answers, the ghost says one of
+  its own lines where one fits.
 - **Keys stay in Vercel.** The VPS authenticates with `RF4U_ARCHIVE_SYNC_SECRET`
   and never holds a model key.
 - **Everything it says is plain ASCII with no em dashes**, because it reaches a

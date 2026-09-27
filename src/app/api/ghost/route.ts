@@ -102,7 +102,10 @@ export async function POST(request: Request) {
     lore: Array.isArray(body.lore) ? body.lore.slice(-25).map((fact) => text(fact, 200)).filter(Boolean) : [],
   };
 
-  const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength);
+  // The ghost keeps its own count of paid replies and says whether today's cap allows another.
+  const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength, {
+    allowPaid: body.allowPaid === true,
+  });
   return Response.json(
     {
       line: spoken ? spoken.line || null : null,
