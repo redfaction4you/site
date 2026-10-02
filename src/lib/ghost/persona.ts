@@ -434,5 +434,7 @@ export function promptFor(context: GhostContext): string {
       ? `\nAfter your line: if ${context.subject ?? "they"} just told you a concrete fact worth remembering (something they made, run, like, plan or are called), add a line starting NOTE: (about them) or LORE: (about maps, mappers or the game), e.g. NOTE: runs a server called ghosttown. Never note moods, guesses, or that they came back or are playing. And if they said what they think of the map (the one being played, or the one you asked about), add a line MAP: like, MAP: dislike or MAP: mixed, then why in a few words, e.g. MAP: dislike too dark to see anyone. Otherwise add nothing.`
       : "";
 
-  return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}${keep}`;
+  // Beside the task too: in the system prompt alone, Haiku ran help answers to 147 characters.
+  const short = " One line, under 110 characters.";
+  return `${who}\n${notes}${recent}\n${hints ? `${hints}\n` : ""}${task[context.event]}${short}${keep}`;
 }

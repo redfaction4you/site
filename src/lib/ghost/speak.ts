@@ -410,9 +410,15 @@ export function siteName(text: string): string {
   return text.replace(/\b[a-z]*4\s?you\s?\.\s?com\b/gi, "RedFaction4You.com");
 }
 
-/** Cut at a word boundary with an ellipsis rather than mid-word. */
-function clamp(text: string, max: number): string {
+/**
+ * Cut at the end of a sentence when one ends far enough in, otherwise at a
+ * word boundary with an ellipsis, never mid-word.
+ */
+export function clamp(text: string, max: number): string {
   if (text.length <= max) return text;
+  const fits = text.slice(0, max + 1);
+  const end = Math.max(...[". ", "! ", "? "].map((mark) => fits.lastIndexOf(mark)));
+  if (end >= max * 0.4) return text.slice(0, end + 1);
   const cut = text.slice(0, max - 3);
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[,.;:!?\s]+$/, "")}...`;

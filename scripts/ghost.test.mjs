@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { asciiLine, cleanReply, decide, siteName, takeNotes } from "../src/lib/ghost/speak.ts";
+import { asciiLine, clamp, cleanReply, decide, siteName, takeNotes } from "../src/lib/ghost/speak.ts";
 import { mapsMentioned, personaFor, promptFor, wantsHelp } from "../src/lib/ghost/persona.ts";
 import MAP_NOTES from "../src/lib/ghost/map-notes.json" with { type: "json" };
 
@@ -338,6 +338,15 @@ test("the site's address always comes out spelled right", () => {
   assert.equal(siteName("its on redfaction4you.com"), "its on RedFaction4You.com");
   assert.equal(siteName("see RedFaction4You.com/themed"), "see RedFaction4You.com/themed");
   assert.equal(siteName("factionfiles.com has it"), "factionfiles.com has it");
+});
+
+// Live, 1 October: a help answer ran to 147 characters and was cut mid-thought.
+test("a long line is cut at the end of a sentence when it can be", () => {
+  const long = "which bunker map? there's a few floating around the community. type /hasmap <name> to check if a specific one's on this server, or i can look";
+  assert.equal(clamp(long, 120), "which bunker map? there's a few floating around the community.");
+  assert.equal(clamp("short line", 120), "short line");
+  const words = "word ".repeat(40).trim();
+  assert.ok(clamp(words, 50).endsWith("...") && clamp(words, 50).length <= 50);
 });
 
 // Live, 1 October: a question in nearly every line.
