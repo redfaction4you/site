@@ -1,25 +1,29 @@
 /**
- * One short line of chat, from whichever model answers first, free ones first.
+ * One short line of chat, from whichever model answers first.
  *
  * The ghost on each server asks the site what to say rather than holding keys
  * of its own: the keys stay in Vercel's environment and never reach the VPS.
  * The owner asked on 25 September 2026 for this to run on free services. On
  * 27 September, after the free allowance ran out in one busy evening (266
  * replies), he added: "thats why we have those other api codes because it can
- * use up free stuff". So Anthropic's small model is the last resort, used only
- * when every free one has failed, and only while the ghost's own daily cap
- * allows it (the VPS counts, and says so in `allowPaid`).
+ * use up free stuff", and Claude became the last resort. On 1 October, after
+ * a week of Wisp asking odd questions and losing the thread: "if you need the
+ * paid api to get better results, just use it". So Claude Haiku 4.5 now
+ * answers first, while the ghost's own daily cap allows it (the VPS counts,
+ * and says so in `allowPaid`), and the free models are the fallback:
  *
- * The order is by what was measured that day, one short prompt each:
- *
- * - Cloudflare Workers AI, Llama 3.3 70B fast: about 0.6 s, the best replies.
- * - Cloudflare Workers AI, Llama 3.1 8B fast: about 0.75 s, a larger share of
- *   the free daily allowance per reply spent on less.
+ * - Claude Haiku 4.5 on the Anthropic keys, paid. The persona, the knowledge
+ *   base and the map list are the same on every reply, so they are cached for
+ *   an hour and read back at a tenth of the price. `usage` says what each
+ *   reply cost in tokens; the VPS logs it.
+ * - Cloudflare Workers AI, Llama 3.3 70B fast: about 0.6 s, the best free replies.
+ * - Cloudflare Workers AI, Llama 3.1 8B fast: about 0.75 s.
  * - Gemini flash lite across every numbered key: the free tier is about twenty
  *   requests a day per project and the default flash model answered 503
- *   "experiencing high demand", so it comes after Cloudflare.
- * - Claude Haiku 4.5 on the Anthropic keys, paid, capped by the VPS: roughly a
- *   third of a cent a reply.
+ *   "experiencing high demand", so it comes last.
+ *
+ * The free models get a smaller system prompt (`compact`): they cache nothing,
+ * and the free allowance is counted in what goes in.
  *
  * Null means none of them produced a usable line. The ghost then says one of
  * its own lines where one fits: "hows it going?" in answer to a reply to its
@@ -173,8 +177,21 @@ type Attempt =
   | { provider: "gemini"; model: string; key: string }
   | { provider: "anthropic"; model: string; key: string };
 
-/** The paid last resort: Anthropic's smallest current model, on each Anthropic key. */
+/** The paid model, first while the cap allows: Anthropic's smallest current model, on each Anthropic key. */
 export const PAID_MODEL = "claude-haiku-4-5";
+
+/** A system prompt in its two shapes: cached in parts for the paid model, whole and smaller for the free ones. */
+export type SystemPrompt = {
+  /** The same on every reply while the rotation stands. */
+  stable: string;
+  /** This moment on the server. */
+  live: string;
+  /** All of it in one, for the free models. */
+  compact: string;
+};
+
+/** What one paid reply used, in tokens. */
+export type Usage = { input: number; cacheRead: number; cacheWrite: number; output: number };
 
 function anthropicKeys(): string[] {
   return [process.env.ANTHROPIC_API_KEY, process.env.ANTHROPIC_API_KEY_2]
@@ -201,31 +218,47 @@ function geminiKeys(): string[] {
 
 function attempts(allowPaid: boolean): Attempt[] {
   const list: Attempt[] = [];
+  if (allowPaid) for (const key of anthropicKeys()) list.push({ provider: "anthropic", model: PAID_MODEL, key });
   if (cloudflareAccount() && process.env.CLOUDFLARE_AI_TOKEN?.trim()) {
     list.push({ provider: "cloudflare", model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" });
     list.push({ provider: "cloudflare", model: "@cf/meta/llama-3.1-8b-instruct-fast" });
   }
   const gemini = process.env.GHOST_GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
   for (const key of geminiKeys()) list.push({ provider: "gemini", model: gemini, key });
-  if (allowPaid) for (const key of anthropicKeys()) list.push({ provider: "anthropic", model: PAID_MODEL, key });
   return list;
 }
 
-async function callAnthropic(system: string, prompt: string, model: string, key: string): Promise<string | null> {
-  // No retries: a failure here goes to the next key, then to the ghost's own lines.
+async function callAnthropic(
+  system: SystemPrompt,
+  prompt: string,
+  model: string,
+  key: string,
+): Promise<{ text: string | null; usage: Usage }> {
+  // No retries: a failure here goes to the next key, then to the free models.
   const client = new Anthropic({ apiKey: key, timeout: TIMEOUT_MS, maxRetries: 0 });
   const response = await client.messages.create({
     model,
-    max_tokens: 160,
+    max_tokens: 200,
     temperature: 0.7,
-    system,
+    // The stable part first, cached for an hour: players come and go, and a
+    // conversation's replies are often more than five minutes apart.
+    system: [
+      { type: "text", text: system.stable, cache_control: { type: "ephemeral", ttl: "1h" } },
+      { type: "text", text: system.live },
+    ],
     messages: [{ role: "user", content: prompt }],
   });
   const text = response.content
     .map((block) => (block.type === "text" ? block.text : ""))
     .join("")
     .trim();
-  return text || null;
+  const usage: Usage = {
+    input: response.usage.input_tokens,
+    cacheRead: response.usage.cache_read_input_tokens ?? 0,
+    cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
+    output: response.usage.output_tokens,
+  };
+  return { text: text || null, usage };
 }
 
 async function callCloudflare(system: string, prompt: string, model: string): Promise<string | null> {
@@ -286,7 +319,15 @@ async function callGemini(system: string, prompt: string, model: string, key: st
 /** What a player thinks of the map being played, as the model heard it. */
 export type Opinion = { verdict: "like" | "dislike" | "mixed"; reason: string };
 
-export type Spoken = { line: string; provider: string; notes: string[]; lore: string[]; opinions: Opinion[] } | null;
+export type Spoken = {
+  line: string;
+  provider: string;
+  notes: string[];
+  lore: string[];
+  opinions: Opinion[];
+  /** Tokens, for a paid reply; null for a free one. */
+  usage: Usage | null;
+} | null;
 
 const VERDICTS: Record<string, Opinion["verdict"]> = {
   like: "like", likes: "like", love: "like", loves: "like", good: "like",
@@ -331,7 +372,7 @@ export function takeNotes(raw: string): { rest: string; notes: string[]; lore: s
  * sent: silence is the scripted fallback's job, not a blank line in chat.
  */
 export async function speak(
-  system: string,
+  system: SystemPrompt,
   prompt: string,
   speaker: string,
   maxLength: number,
@@ -339,18 +380,21 @@ export async function speak(
 ): Promise<Spoken> {
   for (const attempt of attempts(allowPaid)) {
     try {
-      const raw =
-        attempt.provider === "cloudflare"
-          ? await callCloudflare(system, prompt, attempt.model)
-          : attempt.provider === "gemini"
-            ? await callGemini(system, prompt, attempt.model, attempt.key)
-            : await callAnthropic(system, prompt, attempt.model, attempt.key);
+      let raw: string | null;
+      let usage: Usage | null = null;
+      if (attempt.provider === "anthropic") {
+        ({ text: raw, usage } = await callAnthropic(system, prompt, attempt.model, attempt.key));
+      } else if (attempt.provider === "cloudflare") {
+        raw = await callCloudflare(system.compact, prompt, attempt.model);
+      } else {
+        raw = await callGemini(system.compact, prompt, attempt.model, attempt.key);
+      }
       if (!raw) continue;
       const { rest, notes, lore, opinions } = takeNotes(raw);
       const decided = decide(rest, speaker);
-      if (decided.skip) return { line: "", provider: attempt.model, notes, lore, opinions };
+      if (decided.skip) return { line: "", provider: attempt.model, notes, lore, opinions, usage };
       if (!decided.line) continue;
-      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore, opinions };
+      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore, opinions, usage };
     } catch (error) {
       console.warn(`[ghost] ${attempt.model} failed: ${error instanceof Error ? error.name : "error"}`);
     }

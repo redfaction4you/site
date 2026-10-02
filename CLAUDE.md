@@ -337,9 +337,9 @@ column each night. `docs/HANDOVER.md` has the full story and what replaced it.
   full export before dropping anything.
 - **The analyst's generation is gone; one small AI use came back.** The only
   trigger for the analyst was the archive ingest route, which is deleted. The
-  OpenAI and Anthropic keys in Vercel are unused and can be revoked. **Keep
-  `CLOUDFLARE_AI_TOKEN` and the `GEMINI_API_KEY*` keys**: the server ghost uses
-  them (next section).
+  OpenAI key in Vercel is unused and can be revoked. **Keep
+  `ANTHROPIC_API_KEY*`, `CLOUDFLARE_AI_TOKEN` and the `GEMINI_API_KEY*` keys**:
+  the server ghost uses them (next section).
 
 ## The server ghost (`src/lib/ghost/`, `/api/ghost`)
 
@@ -354,14 +354,26 @@ server, and everything a lone player says. It is a Node process on the VPS
 (`C:\RFMatchBroadcast\ghost\ghost.mjs`, task "RF4U Halloween Ghost") that joins
 the game as a server-browser client and asks this site what to say.
 
-- **Free services first, a capped paid one last.** `speak.ts` tries Cloudflare
-  Workers AI (Llama 3.3 70B, then 3.1 8B), then Gemini flash lite across every
-  numbered key. On 27 September, after one busy evening used up the free
-  allowance, the owner said the Anthropic keys are there "because it can use up
-  free stuff": so Claude Haiku 4.5 is the last resort, and only while the VPS
-  says its daily cap (150 replies, `data/ghost-halloween-paid.json`) allows.
-  The OpenAI key is still unused. When nothing answers, the ghost says one of
-  its own lines where one fits.
+- **Claude first, capped, with the free services behind it.** On 1 October,
+  after a week of Wisp asking odd questions and losing the thread, the owner
+  said "if you need the paid api to get better results, just use it". So
+  `speak.ts` asks Claude Haiku 4.5 first while the VPS says its daily cap
+  allows (400 replies, `data/ghost-halloween-paid.json`, which also keeps the
+  tokens used), then Cloudflare Workers AI (Llama 3.3 70B, then 3.1 8B), then
+  Gemini flash lite across every numbered key. The OpenAI key is still unused.
+  When nothing answers, the ghost says one of its own lines where one fits.
+- **The prompt has a cached half.** `persona.stable()` is the persona, the
+  knowledge base (`knowledge.ts`: voting, the servers' public settings, Alpine,
+  Red Faction, the community) and every map on the server with its file name,
+  about 7,400 tokens, the same on every reply while the rotation stands, so it
+  is cached for an hour. `persona.live()` is what is playing now. Haiku caches
+  nothing under 4,096 tokens and says so only in `usage`, which the VPS logs:
+  if `cache read` stays 0 the cache is not working. Anything that changes per
+  reply belongs in `live()` or `promptFor()`, never in `stable()`.
+- **Wisp cannot see the game**, and the persona says so: no describing maps,
+  no "nice map so far". Its map questions are the VPS process's own lines,
+  worded as a survey for the admins' map list, and go only to somebody it is
+  chatting with, in a lull, once a visit.
 - **Keys stay in Vercel.** The VPS authenticates with `RF4U_ARCHIVE_SYNC_SECRET`
   and never holds a model key.
 - **Everything it says is plain ASCII with no em dashes**, because it reaches a

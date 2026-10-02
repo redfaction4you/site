@@ -12,7 +12,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { asciiLine, cleanReply, decide, takeNotes } from "../src/lib/ghost/speak.ts";
-import { mapsMentioned, personaFor, promptFor } from "../src/lib/ghost/persona.ts";
+import { mapsMentioned, personaFor, promptFor, wantsHelp } from "../src/lib/ghost/persona.ts";
+import MAP_NOTES from "../src/lib/ghost/map-notes.json" with { type: "json" };
 
 test("curly quotes, em dashes, ellipses and emoji come out as plain ASCII", () => {
   assert.equal(
@@ -172,7 +173,7 @@ test("the map list goes in only when the talk is about maps or a mapper", () => 
     maps: [{ title: "Nowhere Bagge Farm (CTCD)", filename: "DM-NowhereBaggeFarm.rfl" }],
   };
   const at = (text) => personaFor("halloween").system({ ...base, transcript: [{ name: "Sam", text }] });
-  assert.match(at("do you like acers maps?"), /Every map here, with who made it/);
+  assert.match(at("do you like acers maps?"), /Every map here \(1\), with who made it/);
   assert.match(at("who made this?"), /Every map here/);
   assert.doesNotMatch(at("lol nice shot"), /Every map here/);
 });
@@ -258,15 +259,88 @@ test("an everyday word is not taken for a mapper's name", () => {
 });
 
 // Owner, 26 September: "since this is halloween themed, he could make puns or
-// talk about halloween with ppl or ask if they like the map".
-test("Wisp brings the Halloween spirit and asks about the map", () => {
+// talk about halloween with ppl". The map questions are the ghost process's own
+// lines now (ghost-rules.mjs), so the persona no longer pushes them.
+test("Wisp brings the Halloween spirit", () => {
   const system = personaFor("halloween").system({
     event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], playing: null, next: null, maps: [],
   });
   assert.match(system, /Halloween pun/);
   assert.match(system, /costumes, candy, horror movies/);
-  assert.match(system, /ask what they think of one/);
+  assert.doesNotMatch(system, /ask what they think of one/);
   assert.doesNotMatch(system, /—/);
+});
+
+// Owner, 1 October: "asking questions about maps hes in is weird because you'd
+// expect him to see the map but he can't". Live the same night: "nice map so
+// far" and "what inspired romeks umbracula", to the mapper, on his own map.
+test("Wisp knows it cannot see the game and answers before it asks", () => {
+  const system = personaFor("halloween").system({
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], playing: null, next: null, maps: [],
+  });
+  assert.match(system, /You CANNOT see the game/);
+  assert.match(system, /never say how a map looks or plays as if you saw it/);
+  assert.match(system, /Questions: at most one/);
+  assert.match(system, /Never parrot their words back/);
+});
+
+/** Every map the notes know, as a rotation, for the size of the real prompt. */
+const ALL_MAPS = Object.keys(MAP_NOTES).map((filename) => ({ title: filename.replace(/\.rfl$/i, ""), filename }));
+
+// Owner, 1 October: "build a knowledge base of RF stuff maybe? so he always has access to it".
+test("the cached part holds the knowledge and every map, and does not change from moment to moment", () => {
+  const persona = personaFor("halloween");
+  const at = (playing, text) => persona.stable({
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], next: null, maps: ALL_MAPS, playing,
+    transcript: [{ name: "Sam", text }],
+  });
+  const one = at(ALL_MAPS[0], "hey");
+  assert.equal(one, at(ALL_MAPS[5], "how do i vote?"));
+  assert.match(one, /KNOWLEDGE BASE/);
+  assert.match(one, /vote extend/);
+  assert.match(one, /- dc-microhorrorb1 \[dc-microhorrorb1\] by Romek, Damage Control: /);
+  assert.match(one, /Romek runs RF4U/);
+  // Haiku caches nothing under 4096 tokens: at about four characters a token, well clear of that.
+  assert.ok(one.length > 24_000, `only ${one.length} characters`);
+  assert.doesNotMatch(one, /—/);
+  assert.match(one, /^[\x20-\x7e\n]*$/);
+});
+
+test("the live part says what is playing, its file name and its game type", () => {
+  const persona = personaFor("halloween");
+  const live = persona.live({
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], maps: [],
+    playing: { title: "Micro Horror", filename: "DC-MicroHorrorB1.rfl" },
+    next: { title: "Backrooms", filename: "DM-BackroomsB1.rfl" },
+  });
+  assert.match(live, /Playing now: Micro Horror, made by Romek \[DC-MicroHorrorB1\], Damage Control/);
+  assert.match(live, /Next up: Backrooms, made by Romek \[DM-BackroomsB1\]/);
+});
+
+// Live, 1 October: "extend map" and "map_ext" got small talk.
+test("a vote attempt or a help question is pointed out to the model", () => {
+  for (const text of ["extend map", "map_ext", "how do i change the map", "skip this", "whats next?", "vote next", "rtv"]) {
+    assert.equal(wantsHelp(text), true, text);
+  }
+  for (const text of ["lol nice shot", "hey wisp", "this map is cool", "i'm next to you"]) {
+    assert.equal(wantsHelp(text), false, text);
+  }
+  const prompt = promptFor({
+    event: "chat", subject: "Romek", humans: ["Romek"], bots: [], playing: null, next: null, maps: [],
+    transcript: [{ name: "Romek", text: "extend map" }],
+  });
+  assert.match(prompt, /give the exact command/);
+});
+
+// Live, 1 October: a question in nearly every line.
+test("after asking a question, the next line asks nothing", () => {
+  const context = {
+    event: "chat", subject: "Sam", humans: ["Sam"], bots: [], playing: null, next: null, maps: [],
+    transcript: [{ name: "Wisp", text: "hows it going?", ghost: true }, { name: "Sam", text: "good" }],
+  };
+  assert.match(promptFor(context), /Your last line was a question, so this one asks nothing/);
+  context.transcript[0].text = "nice, same here";
+  assert.doesNotMatch(promptFor(context), /Your last line was a question/);
 });
 
 // Live, 26 September: "got any halloween plans?" was taken as naming the maps

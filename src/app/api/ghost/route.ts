@@ -14,7 +14,7 @@ import { recordOpinion } from "@/lib/map-opinions";
  * rotation applier uses. It sends what it saw (who joined, who said what,
  * which level is loaded) and gets back one chat line, or `line: null` when no
  * free model could produce one, in which case it says a scripted line of its
- * own. See `src/lib/ghost/speak.ts` for why only free providers are called.
+ * own. See `src/lib/ghost/speak.ts` for which models answer, in what order.
  *
  * Every field is capped here, not trusted: a garbled or hostile body must not
  * turn into a prompt of any size.
@@ -106,7 +106,8 @@ export async function POST(request: Request) {
   };
 
   // The ghost keeps its own count of paid replies and says whether today's cap allows another.
-  const spoken = await speak(persona.system(context), promptFor(context), persona.name, persona.maxLength, {
+  const system = { stable: persona.stable(context), live: persona.live(context), compact: persona.system(context) };
+  const spoken = await speak(system, promptFor(context), persona.name, persona.maxLength, {
     allowPaid: body.allowPaid === true,
   });
 
@@ -142,6 +143,8 @@ export async function POST(request: Request) {
       notes: spoken?.notes ?? [],
       lore: spoken?.lore ?? [],
       opinion: opinion ?? null,
+      // Tokens a paid reply used, so the ghost can log what it costs.
+      usage: spoken?.usage ?? null,
     },
     { headers: { "cache-control": "no-store" } },
   );
