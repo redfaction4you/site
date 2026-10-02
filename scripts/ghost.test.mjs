@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { asciiLine, cleanReply, decide, takeNotes } from "../src/lib/ghost/speak.ts";
+import { asciiLine, cleanReply, decide, siteName, takeNotes } from "../src/lib/ghost/speak.ts";
 import { mapsMentioned, personaFor, promptFor, wantsHelp } from "../src/lib/ghost/persona.ts";
 import MAP_NOTES from "../src/lib/ghost/map-notes.json" with { type: "json" };
 
@@ -330,6 +330,14 @@ test("a vote attempt or a help question is pointed out to the model", () => {
     transcript: [{ name: "Romek", text: "extend map" }],
   });
   assert.match(prompt, /give the exact command/);
+});
+
+// Live, 1 October: "check the full list at redaction4you.com/halloween".
+test("the site's address always comes out spelled right", () => {
+  assert.equal(siteName("check redaction4you.com/halloween"), "check RedFaction4You.com/halloween");
+  assert.equal(siteName("its on redfaction4you.com"), "its on RedFaction4You.com");
+  assert.equal(siteName("see RedFaction4You.com/themed"), "see RedFaction4You.com/themed");
+  assert.equal(siteName("factionfiles.com has it"), "factionfiles.com has it");
 });
 
 // Live, 1 October: a question in nearly every line.

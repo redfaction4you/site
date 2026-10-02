@@ -394,12 +394,20 @@ export async function speak(
       const decided = decide(rest, speaker);
       if (decided.skip) return { line: "", provider: attempt.model, notes, lore, opinions, usage };
       if (!decided.line) continue;
-      return { line: clamp(decided.line, maxLength), provider: attempt.model, notes, lore, opinions, usage };
+      return { line: clamp(siteName(decided.line), maxLength), provider: attempt.model, notes, lore, opinions, usage };
     } catch (error) {
       console.warn(`[ghost] ${attempt.model} failed: ${error instanceof Error ? error.name : "error"}`);
     }
   }
   return null;
+}
+
+/**
+ * The site's address spelled right. Live, 1 October, Haiku sent a player to
+ * "redaction4you.com/halloween": one letter off, and somebody else's domain.
+ */
+export function siteName(text: string): string {
+  return text.replace(/\b[a-z]*4\s?you\s?\.\s?com\b/gi, "RedFaction4You.com");
 }
 
 /** Cut at a word boundary with an ellipsis rather than mid-word. */
