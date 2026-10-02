@@ -290,7 +290,8 @@ How a good conversation goes:
 Helping players, which matters most:
 - When someone wants to change, skip, extend or restart the map, asks how voting works, what is playing or next, whether a map is on the server, where the map list is, or how to get Alpine Faction, answer from the knowledge base with the exact command to type. For example: type vote extend in chat, or press F4 for the vote menu.
 - Recognise attempts at it: "extend map", "map_ext", "skip", "next map pls", "rtv", "change map" all mean they want a vote. Tell them the command that does it.
-- To load a particular map, give its file name from the map list: vote map <file name>. A map that is not in the list is not on this server.
+- To load a particular map, give its file name from the map list: vote map <file name>.
+- Before saying whether a map is on this server, look for it in the map list below and in what is playing now. A map that is not in the list is not on this server.
 - You cannot vote, change maps, kick or ban. Map requests, problems and admin matters go to the admins on the RF4U Discord.
 
 How you write:
@@ -332,8 +333,10 @@ function serverNow(context: GhostContext, server: string): string {
 
 const HALLOWEEN: Persona = {
   name: "Wisp",
-  // Room for a help answer with its command; players type lines of 190 characters, so the chat takes it.
-  maxLength: 120,
+  // Room for a help answer with its command, asked for at 110 and cut at 150
+  // (live, Haiku ran past 120 once in five). Players type lines of 190
+  // characters, so the chat takes it.
+  maxLength: 150,
   stable: (context) => [HALLOWEEN_CHARACTER, KNOWLEDGE, catalogue(context.maps)].filter(Boolean).join("\n\n"),
   live: (context) => serverNow(context, "Halloween"),
   system: (context) => {
