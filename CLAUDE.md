@@ -351,22 +351,36 @@ be a friend." So every person who joins gets "hey <name>" (the process's own
 line, no model), and whoever it is talking with gets answers for three minutes
 after it last spoke to them. It also answers its name, questions about the
 server, and everything a lone player says. It is a Node process on the VPS
-(`C:\RFMatchBroadcast\ghost\ghost.mjs`, task "RF4U Halloween Ghost") that joins
-the game as a server-browser client and asks this site what to say.
+(`C:\RFMatchBroadcast\ghost\ghost.mjs`) that joins the game as a
+server-browser client and asks this site what to say.
+
+**Since 3 November 2026 Wisp and the three bots are on Themed.** The owner shut
+the Halloween server down ("we will switch it out eventually for something
+else") and moved them over. Wisp runs as task "RF4U Themed Ghost"
+(`ghost.mjs themed`), the bots as "RF4U Themed Bots"; the Halloween server,
+bots and ghost tasks are disabled, not deleted, and their files are kept.
+**The Themed bots are switched off** (`data/themed-bots.count` is 0): only 3
+of Themed's 70 maps have waypoint files, and on the first night the three bot
+clients took both CPU cores, hung, were dropped and were relaunched, which
+would have lagged Themed and Novelty for real players. Bot waypoints for
+Themed's maps come first; then write 3 to that file.
 
 - **Claude first, capped, with the free services behind it.** On 1 October,
   after a week of Wisp asking odd questions and losing the thread, the owner
   said "if you need the paid api to get better results, just use it". So
   `speak.ts` asks Claude Haiku 4.5 first while the VPS says its daily cap
-  allows (400 replies, `data/ghost-halloween-paid.json`, which also keeps the
+  allows (400 replies, `data/ghost-<server>-paid.json`, which also keeps the
   tokens used), then Cloudflare Workers AI (Llama 3.3 70B, then 3.1 8B), then
   Gemini flash lite across every numbered key. The OpenAI key is still unused.
   When nothing answers, the ghost says one of its own lines where one fits.
 - **The prompt has a cached half.** `persona.stable()` is the persona, the
   knowledge base (`knowledge.ts`: voting, the servers' public settings, Alpine,
   Red Faction, the community) and every map on the server with its file name,
-  about 7,400 tokens, the same on every reply while the rotation stands, so it
-  is cached for an hour. `persona.live()` is what is playing now. Haiku caches
+  measured at 8,900 tokens on Halloween and 5,600 on Themed, the same on every
+  reply while the rotation stands, so it is cached for an hour. Themed's maps
+  have no mapper notes, so its Wisp also gets Novelty's map titles
+  (`alsoKnows`), which answers "is X on novelty?" and is what lifts it over
+  the cache minimum. `persona.live()` is what is playing now. Haiku caches
   nothing under 4,096 tokens and says so only in `usage`, which the VPS logs:
   if `cache read` stays 0 the cache is not working. Anything that changes per
   reply belongs in `live()` or `promptFor()`, never in `stable()`.
@@ -386,17 +400,20 @@ the game as a server-browser client and asks this site what to say.
   `ghost-rules.test.mjs` next to `ghost.mjs` on the VPS.
 - **Its records are never deleted**, by the owner's instruction (26 September:
   "keep records, don't delete them"). The notebook on the VPS
-  (`data/ghost-halloween-friends.json`) keeps every line, every fact players
+  (`data/ghost-<server>-friends.json`; Themed's began as a copy of Halloween's,
+  which is kept) keeps every line, every fact players
   shared (NOTE) and everything learned about the game (LORE, with who said it);
   only the recent part is sent with a reply. The chat log is archived at 5 MB,
   never trimmed. An unreadable notebook is set aside, never overwritten.
 - **Deploy the two halves together.** The in-game name (`NAME` in ghost.mjs) and
   the persona here must match, and ghost.mjs and ghost-rules.mjs are copied as a
-  pair. Order: create `C:\RFMatchBroadcast\data\ghost-halloween.off`, push the
+  pair. Order: create `C:\RFMatchBroadcast\data\ghost-themed.off`, push the
   site and wait for Vercel to show Ready, copy both files and restart the task,
   check its log, delete the off file. The same steps head ghost.mjs.
-- **The persona is per server** (`persona.ts`). Only Halloween has one; another
-  server gets a ghost by adding its persona and running a copy of the process.
+- **The persona is per server** (`persona.ts`): one Wisp, its character set
+  per server in `WISP_ON` (Halloween and Themed). Another server gets a ghost by
+  adding an entry there and one in `SERVERS` in ghost.mjs, and running
+  `ghost.mjs <server>` as its own task.
 - **Do not rebuild any of it without the owner asking.**
 
 ## Weight, measured rather than guessed
