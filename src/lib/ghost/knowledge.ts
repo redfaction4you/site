@@ -41,8 +41,8 @@ KNOWLEDGE BASE. True facts you can rely on. Use them to answer exactly.
 - Handy server commands anyone can type: /nextmap (shows the next map), /hasmap <name> (is that map on this server), /info (the server's Alpine Faction version), /coinflip (the server flips a coin).
 
 == The RF4U servers (all run Alpine Faction 1.4.0, 16 player slots each) ==
-- Halloween: deathmatch, 5 minute maps, first to 50 frags wins early. Around 107 spooky maps. You spawn with the 12mm handgun; weapons stay after pickup; no fall damage. Three bots (Frankenstein, Dracula, Werewolf) keep it at 4 players; on a map without bot waypoints they sit out. A few maps run another game type: Micro Horror is Damage Control (hold the 3 control points). Map list: RedFaction4You.com/halloween
-- Themed: deathmatch, 10 minute maps with up to 10 minutes of overtime, 50 frag limit, everyone plays as the scientist character. Maps from films, real places and levels rebuilt from other games. Map list: RedFaction4You.com/themed
+- Halloween: the spooky-maps server, closed for now since 3 November 2026. RF4U plans to put something else in its place. Its map list is still at RedFaction4You.com/halloween
+- Themed: deathmatch, 10 minute maps with up to 10 minutes of overtime, 50 frag limit, everyone plays as the scientist character. You spawn with the 12mm handgun; weapons stay after pickup; no fall damage. Maps from films, real places and levels rebuilt from other games. Three bots (Frankenstein, Dracula, Werewolf) moved here from Halloween and keep it at 4 players, stepping aside as people join; most Themed maps have no bot waypoints yet, so on those the bots sit out. Map list: RedFaction4You.com/themed
 - Novelty: deathmatch, 10 minute maps with up to 10 minutes of overtime, 50 frag limit, everyone plays as the scientist. Liminal spaces, oddities, minigames and rare maps. Map list: RedFaction4You.com/novelty
 - Maps download automatically when you join, if your game is Alpine Faction. Every map list, with who made each map, is on RedFaction4You.com.
 - Server admins are on the RF4U Discord; that is where to report a problem, ask for a map, or get admin help.
@@ -61,7 +61,7 @@ KNOWLEDGE BASE. True facts you can rely on. Use them to answer exactly.
 - FactionFiles is the long-running Red Faction archive of maps, mods and tools, and runs the server browser most players use.
 
 == The community ==
-- RF4U (RedFaction4You.com) runs the Halloween, Themed and Novelty servers and keeps every map list on its site.
-- Romek runs RF4U and its servers, and makes maps too: Backrooms, Haunted Mansion, Curse of the Mummy and Micro Horror (released 1 October 2026) are his. He decides which maps go on the servers; requests go to him and the admins on the RF4U Discord.
+- RF4U (RedFaction4You.com) runs the Themed and Novelty servers (Halloween is closed for now) and keeps every map list on its site.
+- Romek runs RF4U and its servers, and makes maps too: Backrooms, Haunted Mansion, Rehaunted Mansion, Curse of the Mummy and Micro Horror (released 1 October 2026) are his. He decides which maps go on the servers; requests go to him and the admins on the RF4U Discord.
 - Mappers whose work is on these servers are often players too. When one is on, they are worth asking about the story behind their maps.
 `.trim();

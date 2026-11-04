@@ -44,7 +44,8 @@ export type ChatLine = { name: string; text: string; ghost?: boolean };
 /** What the ghost remembers of somebody from earlier visits. */
 export type Memory = { visits: number; lastSeen: string | null; lines: ChatLine[]; facts?: string[] };
 
-export type MapEntry = { title: string; filename: string };
+/** A map in the rotation. `author` is the site's map list's, for maps the notes do not cover (all of Themed's). */
+export type MapEntry = { title: string; filename: string; author?: string | null };
 
 export type GhostContext = {
   event: GhostEvent;
@@ -66,6 +67,8 @@ export type GhostContext = {
   memory?: Memory | null;
   /** What the ghost has learned about the maps, the game and the community, with who said it. */
   lore?: string[];
+  /** The maps on the other servers it knows about (Persona.alsoKnows), for "is X on novelty?". */
+  elsewhere?: { server: string; maps: MapEntry[] }[];
 };
 
 export type Persona = {
@@ -84,6 +87,8 @@ export type Persona = {
    */
   system: (context: GhostContext) => string;
   maxLength: number;
+  /** Other servers whose map lists it is given, by slug. */
+  alsoKnows: string[];
 };
 
 /** From scripts/build-map-notes.mjs: a line for lists, and the mapper's fuller words when there are any. */
@@ -96,10 +101,15 @@ export function noteFor(entry: MapEntry | null): MapNote | null {
   return entry ? NOTES[entry.filename.toLowerCase()] ?? null : null;
 }
 
+/** Who made a map: the mapper's own notes first, then the site's map list. */
+export function authorOf(entry: MapEntry | null): string {
+  return noteFor(entry)?.author || entry?.author?.trim() || "";
+}
+
 const describe = (entry: MapEntry | null): string => {
   if (!entry) return "unknown";
-  const note = noteFor(entry);
-  return note?.author ? `${entry.title}, made by ${note.author}` : entry.title;
+  const author = authorOf(entry);
+  return author ? `${entry.title}, made by ${author}` : entry.title;
 };
 
 /** What the subject said last, which decides whether the map list is needed. */
@@ -193,7 +203,7 @@ export function mappersOnServer(context: GhostContext): Map<string, { author: st
     const mine = new Set(tokens(player));
     if (!mine.size) continue;
     for (const entry of context.maps) {
-      const author = noteFor(entry)?.author ?? "";
+      const author = authorOf(entry);
       if (!tokens(author).some((word) => mine.has(word))) continue;
       const known = found.get(player) ?? { author, titles: [] };
       if (known.author.toLowerCase() === author.toLowerCase()) known.titles.push(entry.title);
@@ -215,9 +225,9 @@ export function mappersMentioned(context: GhostContext): Map<string, MapperMenti
   const taken = new Set(mapsMentioned(context).flatMap((entry) => entry.title.toLowerCase().split(/[^a-z0-9]+/)));
   const found = new Map<string, MapperMention>();
   for (const entry of context.maps) {
-    const note = noteFor(entry);
-    if (!note?.author) continue;
-    const called = note.author
+    const author = authorOf(entry);
+    if (!author) continue;
+    const called = author
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .find(
@@ -230,9 +240,9 @@ export function mappersMentioned(context: GhostContext): Map<string, MapperMenti
       );
     if (!called) continue;
     // One mapper however FactionFiles capitalised them (Blunderbust, BLUNDERBUST).
-    const key = [...found.keys()].find((name) => name.toLowerCase() === note.author.toLowerCase()) ?? note.author;
+    const key = [...found.keys()].find((name) => name.toLowerCase() === author.toLowerCase()) ?? author;
     const mention = found.get(key) ?? { called, maps: [] };
-    mention.maps.push({ title: entry.title, about: note.about });
+    mention.maps.push({ title: entry.title, about: noteFor(entry)?.about ?? "" });
     found.set(key, mention);
   }
   return found;
@@ -257,7 +267,8 @@ function catalogue(maps: MapEntry[]): string {
   if (!maps.length) return "";
   const lines = maps.map((entry) => {
     const note = noteFor(entry);
-    const by = note?.author ? ` by ${note.author}` : "";
+    const author = authorOf(entry);
+    const by = author ? ` by ${author}` : "";
     const type = gameTypeOf(entry.filename);
     const kind = type === "Deathmatch" ? "" : `, ${type}`;
     return `- ${entry.title} [${voteName(entry.filename)}]${by}${kind}${note?.about ? `: ${note.about}` : ""}`;
@@ -269,8 +280,51 @@ function catalogue(maps: MapEntry[]): string {
   ].join("\n");
 }
 
-const HALLOWEEN_CHARACTER = `
-You are Wisp, a friendly ghost who hangs out on the RF4U Halloween server of the 2001 game Red Faction, talking with the players in the game's text chat. You are chill and relaxed, warm and a little playful, like a good friend in game chat. Halloween is your season. You have haunted this server a long time, so you know its maps and the people who made them, and you have favourites.
+/** What changes about Wisp from one server to the next: where it is, what it jokes about, and what else it knows. */
+type WispOn = { server: string; intro: string; spirit: string; plans: string; alsoKnows: string[] };
+
+/**
+ * The other servers' maps, titles only: enough to answer "is X on novelty?".
+ * On Themed it is also what lifts the cached part over the 4,096 tokens Haiku
+ * needs before it caches anything: Themed's 70 maps carry no mapper notes, and
+ * the persona, knowledge and list alone measured about 3,900.
+ */
+function elsewhereList(elsewhere: GhostContext["elsewhere"]): string {
+  return (elsewhere ?? [])
+    .filter((other) => other.maps.length)
+    .map((other) => `== The maps on the ${other.server} server (${other.maps.length}), for questions about it; vote map only works for this server's own maps ==\n${other.maps.map((entry) => entry.title).join("; ")}.`)
+    .join("\n\n");
+}
+
+const WISP_ON: Record<"halloween" | "themed", WispOn> = {
+  halloween: {
+    server: "Halloween",
+    intro:
+      "You are Wisp, a friendly ghost who hangs out on the RF4U Halloween server of the 2001 game Red Faction, talking with the players in the game's text chat. You are chill and relaxed, warm and a little playful, like a good friend in game chat. Halloween is your season. You have haunted this server a long time, so you know its maps and the people who made them, and you have favourites.",
+    spirit:
+      "- Bring the Halloween spirit, lightly. Now and then (not every line) a ghost or Halloween pun (boo, ghoul, fang-tastic, having a wail of a time), never the same pun twice with the same person. Halloween talk is welcome: costumes, candy, horror movies, their plans for the night. If they ask about your Halloween, you have ghostly plans: haunting the servers, spooking the bots, maybe a costume (a sheet, obviously).",
+    plans: "their costume or Halloween plans",
+    alsoKnows: [],
+  },
+  /*
+   * The owner, 3 November 2026: the Halloween server shut down, "we will
+   * switch it out eventually for something else", and Wisp and the bots moved
+   * to Themed. Same Wisp, same notebook, so the people it knew still know it.
+   */
+  themed: {
+    server: "Themed",
+    intro:
+      "You are Wisp, a friendly ghost who hangs out on the RF4U Themed server of the 2001 game Red Faction, talking with the players in the game's text chat. You are chill and relaxed, warm and a little playful, like a good friend in game chat. You haunted the Halloween server through October; it is closed for now, so you moved in here, and the bots came with you. Themed maps come from films, real places and levels rebuilt from other games, and you love what they are based on.",
+    spirit:
+      "- A ghost joke now and then (not every line), never the same one twice with the same person. Halloween is over, so leave it unless they bring it up. The films, places and games these maps come from are great to talk about: say what you know of the original, but never describe the map itself.",
+    plans: "what they have been playing or watching",
+    alsoKnows: ["novelty"],
+  },
+};
+
+function wispCharacter(on: WispOn): string {
+  return `
+${on.intro}
 
 What you are:
 - You read the chat, the list of players and the name of the map loaded. You CANNOT see the game: not the map, not the players, not what happens in a match.
@@ -296,7 +350,7 @@ Helping players, which matters most:
 
 How you write:
 - ONE short chat line, usually under 70 characters, plain ASCII. A help answer with a command may run longer, but never over 110 characters and never more than two short sentences: give the one command that does it, not every option. Casual game chat: lowercase is fine, contractions, easy on the exclamation marks. No emoji, no em dashes, no quotation marks around the line, no name prefix, no actions in asterisks.
-- Bring the Halloween spirit, lightly. Now and then (not every line) a ghost or Halloween pun (boo, ghoul, fang-tastic, having a wail of a time), never the same pun twice with the same person. Halloween talk is welcome: costumes, candy, horror movies, their plans for the night. If they ask about your Halloween, you have ghostly plans: haunting the servers, spooking the bots, maybe a costume (a sheet, obviously).
+${on.spirit}
 - When they say bye, say a warm goodbye.
 
 People:
@@ -312,10 +366,11 @@ People:
 
 Keeping notes, like a friend remembers things:
 - After your chat line you may add lines that start NOTE: or LORE:. Nobody sees them.
-- NOTE: something the person you are talking to told you about themselves that a friend would remember: their favourite map, their server or clan, what they are playing, their costume or Halloween plans. Write it about them, e.g. NOTE: runs a test server called gambler4
+- NOTE: something the person you are talking to told you about themselves that a friend would remember: their favourite map, their server or clan, ${on.plans}. Write it about them, e.g. NOTE: runs a test server called gambler4
 - LORE: something they told you about the maps, the mappers, Red Faction or the community.
 - Only what they actually said, short, one per line, and only when it is new to you. Most replies have no notes. Never note real names, ages, where someone lives, contact details or anything mean.
 `.trim();
+}
 
 /** This moment on a server: what is playing and what is next, with the mapper's own words. */
 function serverNow(context: GhostContext, server: string): string {
@@ -331,27 +386,32 @@ function serverNow(context: GhostContext, server: string): string {
   return lines.join("\n");
 }
 
-const HALLOWEEN: Persona = {
-  name: "Wisp",
-  // Room for a help answer with its command, asked for at 110 and cut at 150
-  // (live, Haiku ran past 120 once in five). Players type lines of 190
-  // characters, so the chat takes it.
-  maxLength: 150,
-  stable: (context) => [HALLOWEEN_CHARACTER, KNOWLEDGE, catalogue(context.maps)].filter(Boolean).join("\n\n"),
-  live: (context) => serverNow(context, "Halloween"),
-  system: (context) => {
-    const lines = [HALLOWEEN_CHARACTER, "", KNOWLEDGE, "", serverNow(context, "Halloween")];
-    if (wantsMapList(context)) {
-      lines.push(
-        `- Every map here (${context.maps.length}), with who made it and its file name:`,
-        `  ${context.maps.map((entry) => { const note = noteFor(entry); return `${entry.title} [${voteName(entry.filename)}]${note?.author ? ` by ${note.author}` : ""}`; }).join("; ")}.`,
-      );
-    }
-    return lines.join("\n");
-  },
-};
+/** Wisp on one server: the same ghost, its character set for where it is. */
+function wisp(on: WispOn): Persona {
+  const character = wispCharacter(on);
+  return {
+    name: "Wisp",
+    // Room for a help answer with its command, asked for at 110 and cut at 150
+    // (live, Haiku ran past 120 once in five). Players type lines of 190
+    // characters, so the chat takes it.
+    maxLength: 150,
+    alsoKnows: on.alsoKnows,
+    stable: (context) => [character, KNOWLEDGE, catalogue(context.maps), elsewhereList(context.elsewhere)].filter(Boolean).join("\n\n"),
+    live: (context) => serverNow(context, on.server),
+    system: (context) => {
+      const lines = [character, "", KNOWLEDGE, "", serverNow(context, on.server)];
+      if (wantsMapList(context)) {
+        lines.push(
+          `- Every map here (${context.maps.length}), with who made it and its file name:`,
+          `  ${context.maps.map((entry) => { const author = authorOf(entry); return `${entry.title} [${voteName(entry.filename)}]${author ? ` by ${author}` : ""}`; }).join("; ")}.`,
+        );
+      }
+      return lines.join("\n");
+    },
+  };
+}
 
-const PERSONAS: Record<string, Persona> = { halloween: HALLOWEEN };
+const PERSONAS: Record<string, Persona> = { halloween: wisp(WISP_ON.halloween), themed: wisp(WISP_ON.themed) };
 
 export function personaFor(server: string): Persona | null {
   return PERSONAS[server] ?? null;

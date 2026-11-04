@@ -30,9 +30,34 @@ test("whitespace collapses to one line", () => {
   assert.equal(asciiLine("  two\n\nlines\there  "), "two lines here");
 });
 
-test("Halloween has a ghost and other servers do not yet", () => {
+// Owner, 3 November 2026: Halloween shut down, and Wisp moved to Themed.
+test("Wisp has a persona for Halloween and Themed, and Novelty has none", () => {
   assert.equal(personaFor("halloween")?.name, "Wisp");
-  assert.equal(personaFor("themed"), null);
+  assert.equal(personaFor("themed")?.name, "Wisp");
+  assert.equal(personaFor("novelty"), null);
+});
+
+test("on Themed, Wisp knows where it is, drops the Halloween puns, and names Themed's mappers", () => {
+  const maps = [
+    { title: "RFU2-Finding Nemo", filename: "dm-rfu2-finding-nemo.rfl", author: "Sir Lots-A-Pot" },
+    { title: "The Flintstones", filename: "DMFMStones.rfl", author: "Fallen Mercenary" },
+  ];
+  const context = { event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], maps, playing: maps[0], next: maps[1] };
+  const persona = personaFor("themed");
+  const stable = persona.stable(context);
+  assert.match(stable, /hangs out on the RF4U Themed server/);
+  assert.match(stable, /You CANNOT see the game/);
+  assert.doesNotMatch(stable, /Halloween is your season|fang-tastic/);
+  assert.match(stable, /- The Flintstones \[DMFMStones\] by Fallen Mercenary/);
+  assert.match(persona.live(context), /The Themed server right now:\n- Playing now: RFU2-Finding Nemo, made by Sir Lots-A-Pot \[dm-rfu2-finding-nemo\]/);
+  assert.match(persona.live(context), /Next up: The Flintstones, made by Fallen Mercenary/);
+  assert.doesNotMatch(stable, /—/);
+  // The Halloween Wisp is unchanged.
+  assert.match(personaFor("halloween").stable(context), /Halloween is your season/);
+  // It knows Novelty's maps, for "is X on novelty?", without offering to vote them in.
+  assert.deepEqual(persona.alsoKnows, ["novelty"]);
+  const withNovelty = persona.stable({ ...context, elsewhere: [{ server: "Novelty", maps: [{ title: "Lava-World", filename: "dm-lava.rfl" }] }] });
+  assert.match(withNovelty, /== The maps on the Novelty server \(1\), for questions about it; vote map only works for this server's own maps ==\nLava-World\./);
 });
 
 // A player on the Halloween server is called "ghost" (owner, 25 September 2026).

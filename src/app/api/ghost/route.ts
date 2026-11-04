@@ -85,8 +85,21 @@ export async function POST(request: Request) {
   const maps = pack?.maps ?? [];
   const at = positionOfLevel(text(body.levelFile, 64) || null, null, maps);
   const levelFile = text(body.levelFile, 64);
-  const entryOf = (entry: { filename: string; title?: string } | null | undefined) =>
-    entry ? { title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename } : null;
+  // The author too: the mapper notes cover Halloween's maps only, and the site's list knows Themed's.
+  const entryOf = (entry: { filename: string; title?: string; author?: string | null } | null | undefined) =>
+    entry
+      ? { title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename, author: entry.author?.trim() || null }
+      : null;
+  // The other servers it knows the maps of, cached like its own rotation.
+  const elsewhere = (
+    await Promise.all(
+      persona.alsoKnows.map(async (other) => {
+        const known = serverBySlug(other);
+        const list = known ? await rotationForServer(known) : null;
+        return known && list ? { server: known.name.replace(/^RF4U\s*-\s*/, ""), maps: list.maps.map((entry) => entryOf(entry)!) } : null;
+      }),
+    )
+  ).filter((other) => other !== null);
 
   const context = {
     event,
@@ -98,11 +111,12 @@ export async function POST(request: Request) {
     transcript,
     playing: at !== null ? entryOf(maps[at]) : levelFile ? entryOf({ filename: levelFile }) : null,
     next: entryOf(nextAfter(at, maps)),
-    maps: maps.map((entry) => ({ title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename })),
+    maps: maps.map((entry) => entryOf(entry)!),
     memory: memoryOf(body.memory),
     lore: Array.isArray(body.lore) ? body.lore.slice(-25).map((fact) => text(fact, 200)).filter(Boolean) : [],
     // The map the ghost just asked this player about, when it did: their line is the answer.
     mapQuestion: text(body.mapQuestion, 64) || null,
+    elsewhere,
   };
 
   // The ghost keeps its own count of paid replies and says whether today's cap allows another.
