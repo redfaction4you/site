@@ -1,6 +1,6 @@
 # RedFaction4You — site
 
-The home of the RF4U Red Faction (2001) servers, Themed, Novelty and Halloween,
+The home of the RF4U Red Faction (2001) servers, Themed, Novelty and Christmas,
 with every map in each rotation, and a catalogue of maps, mods, assets and tools
 to play them with. Free, no account needed to download, self-hosted so it does
 not vanish when someone else's server does.
@@ -30,7 +30,7 @@ this file is conventions and gotchas.
 
 Navigation: Servers, Downloads, Events. `/servers` lands on the first server
 in `src/lib/servers.ts`, and the tabs there reach the other two. `/themed`,
-`/novelty` and `/halloween` are short redirects to them, because that is what
+`/novelty` and `/christmas` are short redirects to them, because that is what
 the in-game welcome messages print.
 
 Downloads is the hub at `/downloads`. The four shelves behind it (`/maps`,

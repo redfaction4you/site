@@ -253,7 +253,7 @@ test("the welcome message a pack writes for itself matches the live one", () => 
 });
 
 test("the generated welcome sends people to the server's own page", () => {
-  for (const server of ["themed", "novelty", "halloween"]) {
+  for (const server of ["themed", "novelty", "christmas"]) {
     const welcome = welcomeFor({
       name: "Anything",
       server,

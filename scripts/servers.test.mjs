@@ -92,7 +92,9 @@ test("with no host configured an address is absent, not a broken string", () => 
 test("a server is found by its slug, and an unknown slug is null", () => {
   assert.equal(serverBySlug("novelty")?.port, 17757);
   assert.equal(serverBySlug("themed")?.port, 17756);
-  assert.equal(serverBySlug("halloween")?.port, 17758);
+  assert.equal(serverBySlug("christmas")?.port, 17758);
+  // Halloween gave its port to Christmas on 14 November 2026.
+  assert.equal(serverBySlug("halloween"), null);
   assert.equal(serverBySlug("nothing-here"), null);
 });
 
@@ -125,12 +127,12 @@ const WELCOME_LINK = /RedFaction4You\.com\/([a-z]+)/;
 /**
  * Servers whose welcome deliberately carries no link.
  *
- * Halloween's is the owner's seasonal text, stored in `map_packs` and mirrored
- * in `servers.ts` character for character so that `apply:welcome` never
- * overwrites it. Anything added here should be as deliberate, because a
+ * Empty since Christmas replaced Halloween on 14 November 2026. Halloween's
+ * was the owner's seasonal text with no link. Anything added here should be
+ * as deliberate, because a
  * welcome with no link is one a newcomer cannot follow anywhere.
  */
-const NO_LINK = new Set(["halloween"]);
+const NO_LINK = new Set([]);
 
 test("every server tells a newcomer where to find it", () => {
   for (const server of SERVERS) {

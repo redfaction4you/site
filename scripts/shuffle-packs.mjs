@@ -41,12 +41,19 @@ const sql = neon(url);
  *
  * Red Faction map names carry their mode as a prefix by long convention, and it
  * is the only signal available: nothing in the pack, the archive or FactionFiles
- * records a level's game type. Only `dc` is acted on. Everything else is left
- * undefined and inherits the server's own type, which is right for the 341
- * deathmatch maps and avoids writing a rules block for every one of them.
+ * records a level's game type. `dc`, `ctf` and `koth` are acted on. Everything
+ * else is left undefined and inherits the server's own type, which is right
+ * for the deathmatch maps and avoids writing a rules block for every one of
+ * them.
+ *
+ * Until 14 November 2026 only `dc` was recognised, and a type already stored on
+ * an entry was overwritten with undefined: shuffling Christmas silently turned
+ * its three CTF maps and one KOTH map into deathmatch entries, which Alpine
+ * would have skipped. A stored type now wins over the filename.
  */
 function gameTypeFor(filename) {
-  return /^dc/i.test(filename) ? "dc" : undefined;
+  const prefix = /^(dc|ctf|koth)/i.exec(filename);
+  return prefix ? prefix[1].toLowerCase() : undefined;
 }
 
 /** Fisher-Yates, unbiased, on a copy. */
@@ -70,7 +77,7 @@ for (const pack of packs) {
   }
 
   const typed = maps.map((entry) => {
-    const gameType = gameTypeFor(entry.filename);
+    const gameType = entry.gameType ?? gameTypeFor(entry.filename);
     return gameType ? { ...entry, gameType } : { ...entry, gameType: undefined };
   });
   const next = shuffled(typed);

@@ -589,6 +589,13 @@
   --server-accent-soft: rgb(110 231 199 / 0.12);
   --server-accent-line: rgb(110 231 199 / 0.32);
 }
+/* Christmas wears ice rather than red and green: red is already the site's
+   own accent, and green sits too close to Novelty's teal. */
+[data-server-theme="christmas"] {
+  --server-accent: #8ecbff;
+  --server-accent-soft: rgb(142 203 255 / 0.12);
+  --server-accent-line: rgb(142 203 255 / 0.34);
+}
 [data-server-theme="default"] {
   --server-accent: var(--color-rust-400);
   --server-accent-soft: rgb(224 48 30 / 0.10);
@@ -599,6 +606,11 @@
   --server-accent: #b8480a;
   --server-accent-soft: rgb(184 72 10 / 0.10);
   --server-accent-line: rgb(184 72 10 / 0.30);
+}
+:root:not([data-theme="dark"]) [data-server-theme="christmas"] {
+  --server-accent: #1d5f99;
+  --server-accent-soft: rgb(29 95 153 / 0.10);
+  --server-accent-line: rgb(29 95 153 / 0.28);
 }
 :root:not([data-theme="dark"]) [data-server-theme="novelty"] {
   --server-accent: #0f766e;

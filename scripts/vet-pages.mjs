@@ -56,7 +56,7 @@ for (let i = 0; i < args.length; i++) {
 }
 base = (base ?? "http://localhost:3000").replace(/\/+$/, "");
 
-const SERVER_SLUGS = ["themed", "novelty", "halloween"];
+const SERVER_SLUGS = ["themed", "novelty", "christmas"];
 
 /** Addresses that were live pages until 25 September 2026 and must still land. */
 const RETIRED = [
@@ -166,7 +166,7 @@ console.log(`  ${RETIRED.length} retired addresses checked`);
     fail(`/ answered ${home.status}`);
   } else {
     const text = textOf(home.body);
-    for (const name of ["Themed", "Novelty", "Halloween"]) {
+    for (const name of ["Themed", "Novelty", "Christmas"]) {
       if (!text.includes(name)) fail(`the front page does not name ${name}`);
     }
     for (const gone of ["Match report", "Most frags", "The analyst", "More to read"]) {

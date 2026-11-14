@@ -18,7 +18,7 @@ export function SiteFooter() {
               does not keep is a promise broken everywhere at once. */}
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-steel-400">
             A community archive for Red Faction (2001). Three community servers,
-            Themed, Novelty and Halloween, and the maps and files to play on
+            Themed, Novelty and Christmas, and the maps and files to play on
             them. Everything here is free, nothing is walled off, and you never
             need an account.
           </p>

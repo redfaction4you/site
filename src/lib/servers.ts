@@ -61,9 +61,7 @@ export type GameServer = {
    * One line, plain ASCII, and it reaches a 2001 bitmap font, so `asciiForGame`
    * folds anything a browser produced.
    *
-   * **Every one of them ends on a link to its own page**, apart from
-   * Halloween's, which was written for the season and is left as its author
-   * wrote it. Chat in Red Faction is not clickable, so whatever is written here
+   * **Every one of them ends on a link to its own page.** Chat in Red Faction is not clickable, so whatever is written here
    * has to be retyped into a browser from memory: the link is short, it is the
    * last thing on the line, and no two servers send people to the same place.
    * `servers.test.mjs` checks that last part, because the way this breaks is a
@@ -90,7 +88,7 @@ export type GameServer = {
 };
 
 /** The palettes a server page can wear. See `globals.css`. */
-export type ServerTheme = "default" | "novelty" | "halloween";
+export type ServerTheme = "default" | "novelty" | "halloween" | "christmas";
 
 /**
  * The servers.
@@ -130,26 +128,28 @@ export const SERVERS: GameServer[] = [
       "RedFaction4You.com/novelty",
     theme: "novelty",
   },
+  /*
+   * Christmas took over the Halloween server's port on 14 November 2026, the
+   * owner having shut Halloween down on 3 November. The config file and the
+   * watchdog task kept their Halloween names, the same way Themed still runs
+   * from `rf4u-dm.toml`: renaming them would mean re-registering the task on
+   * the VPS for no change anyone sees. The Halloween pack stays in
+   * `map_packs` for next October.
+   */
   {
-    slug: "halloween",
-    name: "RF4U - Halloween",
+    slug: "christmas",
+    name: "RF4U - Christmas",
     blurb:
-      "Spooky season. Haunted houses, graveyards, crypts and castles, every " +
-      "map picked for Halloween.",
+      "Snow, ice and holiday cheer. Christmas maps and winter maps, picked for " +
+      "the season.",
     port: 17758,
-    packSlug: "halloween",
+    packSlug: "christmas",
     configFile: "rf4u-halloween.toml",
     restartTask: "RF4U Halloween Server",
-    /*
-     * Exactly the text in `map_packs`, character for character, so that
-     * `apply:welcome` finds nothing to change here. The owner set it for the
-     * season; see the note on `welcome` about why it has no link.
-     */
     welcome:
-      "Welcome to Haunt Faction 2026! The Spookiest server this side of mars! " +
-      "Filled with the creepiest down-right most frightening maps in the Red " +
-      "Faction collection!",
-    theme: "halloween",
+      "Christmas maps: snow, ice and holiday cheer. Every map on this server: " +
+      "RedFaction4You.com/christmas",
+    theme: "christmas",
   },
 ];
 
