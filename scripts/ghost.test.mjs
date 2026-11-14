@@ -182,7 +182,8 @@ test("the ghost is told the server's facts and never to talk to the bots", () =>
   const system = personaFor("halloween").system(context);
   // 26 September: asked about acers maps on his own map, it did not know who Acer was.
   assert.match(system, /Playing now: Nowhere Bagge Farm \(CTCD\), made by MysticaL-AceR/);
-  assert.match(system, /RedFaction4You\.com\/halloween/);
+  // Since 14 November 2026 the knowledge names the Christmas server where Halloween's link was.
+  assert.match(system, /RedFaction4You\.com\/christmas/);
   assert.match(system, /never talk to them as if they were players/);
   assert.doesNotMatch(system, /\u2014/);
   const prompt = promptFor(context);
@@ -397,6 +398,49 @@ test("saying halloween is not naming the map called Halloween", () => {
   assert.deepEqual(at("got any halloween plans?"), []);
   assert.deepEqual(at("happy halloween!"), []);
   assert.deepEqual(at("love the pumpkins"), ["Halloween Pumpkins 1.1"]);
+});
+
+// Owner, 14 November 2026: "we need a christmas bot", "an elf". A chat
+// character like Wisp, because no Christmas map has bot waypoints.
+test("the Christmas server has Tinsel, an elf, and none of Wisp's ghost lines", () => {
+  const maps = [
+    { title: "CHRISTMAS", filename: "dm-christmas.rfl", author: "RED_JUSTICE" },
+    { title: "Snowstallation XJ15 B3", filename: "DM-SnowstallationXJ15-B3.rfl", author: "Matt Boynton & Intharth" },
+    { title: "Winter Warlords Pro", filename: "ctfwlprosnow.rfl", author: "Chris \"Goober\" Parsons" },
+  ];
+  const context = { event: "chat", subject: "Sam", humans: ["Sam"], bots: [], transcript: [], maps, playing: maps[0], next: maps[1] };
+  const persona = personaFor("christmas");
+  assert.equal(persona.name, "Tinsel");
+  const stable = persona.stable(context);
+  assert.match(stable, /You are Tinsel, one of Santa's elves, on loan to the RF4U Christmas server/);
+  assert.match(stable, /Your name is Tinsel\./);
+  assert.match(stable, /say you are the server's elf: an automated character/);
+  assert.match(stable, /\(doing good, just wrapping presents\)/);
+  assert.match(stable, /You CANNOT see the game/);
+  assert.match(stable, /- Winter Warlords Pro \[ctfwlprosnow\] by Chris "Goober" Parsons, Capture the Flag/);
+  assert.doesNotMatch(stable, /Your name is Wisp|Frankenstein, Dracula and Werewolf are the server's bots|floating around|Halloween is your season/);
+  // The shared knowledge names the Christmas server, not a dead /halloween link.
+  assert.match(stable, /- Christmas: opened 14 November 2026/);
+  assert.doesNotMatch(stable, /RedFaction4You\.com\/halloween/);
+  assert.match(persona.live(context), /^The Christmas server right now:/);
+  assert.match(stable, /^[\x09\x0a\x20-\x7e]+$/, "plain ASCII, no em dashes");
+  assert.deepEqual(persona.alsoKnows, ["themed", "novelty"]);
+  // Wisp is still Wisp everywhere it was.
+  assert.match(personaFor("themed").stable(context), /Your name is Wisp\./);
+  assert.match(personaFor("halloween").stable(context), /Frankenstein, Dracula and Werewolf/);
+});
+
+test("saying merry christmas is not naming the maps called Christmas", () => {
+  const maps = [
+    { title: "CHRISTMAS", filename: "dm-christmas.rfl" },
+    { title: "Merry Christmas v2", filename: "DM-FM-MerryChristmasV2.rfl" },
+    { title: "Snowstallation XJ15 B3", filename: "DM-SnowstallationXJ15-B3.rfl" },
+    { title: "Winter", filename: "dmwinter.rfl" },
+  ];
+  const at = (text) => mapsMentioned({ subject: "S", maps, transcript: [{ name: "S", text }] }).map((m) => m.title);
+  assert.deepEqual(at("merry christmas everyone!"), []);
+  assert.deepEqual(at("love the snow this winter"), []);
+  assert.deepEqual(at("snowstallation is great"), ["Snowstallation XJ15 B3"]);
 });
 
 // Owner, 26 September: "if users share info, keep it so you can reference it later".

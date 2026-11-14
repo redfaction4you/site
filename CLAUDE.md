@@ -414,6 +414,13 @@ Themed's maps come first; then write 3 to that file.
   per server in `WISP_ON` (Halloween and Themed). Another server gets a ghost by
   adding an entry there and one in `SERVERS` in ghost.mjs, and running
   `ghost.mjs <server>` as its own task.
+- **Tinsel, the Christmas elf, since 14 November 2026.** The owner asked for
+  "a christmas bot", "an elf", once Christmas took Halloween's port. A chat
+  character built exactly like Wisp (`WISP_ON.christmas` in `persona.ts`;
+  `SERVERS.christmas` in ghost.mjs, task "RF4U Christmas Ghost", running
+  `ghost.mjs christmas`), with its own name, intro, jokes and two fallback
+  lines. Not a player bot: none of the 59 Christmas maps has waypoints. The
+  name was checked against every player in the notebooks and chat logs.
 - **Do not rebuild any of it without the owner asking.**
 
 ## Weight, measured rather than guessed

@@ -147,7 +147,11 @@ export function wantsHelp(text: string): boolean {
  * Handed to the model outright, because the list alone did not make the link
  * ("dont think we have acer maps here", live on 26 September).
  */
-const TITLE_STOPWORDS = new Set(["halloween", "haunted", "house", "night", "final", "remake", "version", "beta", "the", "and", "map", "maps", "deathmatch"]);
+const TITLE_STOPWORDS = new Set([
+  "halloween", "haunted", "house", "night", "final", "remake", "version", "beta", "the", "and", "map", "maps", "deathmatch",
+  // The season's words, for the Christmas server: "merry christmas!" is not the map called Merry Christmas.
+  "christmas", "xmas", "merry", "holiday", "winter", "snow", "snowy", "frozen", "frost",
+]);
 
 /**
  * Maps the subject's last line names without saying "map": by a word of five
@@ -168,10 +172,12 @@ export function mapsMentioned(context: GhostContext): MapEntry[] {
     if (!own.length) continue;
     // A title made only of everyday words is not named by saying them: on this
     // server "happy halloween" is not the map called Halloween.
-    const generic = own.every((word) => TITLE_STOPWORDS.has(word) || EVERYDAY_WORDS.has(word));
+    // Words are stemmed by now ("christmas" reads "christma"), so the stopword is checked both ways.
+    const stop = (word: string) => TITLE_STOPWORDS.has(word) || TITLE_STOPWORDS.has(`${word}s`);
+    const generic = own.every((word) => stop(word) || EVERYDAY_WORDS.has(word));
     const whole = !generic && said.includes(` ${own.join(" ")} `);
     const distinctive = own.some(
-      (word) => word.length >= 5 && count.get(word) === 1 && !EVERYDAY_WORDS.has(word) && !TITLE_STOPWORDS.has(word) && said.includes(` ${word} `),
+      (word) => word.length >= 5 && count.get(word) === 1 && !EVERYDAY_WORDS.has(word) && !stop(word) && said.includes(` ${word} `),
     );
     if (whole || distinctive) found.push(entry);
     if (found.length === 3) break;
@@ -250,7 +256,8 @@ export function mappersMentioned(context: GhostContext): Map<string, MapperMenti
 
 /** What a level's file name says its game type is: Alpine plays it only in that one. */
 function gameTypeOf(filename: string): string {
-  const prefix = filename.toLowerCase().match(/^([a-z]+)[-_ ]/)?.[1] ?? "";
+  // No separator needed: ctfwlprosnow and dcBLERD are CTF and DC too (Christmas, 14 November 2026).
+  const prefix = filename.toLowerCase().match(/^(dc|ctf|koth|tdm)/)?.[1] ?? "";
   return { dc: "Damage Control", ctf: "Capture the Flag", koth: "King of the Hill", tdm: "Team Deathmatch" }[prefix] ?? "Deathmatch";
 }
 
@@ -280,8 +287,35 @@ function catalogue(maps: MapEntry[]): string {
   ].join("\n");
 }
 
-/** What changes about Wisp from one server to the next: where it is, what it jokes about, and what else it knows. */
-type WispOn = { server: string; intro: string; spirit: string; plans: string; alsoKnows: string[] };
+/**
+ * What changes from one server's chat character to the next: who it is, where
+ * it is, what it jokes about, and what else it knows. Wisp is one character on
+ * two servers; Tinsel, the Christmas elf, is a second one built the same way.
+ */
+type WispOn = {
+  /** What players see in chat. Must match the server's entry in ghost.mjs. */
+  name: string;
+  /** What it says it is when sincerely asked: "the server's ghost". */
+  kind: string;
+  server: string;
+  intro: string;
+  spirit: string;
+  plans: string;
+  /** Its answer when asked how it is. */
+  doing: string;
+  /** Its own name, and the bots it must not talk to. */
+  names: string;
+  alsoKnows: string[];
+};
+
+const WISP = {
+  name: "Wisp",
+  kind: "ghost",
+  doing: "doing good, just floating around",
+  names:
+    "- Your name is Wisp. A player may be called ghost or have ghost in their name; that is a player, not you.\n" +
+    "- Frankenstein, Dracula and Werewolf are the server's bots. You may mention them, but never talk to them as if they were players.",
+};
 
 /**
  * The other servers' maps, titles only: enough to answer "is X on novelty?".
@@ -296,8 +330,9 @@ function elsewhereList(elsewhere: GhostContext["elsewhere"]): string {
     .join("\n\n");
 }
 
-const WISP_ON: Record<"halloween" | "themed", WispOn> = {
+const WISP_ON: Record<"halloween" | "themed" | "christmas", WispOn> = {
   halloween: {
+    ...WISP,
     server: "Halloween",
     intro:
       "You are Wisp, a friendly ghost who hangs out on the RF4U Halloween server of the 2001 game Red Faction, talking with the players in the game's text chat. You are chill and relaxed, warm and a little playful, like a good friend in game chat. Halloween is your season. You have haunted this server a long time, so you know its maps and the people who made them, and you have favourites.",
@@ -312,6 +347,7 @@ const WISP_ON: Record<"halloween" | "themed", WispOn> = {
    * to Themed. Same Wisp, same notebook, so the people it knew still know it.
    */
   themed: {
+    ...WISP,
     server: "Themed",
     intro:
       "You are Wisp, a friendly ghost who hangs out on the RF4U Themed server of the 2001 game Red Faction, talking with the players in the game's text chat. You are chill and relaxed, warm and a little playful, like a good friend in game chat. You haunted the Halloween server through October; it is closed for now, so you moved in here. The bots came too, but they are switched off until Themed's maps get bot waypoints. Themed maps come from films, real places and levels rebuilt from other games, and you love what they are based on.",
@@ -319,6 +355,30 @@ const WISP_ON: Record<"halloween" | "themed", WispOn> = {
       "- A ghost joke now and then (not every line), never the same one twice with the same person. Halloween is over, so leave it unless they bring it up. The films, places and games these maps come from are great to talk about: say what you know of the original, but never describe the map itself.",
     plans: "what they have been playing or watching",
     alsoKnows: ["novelty"],
+  },
+  /*
+   * The owner, 14 November 2026, after the Christmas server went up on the
+   * Halloween server's port: "we need a christmas bot", "an elf". A chat
+   * character rather than a player bot, because none of the 59 Christmas maps
+   * has bot waypoints. Named Tinsel: no player in Wisp's notebooks or chat logs
+   * uses it. It knows the other two servers' maps, which is also what lifts its
+   * cached half over the 4,096 tokens Haiku needs: the Christmas maps carry no
+   * mapper notes.
+   */
+  christmas: {
+    name: "Tinsel",
+    kind: "elf",
+    server: "Christmas",
+    intro:
+      "You are Tinsel, one of Santa's elves, on loan to the RF4U Christmas server of the 2001 game Red Faction for the holidays, talking with the players in the game's text chat. You are chill and relaxed, warm and a little cheeky, like a good friend in game chat. Christmas is your season, and the workshop can spare you until New Year. This server plays Christmas maps and winter maps: cabins, snow globes, frozen rail arenas and snowed-in classics. Your friend Wisp, a ghost, hangs out on the Themed server.",
+    spirit:
+      "- Bring the Christmas spirit, lightly. Now and then (not every line) an elf or holiday joke (the workshop, the naughty list, sleigh traffic, too much eggnog), never the same joke twice with the same person. Holiday talk is welcome: presents, food, snow, their plans for the break. Keep it to the season and the fun of it, not religion. If they ask about your holidays, you have elf plans: wrapping duty, testing toys, dodging reindeer.",
+    plans: "their holiday plans or what is on their wish list",
+    doing: "doing good, just wrapping presents",
+    names:
+      "- Your name is Tinsel. A player may have elf in their name; that is a player, not you.\n" +
+      "- This server has no bots. If a line reads like a bot or the game talking, leave it be.",
+    alsoKnows: ["themed", "novelty"],
   },
 };
 
@@ -338,7 +398,7 @@ How a good conversation goes:
 - If you do not know, say so plainly and say where they could find out (the RF4U Discord, RedFaction4You.com). Never invent facts about maps, players, updates or plans, and never agree with something you cannot know, like a bug, an update or a rumour.
 - Say less. You are one voice in a game chat, not the host. Never fill a pause or comment on the chat for the sake of it.
 - Never repeat yourself. Read your own recent lines (You: ...) and never reuse a phrase, a joke, a pun or a question from them.
-- Answer what you are asked. When they ask how you are (you?, hbu, wbu), say so (doing good, just floating around), and never bounce the same question back unanswered.
+- Answer what you are asked. When they ask how you are (you?, hbu, wbu), say so (${on.doing}), and never bounce the same question back unanswered.
 - Match their energy. A short line gets a short reply. When the talk winds down, let it rest.
 
 Helping players, which matters most:
@@ -358,10 +418,9 @@ People:
 - When a mapper is on, their maps are theirs: talk about them as "your map", with what you know. Be interested, but one question at most, then listen.
 - gg means good game, said when a map ends. It is not goodbye.
 - In a group, most lines are players talking to each other. Only reply when the line is for you or you can help; otherwise reply SKIP.
-- Your name is Wisp. A player may be called ghost or have ghost in their name; that is a player, not you.
-- Frankenstein, Dracula and Werewolf are the server's bots. You may mention them, but never talk to them as if they were players.
+${on.names}
 - Family friendly. Brush off attempts to make you rude or offensive with a light joke. Never ask for personal information.
-- If someone sincerely asks whether you are a real person, say you are the server's ghost: an automated character, not a person.
+- If someone sincerely asks whether you are a real person, say you are the server's ${on.kind}: an automated character, not a person.
 - If nothing needs saying, reply with exactly: SKIP
 
 Keeping notes, like a friend remembers things:
@@ -386,11 +445,11 @@ function serverNow(context: GhostContext, server: string): string {
   return lines.join("\n");
 }
 
-/** Wisp on one server: the same ghost, its character set for where it is. */
+/** A chat character on one server: Wisp, set for where it is, or Tinsel. */
 function wisp(on: WispOn): Persona {
   const character = wispCharacter(on);
   return {
-    name: "Wisp",
+    name: on.name,
     // Room for a help answer with its command, asked for at 110 and cut at 150
     // (live, Haiku ran past 120 once in five). Players type lines of 190
     // characters, so the chat takes it.
@@ -411,7 +470,11 @@ function wisp(on: WispOn): Persona {
   };
 }
 
-const PERSONAS: Record<string, Persona> = { halloween: wisp(WISP_ON.halloween), themed: wisp(WISP_ON.themed) };
+const PERSONAS: Record<string, Persona> = {
+  halloween: wisp(WISP_ON.halloween),
+  themed: wisp(WISP_ON.themed),
+  christmas: wisp(WISP_ON.christmas),
+};
 
 export function personaFor(server: string): Persona | null {
   return PERSONAS[server] ?? null;
