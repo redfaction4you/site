@@ -93,9 +93,14 @@ if (go) {
 if (server === "themed") {
   console.log("\nThe applier rewrites rf4u-dm.toml within five minutes and restarts the server.");
 } else {
+  // Christmas runs in the old Halloween slot, so its file and task keep that name (servers.ts).
+  const vps = { christmas: ["rf4u-halloween.toml", "RF4U Halloween Server"] }[server] ?? [
+    `rf4u-${server}.toml`,
+    `RF4U ${server[0].toUpperCase()}${server.slice(1)} Server`,
+  ];
   console.log(`\nStill to do on the VPS, which the applier does not reach:`);
   for (const map of matches) {
-    console.log(`  remove the [[levels]] entry for ${map.filename} from rf4u-${server}.toml`);
+    console.log(`  remove the [[levels]] entry for ${map.filename} from ${vps[0]}`);
   }
-  console.log(`  then restart the "RF4U ${server[0].toUpperCase()}${server.slice(1)} Server" task`);
+  console.log(`  then restart the "${vps[1]}" task`);
 }

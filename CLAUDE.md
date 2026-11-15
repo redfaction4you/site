@@ -419,7 +419,7 @@ Themed's maps come first; then write 3 to that file.
   character built exactly like Wisp (`WISP_ON.christmas` in `persona.ts`;
   `SERVERS.christmas` in ghost.mjs, task "RF4U Christmas Ghost", running
   `ghost.mjs christmas`), with its own name, intro, jokes and two fallback
-  lines. Not a player bot: none of the 59 Christmas maps has waypoints. The
+  lines. Not a player bot: none of the Christmas maps has waypoints. The
   name was checked against every player in the notebooks and chat logs.
 - **Do not rebuild any of it without the owner asking.**
 

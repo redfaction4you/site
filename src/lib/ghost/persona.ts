@@ -359,7 +359,7 @@ const WISP_ON: Record<"halloween" | "themed" | "christmas", WispOn> = {
   /*
    * The owner, 14 November 2026, after the Christmas server went up on the
    * Halloween server's port: "we need a christmas bot", "an elf". A chat
-   * character rather than a player bot, because none of the 59 Christmas maps
+   * character rather than a player bot, because none of the Christmas maps
    * has bot waypoints. Named Tinsel: no player in Wisp's notebooks or chat logs
    * uses it. It knows the other two servers' maps, which is also what lifts its
    * cached half over the 4,096 tokens Haiku needs: the Christmas maps carry no
