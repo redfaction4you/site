@@ -13,14 +13,13 @@ export function SiteFooter() {
           <p className="mt-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.32em] text-rust-500">
             Red Faction Archive
           </p>
-          {/* Describes what is actually here: the three servers and the
+          {/* Describes what is actually here: the servers and the
               downloads. It is on every page, so a promise in it that the site
               does not keep is a promise broken everywhere at once. */}
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-steel-400">
-            A community archive for Red Faction (2001). Three community servers,
-            Themed, Novelty and Christmas, and the maps and files to play on
-            them. Everything here is free, nothing is walled off, and you never
-            need an account.
+            A community archive for Red Faction (2001). The RF4U - Happy
+            Holidays server, and the maps and files to play on it. Everything
+            here is free, nothing is walled off, and you never need an account.
           </p>
         </div>
 

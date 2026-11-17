@@ -38,7 +38,7 @@ export const metadata: Metadata = {
    * most people meet the site first, so it names what is live: the servers.
    */
   description:
-    "Three Red Faction (2001) community servers, Themed, Novelty and Christmas, with every map in each rotation and the files to play them, in one place that stays up.",
+    "RF4U - Happy Holidays, a Red Faction (2001) community server, with every map in its rotation and the files to play them, in one place that stays up.",
   icons: { icon: "/icon.png" },
   openGraph: {
     type: "website",

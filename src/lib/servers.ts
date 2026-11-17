@@ -16,7 +16,8 @@
  * that day, when RF4U stopped recording stats, and is expected back later as a
  * different kind of server. It left this list rather than being hidden in it,
  * because every page built from this list would otherwise have to remember to
- * skip it.
+ * skip it. Themed and Novelty left the same way on 16 November 2026, into
+ * `CLOSED_SERVERS`, which leaves one server open.
  */
 
 export type GameServer = {
@@ -97,6 +98,52 @@ export type ServerTheme = "default" | "novelty" | "halloween" | "christmas";
  * first. The first one is also where `/servers` lands.
  */
 export const SERVERS: GameServer[] = [
+  /*
+   * Christmas took over the Halloween server's port on 14 November 2026, the
+   * owner having shut Halloween down on 3 November. The config file and the
+   * watchdog task kept their Halloween names, the same way Themed still runs
+   * from `rf4u-dm.toml`: renaming them would mean re-registering the task on
+   * the VPS for no change anyone sees. The Halloween pack stays in
+   * `map_packs` for next October.
+   *
+   * Renamed RF4U - Happy Holidays on 16 November 2026, the day Themed and
+   * Novelty closed. The slug, the pack and the page address stay `christmas`,
+   * because the in-game welcome prints RedFaction4You.com/christmas.
+   */
+  {
+    slug: "christmas",
+    name: "RF4U - Happy Holidays",
+    blurb:
+      "Snow, ice and holiday cheer. Christmas maps and winter maps, picked for " +
+      "the season.",
+    port: 17758,
+    packSlug: "christmas",
+    configFile: "rf4u-halloween.toml",
+    restartTask: "RF4U Halloween Server",
+    welcome:
+      "Christmas maps: snow, ice and holiday cheer. Every map on this server: " +
+      "RedFaction4You.com/christmas",
+    theme: "christmas",
+  },
+];
+
+/**
+ * The servers that are shut down, kept rather than deleted.
+ *
+ * Themed and Novelty closed on 16 November 2026 at the owner's request, leaving
+ * Happy Holidays as the only one open. Their entries moved here unchanged, so
+ * bringing one back is moving it into `SERVERS` above and re-enabling its tasks
+ * on the VPS (its `restartTask`, plus "RF4U Themed Ghost", "RF4U Themed Bots"
+ * and "RF4U DM Map Pack" for Themed). Nothing was deleted there either: the
+ * tasks are disabled and the configs untouched.
+ *
+ * **No page is built from this list.** It is the same reason the Match server
+ * left `SERVERS` rather than being hidden in it. Only two things read it: the
+ * admin screen, so a pack that belongs to a closed server keeps its server when
+ * it is edited, and the chat characters, which still know these maps and say
+ * the server is closed.
+ */
+export const CLOSED_SERVERS: GameServer[] = [
   {
     slug: "themed",
     name: "RF4U - Themed",
@@ -128,29 +175,6 @@ export const SERVERS: GameServer[] = [
       "RedFaction4You.com/novelty",
     theme: "novelty",
   },
-  /*
-   * Christmas took over the Halloween server's port on 14 November 2026, the
-   * owner having shut Halloween down on 3 November. The config file and the
-   * watchdog task kept their Halloween names, the same way Themed still runs
-   * from `rf4u-dm.toml`: renaming them would mean re-registering the task on
-   * the VPS for no change anyone sees. The Halloween pack stays in
-   * `map_packs` for next October.
-   */
-  {
-    slug: "christmas",
-    name: "RF4U - Christmas",
-    blurb:
-      "Snow, ice and holiday cheer. Christmas maps and winter maps, picked for " +
-      "the season.",
-    port: 17758,
-    packSlug: "christmas",
-    configFile: "rf4u-halloween.toml",
-    restartTask: "RF4U Halloween Server",
-    welcome:
-      "Christmas maps: snow, ice and holiday cheer. Every map on this server: " +
-      "RedFaction4You.com/christmas",
-    theme: "christmas",
-  },
 ];
 
 /** The host they all share, from the one address that is configured. */
@@ -166,8 +190,18 @@ export function serverAddress(server: GameServer): string | null {
   return host ? `${host}:${server.port}` : null;
 }
 
+/** An open server by its slug. A closed one is null: it has no page. */
 export function serverBySlug(slug: string): GameServer | null {
   return SERVERS.find((server) => server.slug === slug) ?? null;
+}
+
+/** Open or closed, for the few readers that need both. See `CLOSED_SERVERS`. */
+export function anyServerBySlug(slug: string): GameServer | null {
+  return serverBySlug(slug) ?? CLOSED_SERVERS.find((server) => server.slug === slug) ?? null;
+}
+
+export function isClosed(slug: string): boolean {
+  return CLOSED_SERVERS.some((server) => server.slug === slug);
 }
 
 /**

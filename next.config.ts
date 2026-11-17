@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-import { SERVERS } from "./src/lib/servers";
+import { CLOSED_SERVERS, SERVERS } from "./src/lib/servers";
 
 /**
  * Screenshots come from the R2 bucket, whose domain is not known until the
@@ -130,6 +130,17 @@ const nextConfig: NextConfig = {
         permanent: false,
       })),
       /*
+        The closed servers, Themed and Novelty from 16 November 2026. Their
+        welcome messages printed /themed and /novelty to everybody who ever
+        joined, so both addresses, long and short, land on what is open now
+        rather than a 404. Temporary, so they are free again the day one of
+        them comes back.
+      */
+      ...CLOSED_SERVERS.flatMap((server) => [
+        { source: `/${server.slug}`, destination: "/servers", permanent: false },
+        { source: `/servers/${server.slug}`, destination: "/servers", permanent: false },
+      ]),
+      /*
         The stats, the match archive and the analyst, retired on 25 September
         2026.
 
@@ -156,7 +167,7 @@ const nextConfig: NextConfig = {
       { source: "/analyst/:path*", destination: "/", permanent: false },
       { source: "/search", destination: "/", permanent: false },
       { source: "/link", destination: "/", permanent: false },
-      { source: "/servers/map-packs", destination: "/servers/themed", permanent: false },
+      { source: "/servers/map-packs", destination: "/servers", permanent: false },
       { source: "/servers/match", destination: "/servers", permanent: false },
       // The client comparison moved into Guides.
       { source: "/clients", destination: "/guides", permanent: true },

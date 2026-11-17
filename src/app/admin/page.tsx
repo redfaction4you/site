@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 /** What each refusal means, in the words of somebody who has to act on it. */
 const PROBLEMS: Record<string, string> = {
   "pack-server":
-    "Not saved: that is not a server that takes a map pack. Themed, Novelty and Christmas take a rotation; nothing else does.",
+    "Not saved: that is not a server that takes a map pack. Happy Holidays takes a rotation, and so do the closed Themed and Novelty, whose packs are kept; nothing else does.",
   "pack-exists":
     "Not saved: a pack with that name already exists. Saving would have replaced its maps and its blurb. Edit that one, or choose a different name.",
   "pack-missing":

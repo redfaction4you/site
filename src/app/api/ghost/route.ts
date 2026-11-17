@@ -4,7 +4,7 @@ import { speak } from "@/lib/ghost/speak";
 import { personaFor, promptFor, type ChatLine, type GhostEvent, type Memory } from "@/lib/ghost/persona";
 import { rotationForServer } from "@/lib/map-packs";
 import { nextAfter, positionOfLevel } from "@/lib/server-rotation";
-import { serverBySlug } from "@/lib/servers";
+import { anyServerBySlug, isClosed, serverBySlug } from "@/lib/servers";
 import { recordOpinion } from "@/lib/map-opinions";
 
 /**
@@ -91,12 +91,15 @@ export async function POST(request: Request) {
       ? { title: entry.title?.trim() || entry.filename.replace(/\.rfl$/i, ""), filename: entry.filename, author: entry.author?.trim() || null }
       : null;
   // The other servers it knows the maps of, cached like its own rotation.
+  // Closed ones too (Themed and Novelty, from 16 November 2026), said to be closed.
   const elsewhere = (
     await Promise.all(
       persona.alsoKnows.map(async (other) => {
-        const known = serverBySlug(other);
+        const known = anyServerBySlug(other);
         const list = known ? await rotationForServer(known) : null;
-        return known && list ? { server: known.name.replace(/^RF4U\s*-\s*/, ""), maps: list.maps.map((entry) => entryOf(entry)!) } : null;
+        return known && list
+          ? { server: known.name.replace(/^RF4U\s*-\s*/, ""), maps: list.maps.map((entry) => entryOf(entry)!), closed: isClosed(other) }
+          : null;
       }),
     )
   ).filter((other) => other !== null);

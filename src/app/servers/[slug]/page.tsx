@@ -97,7 +97,7 @@ export default async function ServerPage({ params }: Props) {
       <div className="pt-8">
         <p className="eyebrow">Play</p>
         <h1 className="mt-2 font-display text-3xl font-bold uppercase tracking-[0.12em] text-steel-100 sm:text-4xl">
-          Our servers
+          {SERVERS.length === 1 ? "Our server" : "Our servers"}
         </h1>
         <ServerTabs active={server.slug} />
       </div>

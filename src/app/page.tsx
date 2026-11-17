@@ -10,7 +10,7 @@ import { type GameServer, SERVERS, serverAddress } from "@/lib/servers";
 export const dynamic = "force-dynamic";
 
 /**
- * The front page: the three servers, and what each is playing right now.
+ * The front page: the servers, and what each is playing right now.
  *
  * It was a news front page until 25 September 2026: the analyst's match report,
  * the night's results, records scrolling across the top and a leaderboard down
@@ -21,7 +21,16 @@ export const dynamic = "force-dynamic";
  * browser, cached for thirty seconds, and the rotation behind it comes from a
  * lookup cached for an hour. A front page that woke Neon on every request was
  * one of the causes of a $52 month.
+ *
+ * **The copy counts the servers rather than naming a number.** It said "three"
+ * from 25 September 2026, and on 16 November 2026 Themed and Novelty closed and
+ * left one. A number written into the sentence is a number nobody updates.
  */
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"];
+
+/** Each card count gets a grid that fills the row without stretching one card across it. */
+const GRID = ["", "max-w-xl", "lg:grid-cols-2", "lg:grid-cols-3"];
+
 export default async function HomePage() {
   const cards = await Promise.all(
     SERVERS.map(async (server) => {
@@ -46,17 +55,19 @@ export default async function HomePage() {
       <section className="pt-8">
         <p className="eyebrow">Play</p>
         <h2 className="mt-2 font-brand text-2xl leading-[1.2] text-steel-100 sm:text-3xl">
-          Three Red Faction servers,{" "}
+          {SERVERS.length === 1
+            ? "A Red Faction server, "
+            : `${COUNT_WORDS[SERVERS.length] ?? SERVERS.length} Red Faction servers, `}
           <span className="text-rust-500">always on.</span>
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-steel-300">
-          RF4U runs three community servers for Red Faction (2001). Each card
-          shows what is playing right now; open one to see every map in its
-          rotation.
+          {SERVERS.length === 1
+            ? "RF4U runs one community server for Red Faction (2001) right now. The card shows what is playing; open it to see every map in its rotation."
+            : `RF4U runs ${(COUNT_WORDS[SERVERS.length] ?? String(SERVERS.length)).toLowerCase()} community servers for Red Faction (2001). Each card shows what is playing right now; open one to see every map in its rotation.`}
         </p>
       </section>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-3">
+      <div className={`mt-6 grid gap-5 ${GRID[SERVERS.length] ?? GRID[3]}`}>
         {cards.map(({ server, status, maps }) => (
           <ServerCard key={server.slug} server={server} status={status} maps={maps} />
         ))}

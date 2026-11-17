@@ -19,7 +19,7 @@ import { SECTION_BY_KIND, categoryOf } from "@/lib/downloads";
 import { normaliseReleasedOn, screenshotKeyFor } from "@/lib/ingest-rules";
 import { CATALOGUE_CACHE_TAG } from "@/lib/catalogue";
 import { isLevelFilename, MAP_PACKS_CACHE_TAG } from "@/lib/map-packs";
-import { SERVERS } from "@/lib/servers";
+import { CLOSED_SERVERS, SERVERS } from "@/lib/servers";
 
 /**
  * Everything on the admin page goes through here, and every action re-checks
@@ -166,13 +166,15 @@ export async function saveMapPack(formData: FormData): Promise<void> {
    * Novelty or Halloween silently made a fourth Themed pack.
    *
    * Only the servers in `servers.ts`, every one of which runs a pack. A pack
-   * aimed anywhere else would be a row nothing reads.
+   * aimed anywhere else would be a row nothing reads. The closed ones count
+   * (Themed and Novelty, since 16 November 2026): their packs are kept, and
+   * editing one must not move it onto the server that is still open.
    *
    * Checked here rather than trusted from the form, because a server action is
    * a public endpoint whatever the page offered.
    */
-  const server = String(formData.get("server") ?? "").trim() || "themed";
-  const takesPacks = SERVERS.map((entry) => entry.slug);
+  const server = String(formData.get("server") ?? "").trim() || SERVERS[0].slug;
+  const takesPacks = [...SERVERS, ...CLOSED_SERVERS].map((entry) => entry.slug);
   if (!takesPacks.includes(server)) redirect("/admin?problem=pack-server");
 
   const values = {
@@ -285,7 +287,7 @@ export async function activateMapPack(formData: FormData): Promise<void> {
 export async function deactivateMapPacks(formData: FormData): Promise<void> {
   if (!(await allowed())) redirect("/admin");
   const server = String(formData.get("server") ?? "").trim();
-  if (!SERVERS.some((entry) => entry.slug === server)) {
+  if (![...SERVERS, ...CLOSED_SERVERS].some((entry) => entry.slug === server)) {
     redirect("/admin?problem=pack-server");
   }
   await db

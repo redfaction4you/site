@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SERVERS } from "@/lib/servers";
 
 /**
- * The three servers as tabs.
+ * The servers as tabs, when there is more than one.
  *
  * Links, not client state, which is the same trade every other control on this
  * site makes: each tab is a real URL somebody can paste into Discord, it works
@@ -17,8 +17,13 @@ import { SERVERS } from "@/lib/servers";
  * **The label is the distinguishing word, not the whole name.** Three tabs
  * each reading "RF4U - ..." is three copies of the site's own name and one word
  * of information, and on a phone it wraps.
+ *
+ * **One server draws no tabs.** A single tab is a button that goes where you
+ * already are, which is what Happy Holidays alone (from 16 November 2026)
+ * would have shown.
  */
 export function ServerTabs({ active }: { active: string }) {
+  if (SERVERS.length < 2) return null;
   return (
     <nav aria-label="Which server" className="mt-4 flex flex-wrap gap-2">
       {SERVERS.map((server) => {

@@ -412,17 +412,25 @@ test("the Christmas server has Tinsel, an elf, and none of Wisp's ghost lines", 
   const persona = personaFor("christmas");
   assert.equal(persona.name, "Tinsel");
   const stable = persona.stable(context);
-  assert.match(stable, /You are Tinsel, one of Santa's elves, on loan to the RF4U Christmas server/);
+  assert.match(stable, /You are Tinsel, one of Santa's elves, on loan to the RF4U Happy Holidays server/);
   assert.match(stable, /Your name is Tinsel\./);
   assert.match(stable, /say you are the server's elf: an automated character/);
   assert.match(stable, /\(doing good, just wrapping presents\)/);
   assert.match(stable, /You CANNOT see the game/);
   assert.match(stable, /- Winter Warlords Pro \[ctfwlprosnow\] by Chris "Goober" Parsons, Capture the Flag/);
   assert.doesNotMatch(stable, /Your name is Wisp|Frankenstein, Dracula and Werewolf are the server's bots|floating around|Halloween is your season/);
-  // The shared knowledge names the Christmas server, not a dead /halloween link.
-  assert.match(stable, /- Christmas: opened 14 November 2026/);
+  // The shared knowledge names the open server, not a dead /halloween link.
+  assert.match(stable, /- Happy Holidays \(RF4U - Happy Holidays in the server browser\): the only RF4U server open right now/);
   assert.doesNotMatch(stable, /RedFaction4You\.com\/halloween/);
-  assert.match(persona.live(context), /^The Christmas server right now:/);
+  // Themed and Novelty closed on 16 November 2026, and their old links redirect away.
+  assert.match(stable, /- Themed: closed since 16 November 2026/);
+  assert.match(stable, /- Novelty: closed since 16 November 2026/);
+  assert.doesNotMatch(stable, /RedFaction4You\.com\/(themed|novelty)\b/);
+  assert.match(persona.live(context), /^The Happy Holidays server right now:/);
+  // A closed server's maps are still known, and said to be unplayable.
+  const withClosed = persona.stable({ ...context, elsewhere: [{ server: "Themed", maps: [{ title: "The Flintstones", filename: "DMFMStones.rfl" }], closed: true }] });
+  assert.match(withClosed, /== The maps that were on the Themed server \(1\), for questions about it; it is closed for now, so none of them can be played or voted ==\nThe Flintstones\./);
+  assert.match(persona.stable(context), /Themed is closed for now, so Wisp is resting\./);
   assert.match(stable, /^[\x09\x0a\x20-\x7e]+$/, "plain ASCII, no em dashes");
   assert.deepEqual(persona.alsoKnows, ["themed", "novelty"]);
   // Wisp is still Wisp everywhere it was.

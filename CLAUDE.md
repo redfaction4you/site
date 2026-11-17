@@ -1,15 +1,18 @@
 # RedFaction4You — site
 
-The home of the RF4U Red Faction (2001) servers, Themed, Novelty and Christmas,
-with every map in each rotation, and a catalogue of maps, mods, assets and tools
-to play them with. Free, no account needed to download, self-hosted so it does
-not vanish when someone else's server does.
+The home of the RF4U Red Faction (2001) server, RF4U - Happy Holidays (slug
+`christmas`), with every map in its rotation, and a catalogue of maps, mods,
+assets and tools to play them with. Themed and Novelty closed on 16 November
+2026 at the owner's request; they are kept in `CLOSED_SERVERS` in
+`src/lib/servers.ts`, not deleted, and their VPS tasks are disabled. Free, no
+account needed to download, self-hosted so it does not vanish when someone
+else's server does.
 
 Repo: `github.com/redfaction4you/site` (public).
 
 ## The scope rule
 
-**The servers and the files to play on them.** The site leads with the three
+**The servers and the files to play on them.** The site leads with the open
 RF4U servers, each with a page listing its rotation and the map playing now, and
 keeps the downloads catalogue beside them.
 
@@ -29,9 +32,11 @@ older reasoning.
 this file is conventions and gotchas.
 
 Navigation: Servers, Downloads, Events. `/servers` lands on the first server
-in `src/lib/servers.ts`, and the tabs there reach the other two. `/themed`,
-`/novelty` and `/christmas` are short redirects to them, because that is what
-the in-game welcome messages print.
+in `src/lib/servers.ts`; tabs appear there only when more than one is open.
+`/christmas` is a short redirect to its page, because that is what the in-game
+welcome prints. `/themed`, `/novelty` and their `/servers/...` pages redirect
+to `/servers` while those two are closed. Copy that counts servers (the front
+page) counts `SERVERS` rather than naming a number.
 
 Downloads is the hub at `/downloads`. The four shelves behind it (`/maps`,
 `/assets`, `/mods`, `/tools`) are real pages that keep the `hidden` flag,
@@ -414,6 +419,10 @@ Themed's maps come first; then write 3 to that file.
   per server in `WISP_ON` (Halloween and Themed). Another server gets a ghost by
   adding an entry there and one in `SERVERS` in ghost.mjs, and running
   `ghost.mjs <server>` as its own task.
+- **Themed closed on 16 November 2026, so Wisp is off** (task "RF4U Themed
+  Ghost" disabled, notebook kept). Tinsel still gets Themed's and Novelty's
+  map titles through `alsoKnows`, labelled closed (`anyServerBySlug`), which
+  keeps its cached half over the 4,096-token minimum.
 - **Tinsel, the Christmas elf, since 14 November 2026.** The owner asked for
   "a christmas bot", "an elf", once Christmas took Halloween's port. A chat
   character built exactly like Wisp (`WISP_ON.christmas` in `persona.ts`;

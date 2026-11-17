@@ -15,9 +15,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  CLOSED_SERVERS,
   SERVERS,
   SERVER_CLIENT,
   SERVER_SLOTS,
+  anyServerBySlug,
+  isClosed,
   serverAddress,
   serverBySlug,
   serverHost,
@@ -25,18 +28,21 @@ import {
 
 /* --- the things that must not collide -------------------------------------- */
 
+// Closed servers count: one coming back must not find its port taken.
+const EVERY = [...SERVERS, ...CLOSED_SERVERS];
+
 test("no two servers share a port", () => {
-  const ports = SERVERS.map((server) => server.port);
+  const ports = EVERY.map((server) => server.port);
   assert.equal(new Set(ports).size, ports.length, ports.join(", "));
 });
 
 test("no two servers share a slug, which is the tab key and the URL", () => {
-  const slugs = SERVERS.map((server) => server.slug);
+  const slugs = EVERY.map((server) => server.slug);
   assert.equal(new Set(slugs).size, slugs.length);
 });
 
 test("no two servers share a name", () => {
-  const names = SERVERS.map((server) => server.name);
+  const names = EVERY.map((server) => server.name);
   assert.equal(new Set(names).size, names.length);
 });
 
@@ -90,16 +96,27 @@ test("with no host configured an address is absent, not a broken string", () => 
 /* --- lookup ----------------------------------------------------------------- */
 
 test("a server is found by its slug, and an unknown slug is null", () => {
-  assert.equal(serverBySlug("novelty")?.port, 17757);
-  assert.equal(serverBySlug("themed")?.port, 17756);
   assert.equal(serverBySlug("christmas")?.port, 17758);
+  assert.equal(serverBySlug("christmas")?.name, "RF4U - Happy Holidays");
   // Halloween gave its port to Christmas on 14 November 2026.
   assert.equal(serverBySlug("halloween"), null);
   assert.equal(serverBySlug("nothing-here"), null);
 });
 
+test("Themed and Novelty are closed: kept on file, with no page", () => {
+  // Shut down on 16 November 2026 at the owner's request.
+  for (const [slug, port] of [["themed", 17756], ["novelty", 17757]]) {
+    assert.equal(serverBySlug(slug), null, `${slug} would get a page`);
+    assert.ok(!SERVERS.some((server) => server.port === port), `${port} is still listed as open`);
+    assert.equal(anyServerBySlug(slug)?.port, port);
+    assert.ok(isClosed(slug));
+  }
+  assert.ok(!isClosed("christmas"));
+  assert.equal(anyServerBySlug("christmas")?.port, 17758);
+});
+
 test("every server says what it is for", () => {
-  for (const server of SERVERS) {
+  for (const server of EVERY) {
     assert.ok(server.blurb.length > 20, `${server.slug} has no blurb`);
   }
 });

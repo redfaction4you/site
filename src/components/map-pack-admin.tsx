@@ -8,7 +8,7 @@ import {
 } from "@/app/admin/actions";
 import type { MapPack } from "@/lib/map-packs";
 import { welcomeFor } from "@/lib/map-packs";
-import { SERVERS } from "@/lib/servers";
+import { CLOSED_SERVERS, SERVERS } from "@/lib/servers";
 
 /**
  * Map packs, managed.
@@ -65,18 +65,16 @@ export function MapPackAdmin({
         what the server calls itself and the message players see when they
         join, and nothing else about the server.{" "}
         <strong className="text-steel-400">
-          Themed picks it up on its nightly pass, around 4am Pacific
-        </strong>
-        , and only while nobody is playing, so a change never kicks anybody; to
-        land one sooner, start the <code>RF4U DM Map Pack</code> task on the
-        VPS by hand.{" "}
-        <strong className="text-steel-400">
-          Novelty and Halloween are not applied automatically.
+          Happy Holidays is not applied automatically.
         </strong>{" "}
-        Their configs on the VPS are edited by hand, so switching a pack on
-        here changes the list on their page and not what they play until the
-        config is changed to match. Each server&rsquo;s page shows whichever
-        pack is on.
+        Its config on the VPS is edited by hand, so switching a pack on here
+        changes the list on its page and not what it plays until the config is
+        changed to match. Its page shows whichever pack is on.{" "}
+        <strong className="text-steel-400">
+          Themed and Novelty are closed since 16 November 2026.
+        </strong>{" "}
+        Their packs are kept and can still be edited, and the nightly Themed
+        applier (<code>RF4U DM Map Pack</code>) is switched off with them.
       </p>
 
       <ul className="mt-4 space-y-3">
@@ -262,7 +260,7 @@ export function MapPackAdmin({
           the upsert leaves `server` alone. Creating a Novelty pack quietly made
           a fourth Themed pack.
 
-          A default of `themed` rather than a blank first option, because a pack
+          A default of the first open server rather than a blank first option, because a pack
           has to belong to a server and the form should not be able to submit a
           state the action refuses. Every server in servers.ts takes a pack.
         */}
@@ -278,12 +276,20 @@ export function MapPackAdmin({
           <select
             id="pack-server"
             name="server"
-            defaultValue={editing?.server ?? "themed"}
+            defaultValue={editing?.server ?? SERVERS[0].slug}
             className={FIELD}
           >
             {SERVERS.map((server) => (
               <option key={server.slug} value={server.slug}>
                 {server.name}
+              </option>
+            ))}
+            {/* Closed servers stay choosable, so editing one of their packs
+                keeps it where it was instead of the browser falling back to
+                the first option and moving it onto the open server. */}
+            {CLOSED_SERVERS.map((server) => (
+              <option key={server.slug} value={server.slug}>
+                {server.name} (closed)
               </option>
             ))}
           </select>

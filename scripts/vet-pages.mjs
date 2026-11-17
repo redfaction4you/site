@@ -19,7 +19,8 @@
  * - `/servers` lands on one of them
  * - every retired address still answers with a redirect rather than a 404,
  *   because those URLs are in Discord posts and in old in-game messages
- * - the front page names all three servers and nothing of the old news page
+ * - the front page names every open server, no closed one, and nothing of
+ *   the old news page
  *
  * **An offline server is not a failure.** The live panel has three honest
  * states and this only fails when none of them appears, which would mean the
@@ -56,7 +57,15 @@ for (let i = 0; i < args.length; i++) {
 }
 base = (base ?? "http://localhost:3000").replace(/\/+$/, "");
 
-const SERVER_SLUGS = ["themed", "novelty", "christmas"];
+/*
+ * From the registry, not a list of its own. This list read "themed, novelty,
+ * halloween" until somebody remembered it on 14 November 2026, and on
+ * 16 November Themed and Novelty closed: a second copy of the server list is a
+ * check that passes against the wrong site.
+ */
+const { SERVERS, CLOSED_SERVERS } = await import("../src/lib/servers.ts");
+const SERVER_SLUGS = SERVERS.map((server) => server.slug);
+const shortOf = (server) => server.name.replace(/^RF4U\s*-\s*/i, "");
 
 /** Addresses that were live pages until 25 September 2026 and must still land. */
 const RETIRED = [
@@ -74,6 +83,8 @@ const RETIRED = [
   "/link",
   "/servers/map-packs",
   "/servers/match",
+  // Closed servers: their welcome messages printed these to everybody who joined.
+  ...CLOSED_SERVERS.flatMap((server) => [`/${server.slug}`, `/servers/${server.slug}`]),
 ];
 
 const problems = [];
@@ -137,7 +148,7 @@ for (const slug of SERVER_SLUGS) {
   if (![301, 302, 303, 307, 308].includes(landing.status)) {
     fail(`/servers answered ${landing.status}, expected a redirect to a server page`);
   } else if (!SERVER_SLUGS.some((slug) => to.endsWith(`/servers/${slug}`))) {
-    fail(`/servers redirects to ${to}, which is not one of the three server pages`);
+    fail(`/servers redirects to ${to}, which is not one of the open server pages`);
   } else {
     console.log(`  ${"/servers".padEnd(22)} ok, lands on ${to}`);
   }
@@ -166,8 +177,11 @@ console.log(`  ${RETIRED.length} retired addresses checked`);
     fail(`/ answered ${home.status}`);
   } else {
     const text = textOf(home.body);
-    for (const name of ["Themed", "Novelty", "Christmas"]) {
+    for (const name of SERVERS.map(shortOf)) {
       if (!text.includes(name)) fail(`the front page does not name ${name}`);
+    }
+    for (const name of CLOSED_SERVERS.map(shortOf)) {
+      if (text.includes(name)) fail(`the front page still names ${name}, which is closed`);
     }
     for (const gone of ["Match report", "Most frags", "The analyst", "More to read"]) {
       if (text.includes(gone)) fail(`the front page still shows "${gone}"`);

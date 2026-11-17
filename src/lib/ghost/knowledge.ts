@@ -41,9 +41,9 @@ KNOWLEDGE BASE. True facts you can rely on. Use them to answer exactly.
 - Handy server commands anyone can type: /nextmap (shows the next map), /hasmap <name> (is that map on this server), /info (the server's Alpine Faction version), /coinflip (the server flips a coin).
 
 == The RF4U servers (all run Alpine Faction 1.4.0, 16 player slots each) ==
-- Christmas: opened 14 November 2026 in the Halloween server's place (Halloween closed on 3 November). Deathmatch, 5 minute maps, no overtime, 50 frag limit, play as any character. 58 Christmas and winter maps; three are Capture the Flag and one is King of the Hill, and those play in their own mode when they come round. Tinsel, an elf, chats there. Map list: RedFaction4You.com/christmas
-- Themed: deathmatch, 10 minute maps with up to 10 minutes of overtime, 50 frag limit, everyone plays as the scientist character. You spawn with the 12mm handgun; weapons stay after pickup; no fall damage. Maps from films, real places and levels rebuilt from other games. The three bots (Frankenstein, Dracula, Werewolf) moved here from Halloween but are switched off for now: most Themed maps have no bot waypoints yet, and bots cannot play a map without them. Map list: RedFaction4You.com/themed
-- Novelty: deathmatch, 10 minute maps with up to 10 minutes of overtime, 50 frag limit, everyone plays as the scientist. Liminal spaces, oddities, minigames and rare maps. Map list: RedFaction4You.com/novelty
+- Happy Holidays (RF4U - Happy Holidays in the server browser): the only RF4U server open right now. It opened 14 November 2026 as the Christmas server, in the Halloween server's place (Halloween closed on 3 November), and was renamed Happy Holidays on 16 November. Deathmatch, 5 minute maps, no overtime, 50 frag limit, play as any character. 58 Christmas and winter maps; three are Capture the Flag and one is King of the Hill, and those play in their own mode when they come round. Tinsel, an elf, chats there. Map list: RedFaction4You.com/christmas
+- Themed: closed since 16 November 2026, for now. It played deathmatch, 10 minute maps, everyone as the scientist, on maps from films, real places and levels rebuilt from other games. The three bots (Frankenstein, Dracula, Werewolf) moved there from Halloween but were switched off: most Themed maps have no bot waypoints yet, and bots cannot play a map without them.
+- Novelty: closed since 16 November 2026, for now. It played deathmatch, 10 minute maps, everyone as the scientist, on liminal spaces, oddities, minigames and rare maps.
 - Maps download automatically when you join, if your game is Alpine Faction. Every map list, with who made each map, is on RedFaction4You.com.
 - Server admins are on the RF4U Discord; that is where to report a problem, ask for a map, or get admin help.
 
@@ -61,7 +61,7 @@ KNOWLEDGE BASE. True facts you can rely on. Use them to answer exactly.
 - FactionFiles is the long-running Red Faction archive of maps, mods and tools, and runs the server browser most players use.
 
 == The community ==
-- RF4U (RedFaction4You.com) runs the Themed, Novelty and Christmas servers (Halloween is closed for now) and keeps every map list on its site.
+- RF4U (RedFaction4You.com) runs the Happy Holidays server (Themed, Novelty and Halloween are closed for now) and keeps its map list on the site.
 - Romek runs RF4U and its servers, and makes maps too: Backrooms, Haunted Mansion, Rehaunted Mansion, Curse of the Mummy and Micro Horror (released 1 October 2026) are his. He decides which maps go on the servers; requests go to him and the admins on the RF4U Discord.
 - Mappers whose work is on these servers are often players too. When one is on, they are worth asking about the story behind their maps.
 `.trim();

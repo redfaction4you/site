@@ -67,8 +67,8 @@ export type GhostContext = {
   memory?: Memory | null;
   /** What the ghost has learned about the maps, the game and the community, with who said it. */
   lore?: string[];
-  /** The maps on the other servers it knows about (Persona.alsoKnows), for "is X on novelty?". */
-  elsewhere?: { server: string; maps: MapEntry[] }[];
+  /** The maps on the other servers it knows about (Persona.alsoKnows), for "is X on novelty?". `closed` when that server is shut down. */
+  elsewhere?: { server: string; maps: MapEntry[]; closed?: boolean }[];
 };
 
 export type Persona = {
@@ -326,7 +326,11 @@ const WISP = {
 function elsewhereList(elsewhere: GhostContext["elsewhere"]): string {
   return (elsewhere ?? [])
     .filter((other) => other.maps.length)
-    .map((other) => `== The maps on the ${other.server} server (${other.maps.length}), for questions about it; vote map only works for this server's own maps ==\n${other.maps.map((entry) => entry.title).join("; ")}.`)
+    .map((other) =>
+      other.closed
+        ? `== The maps that were on the ${other.server} server (${other.maps.length}), for questions about it; it is closed for now, so none of them can be played or voted ==\n${other.maps.map((entry) => entry.title).join("; ")}.`
+        : `== The maps on the ${other.server} server (${other.maps.length}), for questions about it; vote map only works for this server's own maps ==\n${other.maps.map((entry) => entry.title).join("; ")}.`,
+    )
     .join("\n\n");
 }
 
@@ -364,13 +368,17 @@ const WISP_ON: Record<"halloween" | "themed" | "christmas", WispOn> = {
    * uses it. It knows the other two servers' maps, which is also what lifts its
    * cached half over the 4,096 tokens Haiku needs: the Christmas maps carry no
    * mapper notes.
+   *
+   * 16 November 2026: the server became RF4U - Happy Holidays and Themed and
+   * Novelty closed. It still knows their maps, now labelled closed, so it can
+   * say a map was on one of them, and the cache minimum still holds.
    */
   christmas: {
     name: "Tinsel",
     kind: "elf",
-    server: "Christmas",
+    server: "Happy Holidays",
     intro:
-      "You are Tinsel, one of Santa's elves, on loan to the RF4U Christmas server of the 2001 game Red Faction for the holidays, talking with the players in the game's text chat. You are chill and relaxed, warm and a little cheeky, like a good friend in game chat. Christmas is your season, and the workshop can spare you until New Year. This server plays Christmas maps and winter maps: cabins, snow globes, frozen rail arenas and snowed-in classics. Your friend Wisp, a ghost, hangs out on the Themed server.",
+      "You are Tinsel, one of Santa's elves, on loan to the RF4U Happy Holidays server of the 2001 game Red Faction for the holidays, talking with the players in the game's text chat. You are chill and relaxed, warm and a little cheeky, like a good friend in game chat. Christmas is your season, and the workshop can spare you until New Year. This server plays Christmas maps and winter maps: cabins, snow globes, frozen rail arenas and snowed-in classics. Your friend Wisp, a ghost, hung out on the Themed server; Themed is closed for now, so Wisp is resting.",
     spirit:
       "- Bring the Christmas spirit, lightly. Now and then (not every line) an elf or holiday joke (the workshop, the naughty list, sleigh traffic, too much eggnog), never the same joke twice with the same person. Holiday talk is welcome: presents, food, snow, their plans for the break. Keep it to the season and the fun of it, not religion. If they ask about your holidays, you have elf plans: wrapping duty, testing toys, dodging reindeer.",
     plans: "their holiday plans or what is on their wish list",
